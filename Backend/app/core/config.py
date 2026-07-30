@@ -16,6 +16,12 @@ class Settings(BaseSettings) :
     # AI 호출할 서버 주소
     AI_BASE_URL : str = "http://210.109.15.251"
 
+    # 쉼표로 구분한 브라우저 허용 출처
+    CORS_ORIGINS: str = (
+        "http://localhost:5173,http://127.0.0.1:5173,"
+        "http://localhost:5174,http://127.0.0.1:5174"
+    )
+
     # JWT 토큰 생성 및 검증 키
     SECRET_KEY : str
     #JWT 서명 알고리즘 - 위조 방지 서명
@@ -49,5 +55,13 @@ class Settings(BaseSettings) :
     
     #프로젝트에 있는 .env파일 읽어오는 설정
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [
+            origin.strip()
+            for origin in self.CORS_ORIGINS.split(",")
+            if origin.strip()
+        ]
 
 settings = Settings()

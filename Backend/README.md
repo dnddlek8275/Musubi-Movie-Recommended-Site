@@ -5,7 +5,7 @@ CineVerse의 영화 탐색, 개인화 추천, 캐릭터 채팅, 회원 및 관�
 
 ## 서버 구성
 
-- Python 3.14 이상
+- Python 3.12 이상
 - FastAPI, Uvicorn
 - PostgreSQL, SQLAlchemy 2, Alembic
 - JWT 인증
@@ -13,12 +13,11 @@ CineVerse의 영화 탐색, 개인화 추천, 캐릭터 채팅, 회원 및 관�
 
 ## 배포 준비
 
-Python 3.14와 PostgreSQL을 준비한 뒤 저장소를 내려받습니다.
+Python 3.12 이상과 PostgreSQL을 준비합니다.
 
 ```bash
-git clone -b BE-1 https://github.com/XCXMAIN/CineVerse.git
-cd CineVerse
-python3.14 -m venv .venv
+cd Backend
+python3 -m venv .venv
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e .
 ```
@@ -38,6 +37,7 @@ cp .env.example .env
 | `DATABASE_URL` | PostgreSQL 연결 주소 |
 | `SECRET_KEY` | Access/Refresh Token 서명용 비밀키 |
 | `AI_BASE_URL` | AI 서버 주소 |
+| `CORS_ORIGINS` | 허용할 브라우저 출처를 쉼표로 구분한 목록 |
 | `TMDB_ACCESS_TOKEN` | TMDB Read Access Token |
 | `TMDB_API_KEY` | Access Token을 사용하지 않을 때의 TMDB API Key |
 | `MAIL_HOST`, `MAIL_PORT` | SMTP 서버 주소와 포트 |
@@ -77,6 +77,20 @@ Secret 또는 환경변수 관리 기능을 사용하는 것을 권장합니다.
 .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8080
 ```
 
+Docker 이미지:
+
+```bash
+docker build -t cineverse-backend .
+docker run --rm --env-file .env -p 8080:8080 cineverse-backend
+```
+
+DB 마이그레이션은 애플리케이션 컨테이너를 여러 개 실행하기 전에 별도 작업으로
+한 번만 수행합니다.
+
+```bash
+docker run --rm --env-file .env cineverse-backend alembic upgrade head
+```
+
 서버 실행 후 다음 주소를 확인할 수 있습니다.
 
 | 용도 | 주소 |
@@ -105,6 +119,8 @@ AI 서버를 사용하지 않는 환경에서는 `/ai-health`가 연결 실패�
 │   └── uploads/         # 사용자 업로드 저장 경로
 ├── alembic/             # DB 마이그레이션
 ├── alembic.ini
+├── Dockerfile
+├── .dockerignore
 ├── .env.example
 └── pyproject.toml
 ```
@@ -118,7 +134,7 @@ AI 서버를 사용하지 않는 환경에서는 `/ai-health`가 연결 실패�
 - 충분히 길고 예측하기 어려운 `SECRET_KEY`를 사용합니다.
 - 실제 `.env`와 비밀정보를 Git에 올리지 않습니다.
 - 배포 전에 DB를 백업하고 `alembic upgrade head`를 실행합니다.
-- 운영 프론트엔드 주소만 CORS에 허용하도록 `app/main.py`를 점검합니다.
+- `CORS_ORIGINS`에는 운영 프론트엔드 주소만 지정합니다.
 - HTTPS 환경에서는 Refresh Token Cookie의 `Secure` 설정을 적용합니다.
 - 운영 서버에서는 Uvicorn의 `--reload` 옵션을 사용하지 않습니다.
 - 사용자 업로드 경로를 영속 볼륨과 백업 대상에 포함합니다.

@@ -2,7 +2,7 @@
 name = "cineverse"
 version = "0.1.0"
 description = "backserver-app env"
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 dependencies = [
     "fastapi==0.137.0",
     "uvicorn[standard]>=0.34.0",
