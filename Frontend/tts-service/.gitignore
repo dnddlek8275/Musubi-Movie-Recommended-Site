@@ -1,0 +1,9 @@
+.venv/
+voices/
+.openvoice-env/
+vendor/
+.cache/
+references/*
+!references/.gitkeep
+__pycache__/
+samples/

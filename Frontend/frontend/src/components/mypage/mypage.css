@@ -1,0 +1,840 @@
+.mypage {
+  display: grid;
+  gap: 40px;
+  color: #eef3f4;
+}
+
+.mypage h1,
+.mypage h2,
+.mypage p {
+  margin: 0;
+}
+
+.mypage h2 {
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.mypage-status {
+  margin-bottom: -24px;
+  color: #ffcf7a;
+  font-size: 13px;
+}
+
+.mypage-top {
+  display: grid;
+  grid-template-columns: 1.75fr 1fr;
+  gap: 16px;
+}
+
+.mypage-welcome-card,
+.mypage-keyword-card,
+.mypage-actor-panel {
+  border-radius: 16px;
+  background: #181f21;
+}
+
+.mypage-welcome-card {
+  min-height: 190px;
+  padding: 28px 32px;
+  position: relative;
+  display: grid;
+  grid-template-columns: 108px 1fr;
+  align-items: center;
+  gap: 28px;
+}
+
+.mypage-avatar-wrap {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+}
+
+.mypage-avatar-media {
+  position: relative;
+  width: 100px;
+  height: 100px;
+}
+
+.mypage-avatar {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  display: block;
+  object-fit: cover;
+}
+
+.mypage-avatar-edit {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: #fff;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.mypage-avatar-delete {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.mypage-welcome-card__copy h1 {
+  font-size: 19px;
+  line-height: 1.35;
+}
+
+.mypage-text-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #d7ddde;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.mypage-welcome-card > .mypage-text-link {
+  position: absolute;
+  top: 18px;
+  right: 22px;
+}
+
+.mypage-card-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+}
+
+.mypage-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.mypage-delete-all {
+  padding: 5px 10px;
+  border: 1px solid rgba(244, 95, 95, 0.65);
+  border-radius: 999px;
+  background: transparent;
+  color: #ff8585;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.mypage-delete-all:hover {
+  border-color: #f45f5f;
+  background: rgba(244, 95, 95, 0.12);
+  color: #ff9b9b;
+}
+
+.mypage-keyword-card {
+  min-height: 190px;
+  padding: 22px 26px;
+  display: grid;
+  align-content: start;
+  gap: 22px;
+  overflow: visible;
+}
+
+.mypage-keywords {
+  min-width: 0;
+  max-height: 97px;
+  padding: 6px 6px 0 0;
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.mypage-keywords span {
+  position: relative;
+  max-width: 100%;
+  min-width: 44px;
+  height: 25px;
+  padding: 6px 13px;
+  border: 1px solid #465054;
+  border-radius: 999px;
+  color: #c9d0d2;
+  font-size: 11px;
+  line-height: 1;
+  text-align: center;
+  overflow-wrap: anywhere;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+
+.mypage-keywords--truncated::after {
+  content: '...';
+  width: 48px;
+  height: 25px;
+  padding-right: 2px;
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  background: linear-gradient(90deg, transparent, #181f21 35%);
+  color: #c9d0d2;
+  font-size: 16px;
+  font-weight: 700;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+/* 배우/장르/키워드 항목 우측 상단의 작은 X 삭제 버튼 */
+.mypage-remove-x {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #3a4448;
+  color: #e6ecee;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 3;
+}
+
+.mypage-remove-x:hover {
+  background: #f45f5f;
+  border-color: #f45f5f;
+  color: #fff;
+}
+
+.mypage-remove-x--actor {
+  top: 2px;
+  right: 2px;
+}
+
+.mypage-edit-stack {
+  display: grid;
+  gap: 8px;
+}
+
+.mypage-edit-stack--keywords {
+  gap: 10px;
+}
+
+.mypage-edit-field {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.mypage-edit-field span {
+  color: #c9d0d2;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.mypage-edit-field input {
+  width: 100%;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid #465054;
+  border-radius: 8px;
+  outline: 0;
+  background: #071016;
+  color: #fff;
+  font-size: 13px;
+}
+
+.mypage-edit-field input:focus {
+  border-color: var(--accent);
+}
+
+.mypage-recommend-chat {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 24px;
+  align-items: end;
+}
+
+.mypage-recommend {
+  min-width: 0;
+  display: grid;
+  gap: 18px;
+}
+
+.mypage-poster-row {
+  display: flex;
+  gap: 20px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.mypage-poster-row::-webkit-scrollbar {
+  display: none;
+}
+
+.mypage-poster-row--compact {
+  gap: 20px;
+}
+
+.mypage-poster-card {
+  width: 170px;
+  flex: 0 0 170px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #181f21;
+}
+
+.mypage-poster-card--empty {
+  height: 250px;
+}
+
+.mypage-poster-card__image {
+  height: 172px;
+  position: relative;
+  overflow: hidden;
+  background: #000;
+}
+
+.mypage-poster-card__image img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.mypage-poster-card__placeholder {
+  width: 100%;
+  height: 100%;
+  background: #000;
+}
+
+.mypage-heart {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  position: absolute;
+  top: 9px;
+  right: 10px;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  font-size: 30px;
+  line-height: 1;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+}
+
+.mypage-poster-card__info {
+  min-height: 78px;
+  padding: 12px 12px 11px;
+  text-align: center;
+}
+
+.mypage-poster-card__info strong,
+.mypage-poster-card__info span,
+.mypage-poster-card__info em {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mypage-poster-card__info strong {
+  color: #f7fafb;
+  font-size: 13.5px;
+  line-height: 1.2;
+}
+
+.mypage-poster-card__info span {
+  margin-top: 6px;
+  color: #8c9699;
+  font-size: 10px;
+}
+
+.mypage-poster-card__info em {
+  margin-top: 7px;
+  color: #f1594f;
+  font-size: 12.5px;
+  font-style: normal;
+}
+
+.mypage-poster-card__info em::first-letter {
+  color: var(--accent);
+}
+
+.mypage-chat-list {
+  display: grid;
+  gap: 8px;
+}
+
+.mypage-chat-item {
+  width: 100%;
+  height: 56px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  background: #181f21;
+  color: #e8eeee;
+  font: inherit;
+  text-decoration: none;
+  cursor: default;
+}
+
+.mypage-chat-item strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mypage-chat-item span {
+  flex: 0 0 auto;
+  color: #d0d7d8;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.mypage-chat-item--empty {
+  background: #14191b;
+}
+
+.mypage-chat-item--more {
+  justify-content: center;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.mypage-chat-item--more:hover {
+  background: #1f2729;
+}
+
+.mypage-actors,
+.mypage-genres,
+.mypage-picked {
+  display: grid;
+  gap: 18px;
+}
+
+/* 선호 배우: 한 줄에 7개만 보이고(칸 너비로 맞춤), 그보다 많으면 옆으로 스와이프 */
+.mypage-actor-panel {
+  padding: 16px 4px 4px;
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  background: transparent;
+}
+
+.mypage-actor-panel::-webkit-scrollbar {
+  display: none;
+}
+
+.mypage-actor {
+  flex: 0 0 calc(100% / 7);
+  min-width: 96px;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
+/* X 버튼을 원형 이미지 우측 상단에 붙이기 위한 위치 기준(원은 overflow:hidden이라 밖에 둔다) */
+.mypage-actor__media {
+  position: relative;
+  width: 110px;
+}
+
+.mypage-actor__circle {
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #273033;
+  color: #fff;
+  font-size: 30px;
+  line-height: 1;
+}
+
+.mypage-actor__circle img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+/* 링크/버튼으로 쓰는 원형(사진 클릭 → 검색, + → 배우 추가) */
+a.mypage-actor__circle,
+button.mypage-actor__circle {
+  padding: 0;
+  border: 0;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+a.mypage-actor__circle:hover {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.mypage-actor__circle--add {
+  font-size: 40px;
+  font-weight: 300;
+  color: #9aa4a9;
+  background: #273033;
+}
+
+.mypage-actor__circle--add:hover {
+  color: #e6ecee;
+  background: #303a3d;
+}
+
+/* 배우 추가 모달 안의 배우 선택 그리드 */
+.mypage-actor-picker {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.mypage-actor-pick {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 10px 6px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.mypage-actor-pick:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.mypage-actor-pick__circle {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: #273033;
+  color: #fff;
+  font-size: 26px;
+}
+
+.mypage-actor-pick__circle img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mypage-actor-pick__name {
+  max-width: 100%;
+  overflow: hidden;
+  color: #cbd2d4;
+  font-size: 12px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mypage-actor-picker__empty {
+  grid-column: 1 / -1;
+  padding: 32px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.mypage-actor strong {
+  min-height: 15px;
+  max-width: 110px;
+  overflow: hidden;
+  color: #cbd2d4;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mypage-genre-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 16px;
+}
+
+.mypage-genre-slot {
+  position: relative;
+  display: grid;
+}
+
+.mypage-genre-button {
+  height: 46px;
+  border: 0;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: #273033;
+  color: #e6ecee;
+  font-size: 15px;
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.mypage-genre-button--add {
+  color: #9aa4a9;
+}
+
+.mypage-genre-button--add:hover {
+  color: #e6ecee;
+  background: #303a3d;
+}
+
+.mypage-genre-input {
+  height: 46px;
+  padding: 0 12px;
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  outline: 0;
+  background: #273033;
+  color: #fff;
+  font-size: 13px;
+  text-align: center;
+}
+
+.mypage-picked {
+  padding-bottom: 48px;
+}
+
+/* 채팅 이력 "..." 팝업 */
+.mypage-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.72);
+}
+
+.mypage-modal {
+  position: relative;
+  width: min(480px, 100%);
+  max-height: 80vh;
+  padding: 32px 28px 28px;
+  display: grid;
+  gap: 16px;
+  align-content: start;
+  overflow-y: auto;
+  border-radius: 16px;
+  background: #181f21;
+  color: #eef3f4;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.mypage-modal__close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.mypage-modal__close:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.mypage-modal__title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.mypage-modal__list {
+  display: grid;
+  gap: 8px;
+}
+
+.mypage-preference-delete-modal__description {
+  padding-right: 28px;
+  color: #aeb8bb;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.mypage-preference-delete-options {
+  display: grid;
+  gap: 10px;
+}
+
+.mypage-preference-delete-option {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 16px;
+  border: 1px solid rgba(244, 95, 95, 0.42);
+  border-radius: 11px;
+  background: rgba(244, 95, 95, 0.08);
+  color: #ff9b9b;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mypage-preference-delete-option:hover:not(:disabled) {
+  border-color: #f45f5f;
+  background: rgba(244, 95, 95, 0.18);
+}
+
+.mypage-preference-delete-option:disabled,
+.mypage-modal__close:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+:root[data-theme="light"] .mypage h1,
+:root[data-theme="light"] .mypage h2,
+:root[data-theme="light"] .mypage-modal__title {
+  color: #000;
+}
+
+:root[data-theme="light"] .mypage-welcome-card,
+:root[data-theme="light"] .mypage-keyword-card,
+:root[data-theme="light"] .mypage-modal {
+  border: 1px solid var(--panel-border);
+  background: #fff;
+  color: #000;
+}
+
+:root[data-theme="light"] .mypage-text-link,
+:root[data-theme="light"] .mypage-edit-field span,
+:root[data-theme="light"] .mypage-keywords span,
+:root[data-theme="light"] .mypage-actor-pick__name {
+  color: #000;
+}
+
+:root[data-theme="light"] .mypage-edit-field input {
+  border-color: #d3dbe0;
+  background: #f6f8fa;
+  color: #000;
+}
+
+:root[data-theme="light"] .mypage-modal__close {
+  background: rgba(0, 0, 0, 0.06);
+  color: #000;
+}
+
+:root[data-theme="light"] .mypage-modal__close:hover {
+  background: rgba(0, 0, 0, 0.12);
+}
+
+:root[data-theme="light"] .mypage-preference-delete-modal__description {
+  color: #5d6b74;
+}
+
+:root[data-theme="light"] .mypage-preference-delete-option {
+  background: #fff5f5;
+  color: #b33232;
+}
+
+:root[data-theme="light"] .mypage-keywords--truncated::after {
+  background: linear-gradient(90deg, transparent, #fff 35%);
+  color: #526067;
+}
+
+@media (max-width: 1180px) {
+  .mypage-top,
+  .mypage-recommend-chat {
+    grid-template-columns: 1fr;
+  }
+
+  .mypage-chat-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mypage-genre-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+  }
+}
+
+@media (max-width: 720px) {
+  .mypage {
+    gap: 28px;
+  }
+
+  .mypage-welcome-card {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+  }
+
+  .mypage-chat-list,
+  .mypage-genre-row {
+    grid-template-columns: 1fr;
+  }
+
+  .mypage-poster-card {
+    width: 150px;
+    flex-basis: 150px;
+  }
+
+  .mypage-poster-card__image {
+    height: 150px;
+  }
+}

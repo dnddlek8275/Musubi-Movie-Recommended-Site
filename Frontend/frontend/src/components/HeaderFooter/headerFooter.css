@@ -1,0 +1,253 @@
+.site-header {
+  min-height: 52px;
+  margin-bottom: 70px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 500px auto;
+  grid-template-areas: "logo nav search end";
+  gap: 40px;
+  align-items: center;
+}
+
+.site-logo {
+  grid-area: logo;
+  display: inline-flex;
+  align-items: center;
+}
+
+.site-logo__svg {
+  height: 50px;
+  width: fit-content;
+  display: block;
+}
+
+/* 로고 글자색: 다크 = 흰색, 라이트 = 짙은 남색(styles.css의 --logo-ink) */
+.logo-ink {
+  fill: var(--logo-ink);
+}
+
+.site-nav {
+  grid-area: nav;
+}
+
+.site-search {
+  grid-area: search;
+}
+
+.site-header__end {
+  grid-area: end;
+}
+
+.site-nav {
+  display: flex;
+  justify-content: center;
+  gap: 100px;
+  color: var(--nav-text);
+  font-size: 23px;
+}
+
+.site-nav__item,
+.site-login,
+.site-auth__user,
+.site-auth__logout {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.site-nav__item:hover,
+.site-login:hover,
+.site-auth__logout:hover {
+  color: var(--accent);
+}
+
+.site-search {
+  min-height: 50px;
+  padding: 0 28px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+}
+
+.site-search__text {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--input-text);
+  font-size: 15px;
+}
+
+.site-search__icon {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 2px solid var(--muted);
+  border-radius: 50%;
+  position: relative;
+  flex: 0 0 auto;
+  background: transparent;
+  cursor: pointer;
+}
+
+.site-search__icon::after {
+  content: "";
+  width: 10px;
+  height: 3px;
+  border-radius: 2px;
+  position: absolute;
+  right: -7px;
+  bottom: -4px;
+  background: var(--muted);
+  transform: rotate(45deg);
+}
+
+.site-header__end {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 20px;
+}
+
+.theme-toggle {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1px solid var(--panel-border);
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--panel);
+  color: var(--nav-text);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  transition: border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.theme-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.theme-toggle__icon {
+  display: block;
+}
+
+.site-login {
+  color: var(--nav-text);
+  font-size: 18px;
+}
+
+.site-auth {
+  min-width: 0;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+}
+
+.site-auth__user {
+  min-width: 0;
+  max-width: 100px;
+  overflow: hidden;
+  color: var(--nav-text);
+  font-size: 13px;
+  text-overflow: ellipsis;
+}
+
+.site-auth__logout {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--nav-text);
+  cursor: pointer;
+  font-size: 20px;
+}
+
+.site-footer {
+  margin-top: 80px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 24px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.site-footer p {
+  margin: 0 0 8px;
+}
+
+.site-footer__copyright {
+  align-self: center;
+  color: var(--text);
+  font-size: 22px;
+}
+
+@media (max-width: 768px) {
+  .site-header {
+    min-height: 0;
+    margin-bottom: 28px;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas:
+      "logo nav end"
+      "search search search";
+    gap: 14px 12px;
+  }
+
+  .site-logo__svg {
+    height: 32px;
+
+  }
+
+  .site-nav {
+    grid-area: nav;
+    justify-content: flex-start;
+    gap: 20px;
+    font-size: 15px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .site-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .site-header__end {
+    grid-area: end;
+    gap: 14px;
+  }
+
+  .site-search {
+    grid-area: search;
+    min-height: 44px;
+    padding: 0 18px;
+  }
+
+  .theme-toggle {
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+  }
+
+  .site-login {
+    font-size: 20px;
+  }
+
+  .site-footer {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-top: 48px;
+    text-align: center;
+  }
+
+  .site-footer__copyright {
+    font-size: 16px;
+  }
+}

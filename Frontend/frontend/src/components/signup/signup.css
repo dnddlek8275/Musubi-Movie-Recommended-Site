@@ -1,0 +1,47 @@
+.signup-form {
+  align-content: center;
+  gap: 14px;
+}
+
+.signup-page .login-form-panel {
+  gap: 24px;
+}
+
+.signup-page .login-showcase__copy h1 {
+  max-width: 520px;
+}
+
+.signup-email-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px;
+  gap: 8px;
+}
+
+.signup-verification-button {
+  border: 1px solid rgba(255, 196, 94, 0.5);
+  border-radius: 10px;
+  background: rgba(240, 189, 95, 0.12);
+  color: #f0bd5f;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.signup-verification-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+@media (max-width: 680px) {
+  .signup-page .login-showcase__copy h1 {
+    font-size: 29px;
+  }
+
+  .signup-email-row {
+    grid-template-columns: 1fr;
+  }
+
+  .signup-verification-button {
+    min-height: 44px;
+  }
+}

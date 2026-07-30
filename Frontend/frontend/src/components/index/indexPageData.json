@@ -1,0 +1,28 @@
+{
+  "navigation": {
+    "menus": [
+      {
+        "label": "매표소",
+        "href": "/chat/auto"
+      },
+      {
+        "label": "배우대기실",
+        "href": "/chat/group"
+      },
+      {
+        "label": "박스오피스",
+        "href": "/recommendations"
+      }
+    ],
+    "searchPlaceholder": "",
+    "authLabel": "Login",
+    "authHref": "/login"
+  },
+
+  "footer": {
+    "email": "이메일 주소 : moosbie@gmail.com",
+    "phone": "전화번호 :",
+    "privacy": "개인 정보 처리 방침",
+    "copyright": "© 2026 team 무스비"
+  }
+}

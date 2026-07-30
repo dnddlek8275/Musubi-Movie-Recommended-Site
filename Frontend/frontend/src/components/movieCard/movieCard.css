@@ -1,0 +1,125 @@
+.movie-card {
+  min-width: 0;
+overflow: hidden;
+border-radius: 9px;
+background: var(--panel);
+cursor: pointer;
+}
+
+.movie-card__poster {
+  min-height: 166px;
+padding:12px;
+display: flex;
+align-items: flex-start;
+justify-content: flex-end;
+position: relative;
+overflow: hidden;
+background: #000;
+}
+
+.movie-card__poster-image {
+  position: absolute;
+inset: 0;
+width: 100%;
+height: 100%;
+object-fit: cover;
+object-position: center top;
+}
+
+.movie-card__heart {
+  position: relative;
+z-index: 1;
+  width: 26px;
+height: 26px;
+padding: 0;
+border: 0;
+background: transparent;
+color: #fff;
+font-size: 26px;
+line-height: 1;
+text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6);
+cursor: pointer;
+}
+
+.movie-card__heart--active {
+  color: #ff2b2b;
+}
+
+.movie-card__info {
+  min-height: 68px;
+padding:11px 12px 12px;
+text-align: center;
+}
+
+.movie-card__info strong {
+  display: block;
+margin-bottom: 5px;
+font-size: 13px;
+line-height: 1.2;
+}
+
+.movie-card__info span {
+  display: block;
+color: var(--muted);
+font-size: 10px;
+line-height: 1.3;
+}
+
+.movie-card__rating {
+  margin-top: 8px;
+color: var(--accent);
+font-size: 13px;
+white-space: nowrap;
+}
+
+.recent-poster {
+  min-height: 104px;
+padding:8px;
+border-radius: 6px;
+position: relative;
+overflow: hidden;
+cursor: pointer;
+background: #000;
+}
+
+.recent-poster__image {
+  position: absolute;
+inset: 0;
+width: 100%;
+height: 100%;
+object-fit: cover;
+}
+
+.recent-poster::after {
+  content: "";
+position: absolute;
+inset: 0;
+background: linear-gradient(180deg, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0.62));
+}
+
+.recent-poster span {
+  position: relative;
+z-index: 2;
+  display: block;
+color: rgba(255, 255, 255, 0.74);
+font-size: 10px;
+line-height: 1.2;
+}
+
+.recent-heart {
+  position: absolute;
+top: 7px;
+right: 7px;
+z-index: 2;
+padding: 0;
+border: none;
+background: transparent;
+color: rgba(255, 255, 255, 0.65);
+font-size: 18px;
+line-height: 1;
+cursor: pointer;
+}
+
+.recent-heart--active {
+  color: #ff2b2b;
+}

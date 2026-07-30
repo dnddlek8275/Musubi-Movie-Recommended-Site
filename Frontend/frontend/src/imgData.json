@@ -1,0 +1,31 @@
+{
+  "hero": {
+    "promos": [
+      {
+        "id": 0,
+        "title": "영화1",
+        "image": "/images/promo1.png",
+        "link": "https://youtu.be/7OIFdWk83no?si=MJgZhIM80OiU1Ouz"
+      },
+      {
+        "id": 1,
+        "title": "영화2",
+        "image": "/images/promo2.png",
+        "link": "https://youtu.be/Dt5hFexM5BI?si=5G94fbjKTxGIC_U6"
+      },
+      {
+        "id": 2,
+        "title": "영화3",
+        "image": "/images/promo3.png",
+        "link": "https://youtu.be/8fxEBin7_cQ?si=EKFDl_lgMDSQEdsn"
+      },
+      {
+        "id": 3,
+        "title": "영화4",
+        "image": "/images/promo4.png",
+        "link": "https://youtu.be/5-H7DpEBZGo?si=gJThX5PD3LOBrZx_"
+      }
+    ]
+  },
+  "characters": [
+  ]}
