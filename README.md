@@ -10,7 +10,8 @@ monorepo입니다.
 .
 ├── AI/          # RAG, 캐릭터·영화 추천, GPU AI API
 ├── Backend/     # FastAPI API, 인증, PostgreSQL 연동
-├── Frontend/    # React 웹, 선택형 TTS·GPU 모니터링 도구
+├── Frontend/    # React 웹 애플리케이션
+├── Add-on/      # 선택형 TTS·GPU 모니터링·프로토타입
 ├── Infra/       # 클라우드 및 Kubernetes 배포 코드
 └── docs/        # 요구사항, DB, 아키텍처 및 운영 문서
 ```
@@ -32,4 +33,6 @@ monorepo입니다.
 - [Frontend 안내](Frontend/README.md)
 - [AI 안내](AI/README.md)
 - [Infra 안내](Infra/README.md)
-- [DB 테이블](docs/DB_TABLES.md)
+- [선택 기능 안내](Add-on/README.md)
+- [문서 안내](docs/README.md)
+- [DB 테이블](docs/current/backend/DB_TABLES.md)

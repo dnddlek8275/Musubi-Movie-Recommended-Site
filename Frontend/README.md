@@ -12,4 +12,10 @@
 - `DELETE /admin/movie/{movie_id}`: 영화 삭제
 - `PATCH /admin/users/admin-role`: 관리자 권한 부여·회수
 
-기존 로그인에서 저장한 Access Token과 refresh 흐름을 재사용합니다. 관리자 화면 진입 시 `/admin/check`로 실제 권한을 확인하며, 모든 관리자 응답은 HTTP 상태와 함께 `state === "success"`인지 검사합니다. 이 저장소에는 BE2 백엔드 소스가 없으므로 위 엔드포인트의 서버 구현 및 관리자 역할 발급은 백엔드 저장소에서 제공되어야 합니다.
+기존 로그인에서 저장한 Access Token과 refresh 흐름을 재사용합니다. 관리자
+화면 진입 시 `/admin/check`로 실제 권한을 확인하며, 모든 관리자 응답은 HTTP
+상태와 함께 `state === "success"`인지 검사합니다. 백엔드 구현은 monorepo의
+`Backend/`에서 관리합니다.
+
+선택형 TTS와 GPU 모니터링 도구는 핵심 프론트와 분리해 `Add-on/`에
+보관합니다.
