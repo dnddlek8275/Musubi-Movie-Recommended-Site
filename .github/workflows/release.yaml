@@ -1,0 +1,131 @@
+name: Build, Push, and Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type DEPLOY to confirm the production release
+        required: true
+        type: string
+      image_tag:
+        description: Immutable image tag, such as a commit SHA
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: Validate release inputs
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      REGISTRY_HOST: ${{ vars.REGISTRY_HOST }}
+      REGISTRY_NAMESPACE: ${{ vars.REGISTRY_NAMESPACE }}
+      BUILD_PLATFORMS: ${{ vars.BUILD_PLATFORMS }}
+      KUBECTL_VERSION: ${{ vars.KUBECTL_VERSION }}
+      REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+      REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+      KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+    steps:
+      - name: Require explicit confirmation and deployment settings
+        run: |
+          test "${{ inputs.confirmation }}" = "DEPLOY"
+          test -n "${REGISTRY_HOST}"
+          test -n "${REGISTRY_NAMESPACE}"
+          test -n "${BUILD_PLATFORMS}"
+          test -n "${KUBECTL_VERSION}"
+          test -n "${REGISTRY_USERNAME}"
+          test -n "${REGISTRY_PASSWORD}"
+          test -n "${KUBE_CONFIG}"
+          case "${{ inputs.image_tag }}" in
+            *[!A-Za-z0-9._-]* | "") exit 1 ;;
+          esac
+
+  publish:
+    name: Publish container images
+    needs: preflight
+    runs-on: ubuntu-latest
+    environment: production
+    strategy:
+      matrix:
+        include:
+          - service: frontend
+            context: Frontend
+          - service: backend
+            context: Backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.REGISTRY_HOST }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Build and push immutable image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          platforms: ${{ vars.BUILD_PLATFORMS }}
+          tags: ${{ vars.REGISTRY_HOST }}/${{ vars.REGISTRY_NAMESPACE }}/${{ matrix.service }}:${{ inputs.image_tag }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  deploy:
+    name: Run migration and deploy
+    needs: publish
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      BACKEND_IMAGE: ${{ vars.REGISTRY_HOST }}/${{ vars.REGISTRY_NAMESPACE }}/backend:${{ inputs.image_tag }}
+      FRONTEND_IMAGE: ${{ vars.REGISTRY_HOST }}/${{ vars.REGISTRY_NAMESPACE }}/frontend:${{ inputs.image_tag }}
+      KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+      MIGRATION_JOB: backend-migration-${{ github.run_id }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: ${{ vars.KUBECTL_VERSION }}
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p "${HOME}/.kube"
+          printf '%s' "${KUBE_CONFIG}" | base64 --decode > "${HOME}/.kube/config"
+          chmod 600 "${HOME}/.kube/config"
+          kubectl cluster-info
+
+      - name: Run database migration
+        run: |
+          sed \
+            -e "s/name: backend-migration/name: ${MIGRATION_JOB}/" \
+            -e "s#registry.example.com/cineverse/backend:dev#${BACKEND_IMAGE}#" \
+            Infra/k8s/base/migration-job.yaml > /tmp/migration-job.yaml
+          kubectl apply -f /tmp/migration-job.yaml
+          kubectl -n cineverse wait \
+            --for=condition=complete "job/${MIGRATION_JOB}" \
+            --timeout=300s
+          kubectl -n cineverse logs "job/${MIGRATION_JOB}"
+
+      - name: Update application images
+        run: |
+          kubectl -n cineverse set image deployment/backend \
+            "backend=${BACKEND_IMAGE}"
+          kubectl -n cineverse set image deployment/frontend \
+            "frontend=${FRONTEND_IMAGE}"
+          kubectl -n cineverse rollout status deployment/backend --timeout=300s
+          kubectl -n cineverse rollout status deployment/frontend --timeout=300s

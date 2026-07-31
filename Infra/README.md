@@ -19,3 +19,6 @@ Secret 파일은 저장소 밖에서 만들고 Git에 커밋하지 않습니다.
 
 관리자로부터 Registry, 도메인, DB·AI 사설 주소와 RWX StorageClass를 받은
 후 [Kubernetes 안내](k8s/README.md)의 교체 목록에 반영해야 합니다.
+
+GitHub Actions의 검사·수동 배포 흐름은
+[CI/CD 안내](../docs/current/infra/ci-cd.md)를 확인합니다.
