@@ -107,6 +107,26 @@ docker run --rm --env-file .env cineverse-backend alembic upgrade head
 AI 서버를 사용하지 않는 환경에서는 `/ai-health`가 연결 실패를 반환할 수
 있습니다.
 
+## 로컬 영화 데이터 가져오기
+
+저장소 루트의 `movies_final.csv`를 로컬 Compose DB에 넣을 때는 Backend
+이미지를 빌드한 뒤 import 스크립트를 실행합니다.
+
+```bash
+docker compose build backend
+docker compose run --rm \
+  -v "$(pwd)/movies_final.csv:/data/movies_final.csv:ro" \
+  backend python scripts/import_movies_csv.py /data/movies_final.csv
+```
+
+스크립트는 `tmdb_id`를 기준으로 영화 정보를 추가하거나 갱신하고,
+`movie_genres`를 CSV와 다시 동기화합니다. 기존 `movie_stats` 값은 보존하며,
+통계 행이 없는 영화에만 기본값을 생성합니다. 기본 설정에서는 `db`,
+`localhost`, `127.0.0.1` 이외의 DB로 가져오기를 거부합니다.
+
+CSV에는 배우 TMDB ID와 프로필 이미지, 캐릭터 정보가 없으므로 `actors`,
+`movie_actors`, `characters` 테이블은 이 작업으로 채우지 않습니다.
+
 ## 배포 파일 구조
 
 ```text

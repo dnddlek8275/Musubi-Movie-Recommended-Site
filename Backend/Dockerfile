@@ -13,6 +13,7 @@ RUN python -m pip install --upgrade pip \
 
 COPY alembic.ini ./
 COPY alembic ./alembic
+COPY scripts ./scripts
 
 RUN mkdir -p /app/app/uploads/images/user_profiles \
     && addgroup --system cineverse \

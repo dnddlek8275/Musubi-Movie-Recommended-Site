@@ -10,6 +10,9 @@ BackReadme.md
 .codex/
 docs/
 scripts/
+!scripts/
+scripts/*
+!scripts/import_movies_csv.py
 
 .venv/
 .vscode/
