@@ -94,13 +94,16 @@ jobs:
       - name: Compile Python sources
         run: python -m compileall -q app alembic
 
+      - name: Run Backend unit tests
+        run: python -m unittest discover -s tests -v
+
       - name: Validate FastAPI route schema
         run: |
           python - <<'PY'
           from app.main import app
 
           paths = app.openapi()["paths"]
-          required_paths = {"/health", "/db-test", "/ai-health"}
+          required_paths = {"/health", "/ready", "/db-test", "/ai-health"}
           missing = required_paths.difference(paths)
           if missing:
               raise SystemExit(f"Missing required routes: {sorted(missing)}")
@@ -136,6 +139,8 @@ jobs:
 
           curl --fail --silent --show-error \
             http://127.0.0.1:8080/health
+          curl --fail --silent --show-error \
+            http://127.0.0.1:8080/ready
           curl --fail --silent --show-error \
             http://127.0.0.1:8080/db-test |
             python -c '

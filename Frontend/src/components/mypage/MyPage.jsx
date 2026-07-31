@@ -134,7 +134,7 @@ function MyPage({ authUser, onUserUpdate }) {
   const [likedMovies, setLikedMovies] = useState([]);
   const [recentMovies, setRecentMovies] = useState([]);
   // AI/캐릭터 채팅에서 추천받은 영화를 마이페이지 추천에 연결한다.
-  // 초기값은 로컬 캐시(즉시 표시), 이후 서버(/user/chatai-reommended-movies)로 갱신.
+  // 초기값은 로컬 캐시(즉시 표시), 이후 서버(/user/chatai-recommended-movies)로 갱신.
   const [chatRecommended, setChatRecommended] = useState(() => getRecommendedMovies());
   const [characters, setCharacters] = useState([]);
   const [actors, setActors] = useState([]);

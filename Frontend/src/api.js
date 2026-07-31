@@ -1470,15 +1470,14 @@ export async function fetchRecentMovies(signal, limit = 5) {
   return getArrayPayload(data, 'movies', 'recently_viewed');
 }
 
-// 채팅 AI가 추천했던 영화 조회 (GET /user/chatai-reommended-movies?limit=10).
-// 주의: 실제 경로에 오타(reommended)가 있어 그대로 사용한다.
+// 채팅 AI가 추천했던 영화 조회 (GET /user/chatai-recommended-movies?limit=10).
 // 응답 data: [{ tmdb_id, title, poster_url }]
 export async function fetchChatRecommendedMovies(signal, limit = 10) {
   const params = new URLSearchParams({
     limit: String(clampNumber(limit, 1, 50, 10)),
   });
   const response = await fetchWithAuth(
-    `${BACKEND_BASE_URL}/user/chatai-reommended-movies?${params}`,
+    `${BACKEND_BASE_URL}/user/chatai-recommended-movies?${params}`,
     { signal }
   );
   const data = await response.json().catch(() => null);

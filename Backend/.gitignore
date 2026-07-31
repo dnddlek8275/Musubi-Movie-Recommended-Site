@@ -9,7 +9,6 @@ BackReadme.md
 .agents/
 .codex/
 docs/
-tests/
 scripts/
 
 .venv/

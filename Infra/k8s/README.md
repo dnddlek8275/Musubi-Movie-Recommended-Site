@@ -76,6 +76,7 @@ kubectl -n cineverse rollout status deployment/frontend
 kubectl kustomize Infra/k8s/base
 kubectl -n cineverse get deployments,pods,services,ingresses,pvc
 curl --fail https://실제도메인/api/health
+curl --fail https://실제도메인/api/ready
 curl --fail https://실제도메인/api/db-test
 curl --fail https://실제도메인/api/ai-health
 ```

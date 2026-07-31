@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.staticfiles import StaticFiles
 import httpx
 from sqlalchemy import text
@@ -99,6 +99,26 @@ def root():
             }
 
 
+# Kubernetes readiness용 DB 연결 검사
+@app.get("/ready")
+def readiness_check(db: Session = Depends(get_db)):
+    try:
+        db.execute(text("SELECT 1"))
+        return {
+            "state": "success",
+            "message": "CineVerse Backend is ready",
+        }
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "state": "error",
+                "message": "PostgreSQL에 연결할 수 없습니다.",
+            },
+        )
+
+
 # PostgreSQL 연결 테스트 API
 @app.get("/db-test")
 async def db_test(db: Session = Depends(get_db)):
@@ -128,6 +148,7 @@ async def ai_health_check():
                 f"{ai_base_url}/health",
                 timeout=5.0,
             )
+            response.raise_for_status()
 
         return {
             "state": "success",
@@ -138,19 +159,37 @@ async def ai_health_check():
             },
         }
 
-    except httpx.TimeoutException as e:
-        return {
-            "state": "error",
-            "message": "AI 서버 응답 시간이 초과되었습니다.",
-            "error": str(e),
-        }
+    except httpx.TimeoutException:
+        raise HTTPException(
+            status_code=504,
+            detail={
+                "state": "error",
+                "message": "AI 서버 응답 시간이 초과되었습니다.",
+            },
+        )
 
     except httpx.RequestError as e:
-        return {
-            "state": "error",
-            "message": "AI 서버에 연결할 수 없습니다.",
-            "error": str(e),
-        }
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "state": "error",
+                "message": "AI 서버에 연결할 수 없습니다.",
+                "error": str(e),
+            },
+        )
+
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "state": "error",
+                "message": "AI 서버가 정상 상태를 반환하지 않았습니다.",
+                "data": {
+                    "ai_base_url": ai_base_url,
+                    "status_code": e.response.status_code,
+                },
+            },
+        )
 
 # 수행하면 바로 console창에 main:app 명령 없이 특정 포트로 바로 수행되게 처리..
 if __name__ =="__main__":
