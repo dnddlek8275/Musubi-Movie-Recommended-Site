@@ -16,6 +16,7 @@ scripts
 !scripts/
 scripts/*
 !scripts/import_movies_csv.py
+!scripts/import_tmdb_regional_movies.py
 outputs
 external
 *.log

@@ -127,6 +127,33 @@ docker compose run --rm \
 CSV에는 배우 TMDB ID와 프로필 이미지, 캐릭터 정보가 없으므로 `actors`,
 `movie_actors`, `characters` 테이블은 이 작업으로 채우지 않습니다.
 
+### TMDB 한국·일본 영화 보강
+
+`TMDB_ACCESS_TOKEN` 또는 `TMDB_API_KEY`를 설정하면 평점과 투표 수가 기준
+이상인 한국어·일본어 영화를 추가할 수 있습니다. 기본값은 평점 6.0 이상,
+투표 100개 이상, 포스터가 있는 영화이며 기존 영화는 `tmdb_id`로 건너뜁니다.
+
+먼저 DB를 변경하지 않는 dry-run으로 대상 수를 확인합니다.
+
+```bash
+docker compose run --rm \
+  -e TMDB_ACCESS_TOKEN="$TMDB_ACCESS_TOKEN" \
+  backend python scripts/import_tmdb_regional_movies.py
+```
+
+결과를 확인한 뒤 `--apply`를 추가하면 영화, 장르, 상위 10명 배우 관계와
+0으로 초기화한 통계를 로컬 DB에 저장합니다.
+
+```bash
+docker compose run --rm \
+  -e TMDB_ACCESS_TOKEN="$TMDB_ACCESS_TOKEN" \
+  backend python scripts/import_tmdb_regional_movies.py --apply
+```
+
+이 스크립트는 기본적으로 `db`, `localhost`, `127.0.0.1` 이외의 DB에 쓰지
+않습니다. API 호출 기준은 TMDB `/discover/movie`의
+`with_original_language`, `vote_average.gte`, `vote_count.gte` 필터입니다.
+
 ## 배포 파일 구조
 
 ```text
