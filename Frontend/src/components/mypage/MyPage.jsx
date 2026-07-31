@@ -139,6 +139,8 @@ function MyPage({ authUser, onUserUpdate }) {
   const [characters, setCharacters] = useState([]);
   const [actors, setActors] = useState([]);
   const [actorsError, setActorsError] = useState('');
+  const [actorSearch, setActorSearch] = useState('');
+  const [isActorsLoading, setIsActorsLoading] = useState(false);
   const [chatRooms, setChatRooms] = useState([]);
   const [isActorPickerOpen, setIsActorPickerOpen] = useState(false);
   const [isProfileEditing, setIsProfileEditing] = useState(false);
@@ -242,6 +244,31 @@ function MyPage({ authUser, onUserUpdate }) {
 
     return () => controller.abort();
   }, [authUser]);
+
+  useEffect(() => {
+    if (!isActorPickerOpen) return undefined;
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      setIsActorsLoading(true);
+      setActorsError('');
+      fetchActors(controller.signal, { query: actorSearch, limit: 50 })
+        .then(setActors)
+        .catch((error) => {
+          if (!controller.signal.aborted) {
+            setActorsError(error?.message || '배우 목록을 불러오지 못했습니다.');
+          }
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setIsActorsLoading(false);
+        });
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [actorSearch, isActorPickerOpen]);
 
   const preferences = useMemo(
     () => ({
@@ -1030,8 +1057,21 @@ function MyPage({ authUser, onUserUpdate }) {
 
             <h3 className="mypage-modal__title">선호 배우 추가</h3>
 
+            <label className="mypage-actor-search">
+              <span className="sr-only">배우 검색</span>
+              <input
+                type="search"
+                value={actorSearch}
+                onChange={(event) => setActorSearch(event.target.value)}
+                placeholder="배우 이름 검색"
+                autoComplete="off"
+              />
+            </label>
+
             <div className="mypage-actor-picker">
-              {availableActors.length > 0 ? (
+              {isActorsLoading ? (
+                <p className="mypage-actor-picker__empty">배우를 검색하고 있습니다.</p>
+              ) : availableActors.length > 0 ? (
                 availableActors.map((actor) => (
                   <button
                     className="mypage-actor-pick"

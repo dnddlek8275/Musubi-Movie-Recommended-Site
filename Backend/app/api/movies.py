@@ -40,15 +40,24 @@ router = APIRouter(
 # 배우 조회
 @router.get("/actors")
 def get_actors(
-    db:Session = Depends(get_db),
+    q: str | None = Query(default=None, max_length=100),
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=50, ge=1, le=100),
+    db: Session = Depends(get_db),
 ):
     try:
-        actors_result = get_actors_result(db)
+        actors_result = get_actors_result(
+            db,
+            query=q,
+            page=page,
+            limit=limit,
+        )
 
-        if actors_result is None :
+        if not actors_result:
             return {
                 "state" : "failure",
                 "message" : "DB에 저장된 배우가 없습니다.",
+                "data": [],
             }
         
         return {
@@ -60,7 +69,12 @@ def get_actors(
                     "actor_name" : actor.name,
                     "profile_path": tmdb_image_url(actor.profile_path),
                 }for actor in actors_result
-            ]
+            ],
+            "pagination": {
+                "page": page,
+                "limit": limit,
+                "has_more": len(actors_result) == limit,
+            },
         }
     except Exception:
         return error_response("배우 조회 API 에러")

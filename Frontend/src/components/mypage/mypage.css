@@ -534,6 +534,30 @@ a.mypage-actor__circle:hover {
 }
 
 /* 배우 추가 모달 안의 배우 선택 그리드 */
+.mypage-actor-search {
+  display: block;
+  margin-bottom: 16px;
+}
+
+.mypage-actor-search input {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  outline: none;
+  background: #20282b;
+  color: #f4f6f7;
+  font: inherit;
+}
+
+.mypage-actor-search input:focus {
+  border-color: var(--accent);
+}
+
+.mypage-actor-search input::placeholder {
+  color: var(--muted);
+}
+
 .mypage-actor-picker {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

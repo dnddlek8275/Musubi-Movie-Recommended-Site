@@ -945,8 +945,18 @@ export async function fetchCharacter(characterName, signal) {
 
 // 배우 목록 조회 API (GET /movies/actors).
 // 명세서: { state, message, data: [{ actor_id, actor_name, profile_path }] }
-export async function fetchActors(signal) {
-  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/movies/actors`, { signal });
+export async function fetchActors(signal, { query = '', page = 1, limit = 50 } = {}) {
+  const params = new URLSearchParams({
+    page: String(page),
+    limit: String(limit),
+  });
+  const normalizedQuery = String(query || '').trim();
+  if (normalizedQuery) params.set('q', normalizedQuery);
+
+  const response = await fetchWithAuth(
+    `${BACKEND_BASE_URL}/movies/actors?${params.toString()}`,
+    { signal }
+  );
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {

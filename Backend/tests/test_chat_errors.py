@@ -7,6 +7,7 @@ from fastapi import HTTPException
 from app.ai_client.chat import open_character_chat_stream
 from app.api.chat import chat
 from app.schemas.chat import AutoChatRequest
+from app.services.chat_stream_service import stream_and_save_character_answer
 
 
 class FakeSession:
@@ -105,6 +106,45 @@ class CharacterStreamConnectionTests(unittest.IsolatedAsyncioTestCase):
                 )
 
         self.assertEqual(raised.exception.status_code, 504)
+
+
+class CharacterStreamForwardingTests(unittest.IsolatedAsyncioTestCase):
+    async def test_done_event_is_forwarded_once(self):
+        class FakeAiStream:
+            closed = False
+
+            async def iter_lines(self):
+                yield 'data: "안녕"'
+                yield "data: [DONE]"
+
+            async def aclose(self):
+                self.closed = True
+
+        class CommitSession:
+            committed = False
+
+            def commit(self):
+                self.committed = True
+
+        ai_stream = FakeAiStream()
+        session = CommitSession()
+
+        with patch("app.services.chat_stream_service.create_message"):
+            chunks = [
+                chunk
+                async for chunk in stream_and_save_character_answer(
+                    db=session,
+                    room_id=1,
+                    message="인사해줘",
+                    history=[],
+                    character="마석도",
+                    ai_stream=ai_stream,
+                )
+            ]
+
+        self.assertEqual(chunks.count("data: [DONE]\n\n"), 1)
+        self.assertTrue(ai_stream.closed)
+        self.assertTrue(session.committed)
 
 
 if __name__ == "__main__":

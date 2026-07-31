@@ -56,7 +56,6 @@ async def stream_and_save_character_answer(
                 data = chunk.removeprefix("data: ").strip()
 
                 if data == "[DONE]":
-                    yield "data: [DONE]\n\n"
                     continue
 
                 try:
