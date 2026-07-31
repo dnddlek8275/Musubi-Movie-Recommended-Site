@@ -3,10 +3,20 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import jwt
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import NullPool
 from app.core.config import settings
 
 # PostgreSQL과 연결할 엔진 생성
-engine = create_engine(settings.DATABASE_URL, echo=settings.SQL_ECHO)
+engine = create_engine(
+    settings.DATABASE_URL,
+    echo=settings.SQL_ECHO,
+    poolclass=NullPool,
+    connect_args={
+        "connect_timeout": 5,
+        # PgBouncer transaction 모드에서는 psycopg의 자동 prepared statement를 끈다.
+        "prepare_threshold": None,
+    },
+)
 
 # DB 세션 생성 객체
 # autocommit=False
