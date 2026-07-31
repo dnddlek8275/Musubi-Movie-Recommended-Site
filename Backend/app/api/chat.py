@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.current_user import get_current_user
+from app.core.api_responses import error_response
 from app.ai_client.chat import request_ai_chat
 from app.core.dependencies import get_db
 from app.models.character import Character
@@ -67,12 +68,8 @@ async def get_chat_characters(
             "message" : "채팅 캐릭터 조회 성공",
             "data" : characters
         }
-    except Exception as e:
-        return {
-            "state" : "error",
-            "message" : "채팅 캐릭터 조회 실패",
-            "error" : str(e)
-        }
+    except Exception:
+        return error_response("채팅 캐릭터 조회 실패")
 
 # 캐릭터 정보 가져오기 API
 @router.get("character/{character_name}")
@@ -110,12 +107,8 @@ async def get_chat_character_detail(
                 "profile_image" : character.profile_image,
             }
         }
-    except Exception as e:
-        return {
-            "state" : "error",
-            "message" : "캐릭터 정보 조회 에러",
-            "error" : str(e)
-        }
+    except Exception:
+        return error_response("캐릭터 정보 조회 에러")
 
 # 캐릭터 채팅 API
 @router.post("")
@@ -142,23 +135,6 @@ async def chat_character(
                 "message": "AI 캐릭터 채팅 처리 중 오류가 발생했습니다.",
             },
         )
-
-# # 1대1 대화 스트림 모드
-# @router.post("/stream")
-# async def chat_character_stream(
-#     request: CharacterChatRequest,
-#     current_user : dict = Depends(get_current_user),
-#     db : Session = Depends(get_db),
-# ):
-#     try:
-#         user_id = current_user["user_id"]
-
-#     except Exception as e:
-#         return {
-#             "state" : "error",
-#             "message" : "스트림 챗 API 에러",
-#             "error" : str(e)
-#         }
 
 # 그룹 채팅 API
 @router.post("/group")
@@ -213,12 +189,8 @@ async def get_chat_rooms(
             ]
         }
 
-    except Exception as e:
-        return {
-            "state": "error",
-            "message": "채팅방 목록 조회 에러",
-            "error": str(e)
-        }
+    except Exception:
+        return error_response("채팅방 목록 조회 에러")
 
 
 # 채팅 메시지 목록 조회 GET /chat/rooms/{room_id}/messages
@@ -260,12 +232,8 @@ async def get_chat_messages(
             ]
         }
 
-    except Exception as e:
-        return {
-            "state": "error",
-            "message": "채팅 메시지 목록 조회 에러",
-            "error": str(e)
-        }
+    except Exception:
+        return error_response("채팅 메시지 목록 조회 에러")
 
 # 기존 채팅방에서 이어서 대화하는 API
 # 채팅 메시지 전송 POST /chat/rooms/{room_id}/messages
@@ -327,10 +295,6 @@ async def delete_chat_room(
             "state" : "success",
             "message" : "채팅방 삭제에 성공했습니다."
         }
-    except Exception as e:
+    except Exception:
         db.rollback()
-        return {
-            "state": "error",
-            "message": "채팅방 삭제 에러",
-            "error": str(e)
-        }
+        return error_response("채팅방 삭제 에러")

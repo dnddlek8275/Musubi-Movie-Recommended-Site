@@ -6,6 +6,7 @@ from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 from app.schemas.users import PasswordResetConfirmRequest, PasswordResetRequest, RegisterRequest, LoginRequest, EmailVerificationRequest
 from app.core.security import create_access_token, create_refresh_token, hash_password, hash_token, verify_password
+from app.core.api_responses import error_response
 from app.core.config import settings
 from app.core.dependencies import get_db
 from app.models.users import User
@@ -145,19 +146,15 @@ async def register(request: RegisterRequest, db: Session = Depends(get_db)):
         }
     except ValueError as e:
         db.rollback()
-        return {
-            "state" : "error",
-            "message" : "인증 에러",
-            "error" : str(e),
-        }
-    except Exception as e:
+        return error_response(
+            str(e),
+            status_code=status.HTTP_400_BAD_REQUEST,
+            state="failure",
+        )
+    except Exception:
         # 저장 취소 롤백
         db.rollback()
-        return {
-            "state":"error",
-            "message" : "회원가입 에러",
-            "error" : str(e)
-        }
+        return error_response("회원가입 에러")
 
 
 # 비밀번호 재설정 이메일 요청
@@ -330,13 +327,9 @@ async def login(
             }
         }
 
-    except Exception as e:
+    except Exception:
         db.rollback()
-        return{
-            "state" : "error",
-            "message" : "로그인 에러",
-            "error" : str(e)
-        }
+        return error_response("로그인 에러")
 
 
 # 토큰 재발급 POST /auth/refresh - access_token이 만료되었을 때 refresh token 검증 후 재발급
@@ -433,18 +426,15 @@ async def refresh_token(http_request : Request, db:Session = Depends(get_db)):
     #refresh_token 만료
     except JWTError:
         db.rollback()
-        return {
-            "state" : "failure",
-            "message" : "refresh_token 만료 or 오류"
-        }
+        return error_response(
+            "refresh_token 만료 or 오류",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            state="failure",
+        )
     
-    except Exception as e:
+    except Exception:
         db.rollback()
-        return {
-            "state" : "error",
-            "message" : "토큰 재발급 실패",
-            "error" : str(e)
-        }
+        return error_response("토큰 재발급 실패")
 
 
 # 로그아웃 POST /auth/logout
@@ -483,10 +473,6 @@ async def logout(http_request : Request, http_response: Response, db:Session = D
                 "detail" : "클라이언트 쪽에서 access_token, refresh_token 삭제"
             }
         }
-    except Exception as e:
+    except Exception:
         db.rollback()
-        return {
-            "state" : "error",
-            "message" : "로그아웃 에러",
-            "error" : str(e)
-        }
+        return error_response("로그아웃 에러")

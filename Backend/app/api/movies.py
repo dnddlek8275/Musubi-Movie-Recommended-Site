@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.ai_client.recommend import request_ai_recommend
 from app.core.current_user import get_current_user, get_optional_current_user
+from app.core.api_responses import error_response
 from app.core.dependencies import get_db
 from app.schemas.movies import MovieDetailData, MovieDetailResponse, RecommendRequest
 from app.services.actor_service import get_actors_result
@@ -61,12 +62,8 @@ def get_actors(
                 }for actor in actors_result
             ]
         }
-    except Exception as e:
-        return {
-            "state" : "error",
-            "message" : "배우 조회 API 에러",
-            "error" : str(e),
-        }
+    except Exception:
+        return error_response("배우 조회 API 에러")
 
 # 배우 저장
 @router.post("/actor/{actor_id}")
@@ -79,12 +76,8 @@ def like_actor(
         user_id = current_user["user_id"]
 
         return user_like_actor(db, user_id, actor_id)
-    except Exception as e:
-        return {
-            "state" : "error",
-            "message" : "배우 저장 API 에러",
-            "error" : str(e)
-        }
+    except Exception:
+        return error_response("배우 저장 API 에러")
 
 # AI 영화 추천 POST /movies/recommend
 @router.post("/recommend")
@@ -110,12 +103,8 @@ def recommend_movies(
             "message": "영화 추천 API입니다.",
             "data" : recommend_movies,
         }
-    except Exception as e:
-        return {
-            "state" : "error",
-            "message" : "영화 추천 오류",
-            "error" : str(e),
-        }
+    except Exception:
+        return error_response("영화 추천 오류")
 
 
 # 영화 검색 GET /movies/search
@@ -130,12 +119,8 @@ async def search_movies(
     try :
         return search_movies_result(db, keyword, page, limit)
     
-    except Exception as e :
-        return {
-            "state":"error",
-            "message" : "영화 검색 에러",
-            "error" : str(e)
-        }
+    except Exception:
+        return error_response("영화 검색 에러")
 
 
 # 실시간 랭킹 10 GET /movies/ranking
@@ -152,12 +137,8 @@ async def get_realtime_movie_ranking(
             "message": "영화 랭킹 조회 성공",
             "data": ranking_result,
         }
-    except Exception as e:
-        return {
-            "state" : "error",
-            "message" : "영화 랭킹 조회 에러",
-            "error" : str(e)
-        }
+    except Exception:
+        return error_response("영화 랭킹 조회 에러")
 
 
 # 영화 상세 조회 GET /movies/{id}
@@ -211,12 +192,8 @@ async def get_movie_detail(
             "message" : "영화 조회 성공",
             "data" : movie_data,
         }
-    except Exception as e:
-        return {
-            "state" : "error",
-            "message" : "영화 상세 조회 에러",
-            "error" : str(e)
-        }
+    except Exception:
+        return error_response("영화 상세 조회 에러")
 
 # 좋아요 POST /movies/{id}/like
 @router.post("/{movie_id}/like")
@@ -236,12 +213,8 @@ def like_movie(
             }
         result = like_movie_result(db, user_id, movie_id)
         return result
-    except Exception as e:
-        return {
-            "state" : "error",
-            "message": "좋아요 API 호출 실패",
-            "error": str(e)
-        }
+    except Exception:
+        return error_response("좋아요 API 호출 실패")
 
     
 @router.get("/today/recommend")
@@ -268,12 +241,11 @@ async def get_today_recommend_movies(
             "data" : result,
         }
     
-    except Exception as e:
-        return {
-            "state" : "error",
-            "message" : "오늘의 AI 추천 영화 조회 에러",
-            "error" : str(e),
-        }
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception:
+        return error_response("오늘의 AI 추천 영화 조회 에러")
 
 @router.get("/genre/{genre}")
 def get_genre_movies(
@@ -302,12 +274,8 @@ def get_genre_movies(
                 }for movie in movies_result
             ]
         }
-    except Exception as e:
-        return {
-            "state" : "error",
-            "message" : "장르별 영화 에러",
-            "error" : str(e),
-        }
+    except Exception:
+        return error_response("장르별 영화 에러")
 
 # ai의 영화 추천
 @router.post("/ai-recommend")

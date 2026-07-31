@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.current_user import get_current_user
+from app.core.api_responses import error_response
 from app.core.dependencies import get_db
 from app.schemas.movies import ShowMovies
 from app.schemas.users import PreferenceDeleteRequest
@@ -54,12 +55,8 @@ async def get_my_info(
             }
         }
     
-    except Exception as e:
-        return {
-            "state": "error",
-            "message": "정보 조회 실패",
-            "error": str(e)
-        }
+    except Exception:
+        return error_response("정보 조회 실패")
     
 # # 프로필 수정
 @router.patch("/profile_image")
@@ -86,12 +83,8 @@ async def update_user_profile(
                 "user_profile" : user_profile
             }
         }
-    except Exception as e:
-        return {
-            "state" : "error",
-            "message" : "사용자 프로필 수정 API 에러",
-            "error" : str(e),
-        }
+    except Exception:
+        return error_response("사용자 프로필 수정 API 에러")
     
 @router.delete("/delete/profile_image")
 async def user_delete_profile(
@@ -119,13 +112,9 @@ async def user_delete_profile(
             "state" : "success",
             "message" : "사용자 프로필 이미지 삭제 성공"
         }
-    except Exception as e:
+    except Exception:
         db.rollback()
-        return {
-            "state" : "error",
-            "message" : "사용자 프로필 이미지 삭제 에러",
-            "error" : str(e)
-        }
+        return error_response("사용자 프로필 이미지 삭제 에러")
 
 # 취향 GET /user/preferences
 @router.get("/preferences")
@@ -189,12 +178,8 @@ async def get_my_preferences(
                 "learned_preferences": learned_preferences,
             },
         }
-    except Exception as e:
-        return {
-            "state" : "error",
-            "message" : "취향 조회 실패",
-            "error" : str(e),
-        }
+    except Exception:
+        return error_response("취향 조회 실패")
 
 # 로그인한 사용자의 장르·배우·키워드 중 요청한 한 종류를 모두 삭제한다.
 @router.delete("/preferences/{preference_type}")
@@ -216,15 +201,11 @@ async def delete_my_preference_type(
             preference_type=preference_type,
         )
 
-    except Exception as e:
+    except Exception:
         # 인증 정보 확인이나 서비스 호출 과정에서 예상하지 못한 오류가 발생하면
         # 처리 중인 DB 변경이 남지 않도록 현재 트랜잭션을 되돌린다.
         db.rollback()
-        return {
-            "state": "error",
-            "message": "취향 전체 삭제 API 처리 중 에러가 발생했습니다.",
-            "error": str(e),
-        }
+        return error_response("취향 전체 삭제 API 처리 중 에러가 발생했습니다.")
 
 # 선호 종류 - 키 삭제
 @router.delete("/preference/delete")
@@ -247,12 +228,8 @@ async def delete_my_preference(
         
         return delete_my_preference_result(db, user_id, preference_type, preference_value)
         
-    except Exception as e:
-        return {
-            "state" : "error",
-            "message" : "사용자의 선호 키 삭제 에러",
-            "error" : str(e)
-        }
+    except Exception:
+        return error_response("사용자의 선호 키 삭제 에러")
 
 # 좋아요 누른 영화 - 조회 /user/movies-like
 @router.get("/movies-like")
@@ -282,12 +259,8 @@ async def get_my_like(
             ],
         }
 
-    except Exception as e:
-        return {
-            "state" : "error",
-            "message" : "좋아요 조회 에러",
-            "error" : str(e),
-        }
+    except Exception:
+        return error_response("좋아요 조회 에러")
     
 
 # 좋아요 누른 영화 삭제
@@ -301,12 +274,8 @@ async def delete_movie_like(
         user_id = current_user["user_id"]
 
         return delete_liked_movie_result(db, user_id, movie_id)
-    except Exception as e:
-        return {
-            "state" : "error",
-            "message" : "좋아요 삭제 에러",
-            "error" : str(e)
-        }
+    except Exception:
+        return error_response("좋아요 삭제 에러")
 
 
 # 최근에 상세 조회한 영화 조회
@@ -337,12 +306,8 @@ async def get_recently_movies(
             ]
 
         }
-    except Exception as e:
-        return {
-            "state" : "error",
-            "message" : "최근 본 영화 조회 에러",
-            "error" : str(e),
-        }
+    except Exception:
+        return error_response("최근 본 영화 조회 에러")
 
 # AI 채팅에서 추천받은 영화 이력을 조회한다.
 @router.get("/chatai-recommended-movies")
@@ -354,7 +319,7 @@ def get_ai_recommended_movies(
     try:
         user_id = current_user["user_id"]
         ai_movies_result = get_chat_ai_recommended_movies_result(db, user_id, limit)
-        if get_ai_recommended_movies is None:
+        if ai_movies_result is None:
             return {
                 "state" : "failure",
                 "message" : "ai가 추천했던 영화가 없습니다.",
@@ -364,9 +329,5 @@ def get_ai_recommended_movies(
             "message" : "ai가 추천한 영화 API 성공",
             "data" : ai_movies_result,
         }
-    except Exception as e:
-        return {
-            "state" : "error",
-            "message" : "ai가 추천한 영화 API 에러",
-            "error" : str(e)
-        }
+    except Exception:
+        return error_response("ai가 추천한 영화 API 에러")

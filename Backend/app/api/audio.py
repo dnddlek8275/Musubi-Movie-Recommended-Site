@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, File, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 from app.core.current_user import get_current_user
+from app.core.api_responses import error_response
 from app.core.dependencies import get_db
 from app.services.speech_to_text_service import transcribe_audio
 from app.services.stt_term_correction_service import build_character_hotwords, correct_stt_terms
@@ -99,12 +100,8 @@ async def transcribe_uploaded_audio(
             },
         }
 
-    except Exception as e:
-        return {
-            "state": "error",
-            "message": "음성 변환 중 에러가 발생했습니다.",
-            "error": str(e),
-        }
+    except Exception:
+        return error_response("음성 변환 중 에러가 발생했습니다.")
 
     finally:
         await audio.close()

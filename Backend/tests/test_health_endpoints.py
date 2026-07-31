@@ -82,6 +82,16 @@ class HealthEndpointTests(unittest.TestCase):
         self.assertEqual(response.json()["detail"]["state"], "error")
         self.assertTrue(session.rolled_back)
 
+    def test_db_test_returns_flat_500_without_internal_error(self):
+        session = FakeSession(error=RuntimeError("database password leaked"))
+        app.dependency_overrides[get_db] = lambda: session
+
+        response = TestClient(app).get("/db-test")
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json()["state"], "error")
+        self.assertNotIn("database password", response.text)
+
     def test_ai_health_returns_success_for_2xx_response(self):
         client = FakeAsyncClient(response=FakeAIResponse(200))
 

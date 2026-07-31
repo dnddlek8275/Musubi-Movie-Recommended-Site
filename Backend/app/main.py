@@ -14,6 +14,7 @@ from app.api.audio import router as audio_router
 from sqlalchemy.orm import Session
 from app.core.dependencies import get_db
 from app.core.config import settings
+from app.core.api_responses import error_response
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -91,12 +92,8 @@ def root():
             "state" : "success",
             "message": "CineVerse"
             }
-    except Exception as e:
-        return {
-            "state" : "error",
-            "message": "BE1 Health Check API 호출 실패", 
-            "error": str(e)
-            }
+    except Exception:
+        return error_response("BE1 Health Check API 호출 실패")
 
 
 # Kubernetes readiness용 DB 연결 검사
@@ -130,12 +127,8 @@ async def db_test(db: Session = Depends(get_db)):
             "message": "PostgreSQL 연결 성공"
         }
 
-    except Exception as e:
-        return {
-            "state" : "error",
-            "message": "BE2 DB 연결 확인 중 에러가 발생했습니다.",
-            "error": str(e)
-        }
+    except Exception:
+        return error_response("BE2 DB 연결 확인 중 에러가 발생했습니다.")
     
 
 # 연결된 AI 서버의 상태와 응답 코드를 확인한다.
@@ -174,7 +167,6 @@ async def ai_health_check():
             detail={
                 "state": "error",
                 "message": "AI 서버에 연결할 수 없습니다.",
-                "error": str(e),
             },
         )
 

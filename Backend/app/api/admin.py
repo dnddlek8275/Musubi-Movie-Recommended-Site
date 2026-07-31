@@ -1,8 +1,9 @@
 # 관리자 관련 API들을 묶는 Router /admin
-from fastapi import APIRouter, Depends, Path, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.orm import Session
 
 from app.core.current_user import get_current_admin
+from app.core.api_responses import error_response
 from app.core.dependencies import get_db
 from app.models.users import User
 from app.schemas.admin import AdminManualMovieCreateRequest, AdminMovieUpdateRequest, AdminRoleUpdateRequest
@@ -67,12 +68,10 @@ async def search_tmdb_movies(
             "data": search_result,
         }
 
-    except Exception as e:
-        return {
-            "state": "error",
-            "message": "TMDB 영화 검색 에러",
-            "error": str(e),
-        }
+    except HTTPException:
+        raise
+    except Exception:
+        return error_response("TMDB 영화 검색 에러")
 
 
 @router.post("/tmdb-movies-register/{tmdb_id}")
@@ -132,16 +131,15 @@ async def register_tmdb_movie(
             "data": admin_movie_to_dict(movie),
         }
 
-    except Exception as e:
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception:
         # TMDB 조회 또는 영화·장르·통계·감사 로그 저장 중 하나라도
         # 실패하면 트랜잭션 전체를 되돌려 일부 데이터가 남지 않게 한다.
         db.rollback()
 
-        return {
-            "state": "error",
-            "message": "TMDB 영화 등록 에러",
-            "error": str(e),
-        }
+        return error_response("TMDB 영화 등록 에러")
 
 
 @router.post("/movie")
@@ -200,16 +198,15 @@ def register_manual_movie(
             "data": admin_movie_to_dict(movie),
         }
 
-    except Exception as e:
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception:
         # 영화, 장르, 초기 통계 또는 감사 로그 처리 중 하나라도 실패하면
         # 현재 트랜잭션의 모든 DB 변경을 되돌려 일부 데이터가 남지 않게 한다.
         db.rollback()
 
-        return {
-            "state": "error",
-            "message": "직접 입력 영화 등록 에러",
-            "error": str(e),
-        }
+        return error_response("직접 입력 영화 등록 에러")
 
 
 # 관리자가 내부 movie_id에 해당하는 영화 정보를 부분 수정한다.
@@ -297,16 +294,15 @@ def update_movie(
             "data": admin_movie_to_dict(movie),
         }
 
-    except Exception as e:
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception:
         # 영화, 장르 또는 감사 로그 처리 중 하나라도 실패하면 현재
         # 트랜잭션 전체를 되돌려 일부 데이터만 변경되는 것을 방지한다.
         db.rollback()
 
-        return {
-            "state": "error",
-            "message": "영화 수정 중 에러가 발생했습니다.",
-            "error": str(e),
-        }
+        return error_response("영화 수정 중 에러가 발생했습니다.")
 
 
 # 내부 movie_id로 영화를 삭제하고 삭제 전 정보를 관리자 감사 로그에 기록한다.
@@ -353,16 +349,15 @@ def delete_movie(
             "data": deleted_movie_data,
         }
 
-    except Exception as e:
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception:
         # 영화 삭제나 감사 로그 저장 중 하나라도 실패하면 현재 트랜잭션의
         # 모든 변경을 되돌려 일부 데이터만 삭제되는 상황을 방지한다.
         db.rollback()
 
-        return {
-            "state": "error",
-            "message": "영화 삭제 중 에러가 발생했습니다.",
-            "error": str(e),
-        }
+        return error_response("영화 삭제 중 에러가 발생했습니다.")
 
 
 @router.patch("/users/admin-role")
@@ -405,11 +400,10 @@ def update_admin_role(
                 "is_admin": target_user.is_admin,
             },
         }
-    except Exception as e:
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception:
         # 권한 변경 중 오류가 발생하면 저장 전 상태로 되돌린다.
         db.rollback()
-        return {
-            "state": "error",
-            "message": "관리자 부여 에러",
-            "error": str(e),
-        }
+        return error_response("관리자 부여 에러")
