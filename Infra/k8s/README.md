@@ -51,8 +51,10 @@ Secret을 Git에 커밋하지 않습니다.
 3. Namespace와 ConfigMap을 먼저 적용합니다.
 4. `uploads-pvc.example.yaml`의 두 자리표시자를 교체해 PVC를 적용합니다.
 5. 실제 Secret을 적용합니다.
-6. 마이그레이션 Job을 단독 실행하고 성공을 확인합니다.
-7. Kustomize 기본 리소스를 적용해 Backend와 Frontend를 시작합니다.
+6. 운영 DB 백업과 분리된 DB에서 복구 시험을 완료합니다.
+7. 관리자가 운영 DB에 `pgcrypto`를 설치하고 migration 계정 권한을 확인합니다.
+8. 마이그레이션 Job을 단독 실행하고 preflight·migration·완료 검증 성공을 확인합니다.
+9. Kustomize 기본 리소스를 적용해 Backend와 Frontend를 시작합니다.
 
 ```bash
 kubectl apply -f Infra/k8s/base/namespace.yaml
@@ -68,7 +70,8 @@ kubectl -n cineverse rollout status deployment/frontend
 ```
 
 같은 이름의 완료된 Job을 다시 실행할 때는 기존 Job을 지운 뒤 재적용해야
-합니다. DB 마이그레이션 전에는 운영 DB를 백업합니다.
+합니다. DB migration과 backup 절차는
+`docs/current/infra/database-migration-runbook.md`를 따릅니다.
 
 ## 검증
 

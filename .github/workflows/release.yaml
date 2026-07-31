@@ -7,6 +7,10 @@ on:
         description: Type DEPLOY to confirm the production release
         required: true
         type: string
+      backup_confirmation:
+        description: Type BACKUP_VERIFIED after confirming a restorable DB backup
+        required: true
+        type: string
       image_tag:
         description: Immutable image tag, such as a commit SHA
         required: true
@@ -36,6 +40,7 @@ jobs:
       - name: Require explicit confirmation and deployment settings
         run: |
           test "${{ inputs.confirmation }}" = "DEPLOY"
+          test "${{ inputs.backup_confirmation }}" = "BACKUP_VERIFIED"
           test -n "${REGISTRY_HOST}"
           test -n "${REGISTRY_NAMESPACE}"
           test -n "${BUILD_PLATFORMS}"
@@ -92,7 +97,7 @@ jobs:
       BACKEND_IMAGE: ${{ vars.REGISTRY_HOST }}/${{ vars.REGISTRY_NAMESPACE }}/backend:${{ inputs.image_tag }}
       FRONTEND_IMAGE: ${{ vars.REGISTRY_HOST }}/${{ vars.REGISTRY_NAMESPACE }}/frontend:${{ inputs.image_tag }}
       KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
-      MIGRATION_JOB: backend-migration-${{ github.run_id }}
+      MIGRATION_JOB: backend-migration-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -109,6 +114,24 @@ jobs:
           chmod 600 "${HOME}/.kube/config"
           kubectl cluster-info
 
+      - name: Verify deployment secrets
+        run: |
+          kubectl -n cineverse get secret cineverse-secrets >/dev/null
+          kubectl -n cineverse get secret cineverse-migration-secrets >/dev/null
+
+          app_db_url="$(
+            kubectl -n cineverse get secret cineverse-secrets \
+              -o jsonpath='{.data.DATABASE_URL}' | base64 --decode
+          )"
+          migration_db_url="$(
+            kubectl -n cineverse get secret cineverse-migration-secrets \
+              -o jsonpath='{.data.DATABASE_URL}' | base64 --decode
+          )"
+
+          test -n "${app_db_url}"
+          test -n "${migration_db_url}"
+          test "${app_db_url}" != "${migration_db_url}"
+
       - name: Run database migration
         run: |
           sed \
@@ -116,9 +139,15 @@ jobs:
             -e "s#registry.example.com/cineverse/backend:dev#${BACKEND_IMAGE}#" \
             Infra/k8s/base/migration-job.yaml > /tmp/migration-job.yaml
           kubectl apply -f /tmp/migration-job.yaml
-          kubectl -n cineverse wait \
+
+          if ! kubectl -n cineverse wait \
             --for=condition=complete "job/${MIGRATION_JOB}" \
-            --timeout=300s
+            --timeout=300s; then
+            kubectl -n cineverse logs "job/${MIGRATION_JOB}" --all-containers
+            kubectl -n cineverse describe "job/${MIGRATION_JOB}"
+            exit 1
+          fi
+
           kubectl -n cineverse logs "job/${MIGRATION_JOB}"
 
       - name: Update application images

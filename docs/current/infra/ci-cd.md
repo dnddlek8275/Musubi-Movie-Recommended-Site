@@ -6,8 +6,8 @@
 실행한다.
 
 - Frontend: `npm ci`, 의존성 감사, Vite 프로덕션 빌드
-- Backend: Python 3.12 설치, 의존성 검사, 구문 컴파일, 상태검사 단위 테스트,
-  FastAPI 라우트 검사
+- Backend: Python 3.12 설치, 의존성 검사, 구문 컴파일, Alembic 단일 head 검사,
+  상태검사 단위 테스트, FastAPI 라우트 검사
 - PostgreSQL: 임시 PostgreSQL 17 생성, Alembic 전체 적용, Backend 실제 기동,
   `/health`, `/ready`, `/db-test` HTTP 검사
 - Container: Frontend·Backend 이미지를 빌드하되 Registry에는 올리지 않음
@@ -21,7 +21,8 @@
 ## 수동 Release
 
 `.github/workflows/release.yaml`은 자동 실행되지 않는다. GitHub Actions에서
-수동 실행하고 확인 입력에 `DEPLOY`를 정확히 입력해야 한다.
+수동 실행하고 `confirmation`에 `DEPLOY`, `backup_confirmation`에
+`BACKUP_VERIFIED`를 정확히 입력해야 한다.
 
 Production Environment에 승인 규칙을 설정하는 것을 권장한다.
 
@@ -45,10 +46,16 @@ Production Environment에 승인 규칙을 설정하는 것을 권장한다.
 Release는 다음 순서로 실행한다.
 
 1. Frontend·Backend 이미지를 변경 불가능한 태그로 빌드하고 Registry에 Push
-2. 고유 이름의 Alembic Job 실행
-3. 마이그레이션 성공 확인
-4. Backend·Frontend Deployment 이미지 교체
-5. 두 Deployment의 Rollout 성공 확인
+2. 애플리케이션 Secret과 migration Secret이 분리됐는지 확인
+3. Alembic Job에서 DB 권한·`pgcrypto`·현재 revision 사전 검사
+4. `alembic upgrade head` 실행
+5. 적용 revision이 저장소 head와 일치하는지 확인
+6. Backend·Frontend Deployment 이미지 교체
+7. 두 Deployment의 Rollout 성공 확인
+
+Migration Job이 실패하면 로그와 Job 상태를 출력하고 Deployment image 교체를
+실행하지 않는다. 상세 백업·복구 절차는
+`docs/current/infra/database-migration-runbook.md`를 따른다.
 
 ## 아직 확정되지 않은 부분
 

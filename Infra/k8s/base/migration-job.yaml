@@ -23,7 +23,12 @@ spec:
         - name: migrate
           image: registry.example.com/cineverse/backend:dev
           imagePullPolicy: IfNotPresent
-          command: ["alembic", "upgrade", "head"]
+          command: ["/bin/sh", "-c"]
+          args:
+            - >-
+              python -m app.ops.migration_preflight --phase before
+              && alembic upgrade head
+              && python -m app.ops.migration_preflight --phase after
           envFrom:
             - configMapRef:
                 name: cineverse-config
