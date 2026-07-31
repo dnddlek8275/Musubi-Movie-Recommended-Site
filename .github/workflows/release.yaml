@@ -52,9 +52,37 @@ jobs:
             *[!A-Za-z0-9._-]* | "") exit 1 ;;
           esac
 
+  cluster-preflight:
+    name: Check deployment prerequisites
+    needs: preflight
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: ${{ vars.KUBECTL_VERSION }}
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p "${HOME}/.kube"
+          printf '%s' "${KUBE_CONFIG}" | base64 --decode > "${HOME}/.kube/config"
+          chmod 600 "${HOME}/.kube/config"
+          kubectl cluster-info
+
+      - name: Validate live deployment prerequisites
+        run: bash Infra/k8s/scripts/cluster-preflight.sh cineverse
+
   publish:
     name: Publish container images
-    needs: preflight
+    needs:
+      - preflight
+      - cluster-preflight
     runs-on: ubuntu-latest
     environment: production
     strategy:

@@ -15,6 +15,7 @@ import SttMicButton from './SttMicButton.jsx';
 const TTS_BASE_URL = (
   import.meta.env.VITE_TTS_BASE_URL || 'http://127.0.0.1:5001'
 ).replace(/\/+$/, '');
+const TTS_FEATURE_ENABLED = import.meta.env.VITE_TTS_ENABLED === 'true';
 const TTS_ENABLED_STORAGE_KEY = 'cineverse.chat.tts.enabled';
 
 // /chat/auto 전용 페이지. UI는 chat 페이지와 동일하되, 대화 상대가 CineBuddy 하나뿐이라
@@ -163,9 +164,11 @@ function AutoChatPage() {
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('');
   const [activePicker, setActivePicker] = useState(null); // 'mood' | 'genre' | null
-  const [ttsSupported, setTtsSupported] = useState(true);
+  const [ttsSupported, setTtsSupported] = useState(TTS_FEATURE_ENABLED);
   const [ttsEnabled, setTtsEnabled] = useState(
-    () => window.localStorage.getItem(TTS_ENABLED_STORAGE_KEY) === 'true'
+    () =>
+      TTS_FEATURE_ENABLED &&
+      window.localStorage.getItem(TTS_ENABLED_STORAGE_KEY) === 'true'
   );
   const [speechRate, setSpeechRate] = useState(1);
   // 챗봇 대화 중 소환된 캐릭터 이미지 캐시 (이름 → 이미지 URL)

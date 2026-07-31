@@ -20,6 +20,7 @@ const POSTER_BASE_URL =
 const TTS_BASE_URL = (
   import.meta.env.VITE_TTS_BASE_URL || 'http://127.0.0.1:5001'
 ).replace(/\/+$/, '');
+const TTS_FEATURE_ENABLED = import.meta.env.VITE_TTS_ENABLED === 'true';
 
 // 필요할 때 캐릭터별 재생 피치/속도 프로필을 추가한다.
 const CHARACTER_PLAYBACK_PROFILES = {};
@@ -178,9 +179,11 @@ function ChatPage() {
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('');
   const [activePicker, setActivePicker] = useState(null); // 'mood' | 'genre' | null
-  const [ttsSupported, setTtsSupported] = useState(true);
+  const [ttsSupported, setTtsSupported] = useState(TTS_FEATURE_ENABLED);
   const [ttsEnabled, setTtsEnabled] = useState(
-    () => window.localStorage.getItem(TTS_ENABLED_STORAGE_KEY) === 'true'
+    () =>
+      TTS_FEATURE_ENABLED &&
+      window.localStorage.getItem(TTS_ENABLED_STORAGE_KEY) === 'true'
   );
   const [speakingMessageId, setSpeakingMessageId] = useState('');
   const [speechRate, setSpeechRate] = useState(1);

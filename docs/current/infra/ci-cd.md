@@ -45,17 +45,27 @@ Production Environment에 승인 규칙을 설정하는 것을 권장한다.
 
 Release는 다음 순서로 실행한다.
 
-1. Frontend·Backend 이미지를 변경 불가능한 태그로 빌드하고 Registry에 Push
-2. 애플리케이션 Secret과 migration Secret이 분리됐는지 확인
-3. Alembic Job에서 DB 권한·`pgcrypto`·현재 revision 사전 검사
-4. `alembic upgrade head` 실행
-5. 적용 revision이 저장소 head와 일치하는지 확인
-6. Backend·Frontend Deployment 이미지 교체
-7. 두 Deployment의 Rollout 성공 확인
+1. 배포 입력값과 GitHub Environment 설정 확인
+2. 운영 클러스터의 필수 리소스, PVC, 예시값 제거, DB 포트 분리,
+   CPU·메모리 requests/limits 확인
+3. Frontend·Backend 이미지를 변경 불가능한 태그로 빌드하고 Registry에 Push
+4. Alembic Job에서 DB 권한·`pgcrypto`·현재 revision 사전 검사
+5. `alembic upgrade head` 실행
+6. 적용 revision이 저장소 head와 일치하는지 확인
+7. Backend·Frontend Deployment 이미지 교체
+8. 두 Deployment의 Rollout 성공 확인
 
 Migration Job이 실패하면 로그와 Job 상태를 출력하고 Deployment image 교체를
 실행하지 않는다. 상세 백업·복구 절차는
 `docs/current/infra/database-migration-runbook.md`를 따른다.
+
+이 Release는 Namespace, PVC, ConfigMap, Secret, Service, Deployment, Ingress를
+새로 만들지 않으며 Kustomize 변경도 자동 적용하지 않는다. 최초 구축은
+`Infra/k8s/README.md`의 적용 순서대로 관리자가 완료해야 한다. 그 뒤 Release는
+검증된 기존 리소스에 migration과 immutable image 교체만 수행한다.
+
+TTS는 운영 서비스 주소가 없으므로 이미지 빌드 시 기본 비활성화된다. STT 운영
+활성화와 Object Storage 전환도 현재 Release 범위에 포함하지 않는다.
 
 ## 아직 확정되지 않은 부분
 

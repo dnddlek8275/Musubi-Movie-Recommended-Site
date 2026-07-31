@@ -55,6 +55,8 @@ Secret을 Git에 커밋하지 않습니다.
 7. 관리자가 운영 DB에 `pgcrypto`를 설치하고 migration 계정 권한을 확인합니다.
 8. 마이그레이션 Job을 단독 실행하고 preflight·migration·완료 검증 성공을 확인합니다.
 9. Kustomize 기본 리소스를 적용해 Backend와 Frontend를 시작합니다.
+10. 두 Deployment에 확정된 CPU·메모리 requests/limits를 설정합니다.
+11. 운영 리소스가 모두 준비됐는지 Release 사전 검사를 실행합니다.
 
 ```bash
 kubectl apply -f Infra/k8s/base/namespace.yaml
@@ -67,11 +69,22 @@ kubectl -n cineverse logs job/backend-migration
 kubectl apply -k Infra/k8s/base
 kubectl -n cineverse rollout status deployment/backend
 kubectl -n cineverse rollout status deployment/frontend
+bash Infra/k8s/scripts/cluster-preflight.sh cineverse
 ```
 
 같은 이름의 완료된 Job을 다시 실행할 때는 기존 Job을 지운 뒤 재적용해야
 합니다. DB migration과 backup 절차는
 `docs/current/infra/database-migration-runbook.md`를 따릅니다.
+
+`cluster-preflight.sh`는 다음 항목을 읽기 전용으로 검사합니다.
+
+- Namespace, ConfigMap, Secret, PVC, Service, Deployment, Ingress 존재 여부
+- `backend-uploads` PVC의 `Bound` 상태와 `ReadWriteMany`
+- ConfigMap·이미지·Ingress에 남은 예시값
+- 애플리케이션 DB의 PgBouncer `6432`와 migration DB의 PostgreSQL `5432` 분리
+- Frontend·Backend의 CPU·메모리 requests/limits
+
+검사 과정에서 Secret 원문은 출력하지 않습니다.
 
 ## 검증
 
@@ -93,6 +106,11 @@ curl --fail https://실제도메인/api/ai-health
 - CPU·메모리 requests/limits 및 HPA
 - Registry 인증용 imagePullSecret
 - Object Storage DB 백업 자동화
+- STT 운영 활성화
 
 위 항목은 클라우드 계정과 관리자 확정값이 없으므로 현재 자료만으로 정확하게
 작성할 수 없습니다.
+
+TTS는 구현 서버의 운영 주소가 확정되지 않았으므로 컨테이너 이미지에서 기본
+비활성화됩니다. 실제 TTS 서비스를 배포한 뒤 Frontend 빌드 인수
+`VITE_TTS_ENABLED=true`, `VITE_TTS_BASE_URL=실제주소`를 함께 지정해야 합니다.
