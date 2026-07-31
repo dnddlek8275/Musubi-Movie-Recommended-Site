@@ -5,6 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings) :
     # DB 호출할 서버 주소
     DATABASE_URL: str
+    SQL_ECHO: bool = False
 
     # TMDB API 인증 정보
     # Access Token이 설정돼 있으면 Bearer 인증에 사용한다.
@@ -30,6 +31,8 @@ class Settings(BaseSettings) :
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     # token 재발급하는 경우 만료 시간 ( 연장 )
     REFRESH_TOKEN_EXPIRE_DAYS: int = 14
+    REFRESH_COOKIE_PATH: str = "/auth"
+    REFRESH_COOKIE_SECURE: bool = False
 
     # 이메일 인증번호 유효시간
     EMAIL_VERIFICATION_EXPIRE_MINUTES: int = 5

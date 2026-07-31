@@ -35,9 +35,12 @@ cp .env.example .env
 | 변수 | 설명 |
 | --- | --- |
 | `DATABASE_URL` | PostgreSQL 연결 주소 |
+| `SQL_ECHO` | SQL 쿼리 로그 출력 여부(기본값 `false`) |
 | `SECRET_KEY` | Access/Refresh Token 서명용 비밀키 |
 | `AI_BASE_URL` | AI 서버 주소 |
 | `CORS_ORIGINS` | 허용할 브라우저 출처를 쉼표로 구분한 목록 |
+| `REFRESH_COOKIE_PATH` | Refresh Token 쿠키를 전송할 URL 경로 |
+| `REFRESH_COOKIE_SECURE` | HTTPS에서만 쿠키를 전송할지 여부 |
 | `TMDB_ACCESS_TOKEN` | TMDB Read Access Token |
 | `TMDB_API_KEY` | Access Token을 사용하지 않을 때의 TMDB API Key |
 | `MAIL_HOST`, `MAIL_PORT` | SMTP 서버 주소와 포트 |
@@ -135,6 +138,6 @@ AI 서버를 사용하지 않는 환경에서는 `/ai-health`가 연결 실패�
 - 실제 `.env`와 비밀정보를 Git에 올리지 않습니다.
 - 배포 전에 DB를 백업하고 `alembic upgrade head`를 실행합니다.
 - `CORS_ORIGINS`에는 운영 프론트엔드 주소만 지정합니다.
-- HTTPS 환경에서는 Refresh Token Cookie의 `Secure` 설정을 적용합니다.
+- HTTPS 환경에서는 `REFRESH_COOKIE_SECURE=true`를 적용합니다.
 - 운영 서버에서는 Uvicorn의 `--reload` 옵션을 사용하지 않습니다.
 - 사용자 업로드 경로를 영속 볼륨과 백업 대상에 포함합니다.

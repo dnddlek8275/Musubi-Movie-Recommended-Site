@@ -312,10 +312,10 @@ async def login(
             key="refresh_token",
             value=refresh_token,
             httponly=True,
-            secure=False,
+            secure=settings.REFRESH_COOKIE_SECURE,
             samesite="lax",
             max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
-            path="/auth"
+            path=settings.REFRESH_COOKIE_PATH,
         )
         
         return {
@@ -471,9 +471,9 @@ async def logout(http_request : Request, http_response: Response, db:Session = D
         # 브라우저 쿠키 삭제
         http_response.delete_cookie(
             key="refresh_token",
-            path="/auth",
+            path=settings.REFRESH_COOKIE_PATH,
             samesite="lax",
-            secure=False,
+            secure=settings.REFRESH_COOKIE_SECURE,
             httponly=True,
         )
         return {

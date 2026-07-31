@@ -19,3 +19,12 @@
 
 선택형 TTS와 GPU 모니터링 도구는 핵심 프론트와 분리해 `Add-on/`에
 보관합니다.
+
+## 배포 연결
+
+프로덕션 빌드는 백엔드 호출에 동일 출처 `/api`를 사용합니다. Docker
+환경에서는 nginx가 이 요청을 `backend:8080`으로 전달하며, SPA 경로는
+`index.html`로 폴백합니다.
+
+루트의 `compose.yaml`을 사용하면 PostgreSQL, DB 마이그레이션, Backend,
+Frontend를 순서대로 실행할 수 있습니다.

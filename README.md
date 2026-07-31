@@ -13,8 +13,30 @@ monorepo입니다.
 ├── Frontend/    # React 웹 애플리케이션
 ├── Add-on/      # 선택형 TTS·GPU 모니터링·프로토타입
 ├── Infra/       # 클라우드 및 Kubernetes 배포 코드
-└── docs/        # 요구사항, DB, 아키텍처 및 운영 문서
+├── docs/        # 요구사항, DB, 아키텍처 및 운영 문서
+└── compose.yaml # 로컬 통합 실행 구성
 ```
+
+## 로컬 통합 실행
+
+Docker Desktop을 실행한 뒤 루트에서 다음 명령을 사용합니다.
+
+```bash
+docker compose up -d --build
+```
+
+프론트엔드는 `http://localhost:8088`, 백엔드는
+`http://localhost:8080`에서 확인할 수 있습니다. 최초 실행 시 PostgreSQL
+준비 후 Alembic 마이그레이션을 한 번 수행하고 애플리케이션을 시작합니다.
+
+종료:
+
+```bash
+docker compose down
+```
+
+DB와 업로드 검증 데이터까지 삭제하려면 명시적으로
+`docker compose down --volumes`를 사용합니다.
 
 ## 관리 기준
 

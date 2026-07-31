@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.core.config import settings
 
 # PostgreSQL과 연결할 엔진 생성
-engine = create_engine(settings.DATABASE_URL, echo=True)
+engine = create_engine(settings.DATABASE_URL, echo=settings.SQL_ECHO)
 
 # DB 세션 생성 객체
 # autocommit=False
@@ -35,6 +35,5 @@ def get_db():
         # 요청 종료 시 세션 종료
         db.close()
 
-# 
+#
 # def get_current_user(token : str = Depends(oauth2_scheme), db:Session = Depends(get_db)):
-    

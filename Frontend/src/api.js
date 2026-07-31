@@ -1,7 +1,6 @@
-// refresh cookie의 host/path가 실제 API 요청과 일치하도록 기본값은 백엔드에 직접 연결한다.
-// 다른 환경에서는 VITE_API_BASE_URL로 전체 API 주소를 지정한다.
+// 기본값은 동일 출처의 /api 프록시이며, 개발 환경에서는 Vite가 백엔드로 전달한다.
 const BACKEND_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8080'
+  import.meta.env.VITE_API_BASE_URL || '/api'
 ).replace(/\/+$/, '');
 
 const LOCAL_PROFILE_KEY = 'cineverse.localProfile';

@@ -4,11 +4,12 @@
 
 ## Docker 이미지 빌드
 
-백엔드 API 주소는 Vite 특성상 빌드 시점에 반영된다.
+기본 이미지는 동일 출처 `/api`를 사용하고 nginx가 `backend:8080`으로
+요청을 전달한다.
 
 ```bash
 docker build \
-  --build-arg VITE_API_BASE_URL=http://백엔드주소 \
+  --build-arg VITE_API_BASE_URL=/api \
   -t cineverse-frontend:local .
 ```
 
@@ -16,7 +17,7 @@ TMDB 이미지 베이스 URL을 바꿔야 하면 같이 넘긴다.
 
 ```bash
 docker build \
-  --build-arg VITE_API_BASE_URL=http://백엔드주소 \
+  --build-arg VITE_API_BASE_URL=/api \
   --build-arg VITE_TMDB_IMAGE_BASE_URL=https://image.tmdb.org/t/p/w500 \
   -t cineverse-frontend:local .
 ```
@@ -48,4 +49,6 @@ SPA 라우팅을 위해 nginx의 `try_files $uri $uri/ /index.html;` 설정을 �
 
 - `.env`, `node_modules`, `dist`는 이미지/깃에 포함하지 않는다.
 - `VITE_API_BASE_URL`은 런타임이 아니라 빌드 시점에 반영된다.
-- API 서버 주소가 바뀌면 이미지를 다시 빌드해야 한다.
+- 기본 `/api`를 유지하면 백엔드 주소 변경은 프록시나 Ingress 설정에서
+  처리할 수 있다.
+- nginx 프록시를 사용할 때 백엔드 서비스 DNS 이름은 `backend`여야 한다.
