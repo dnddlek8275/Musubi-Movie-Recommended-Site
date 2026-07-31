@@ -51,10 +51,12 @@ async def post_ai(path: str, payload: dict) -> dict:
     except httpx.HTTPStatusError as e:
         # AI 서버에는 연결됐지만 400, 422, 500 같은 실패 응답을 받은 경우입니다.
         raise HTTPException(
-            status_code=e.response.status_code,
+            status_code=502,
             detail={
                 "state": "error",
                 "message": "AI 서버가 에러 응답을 반환했습니다.",
-                "error": e.response.text,
+                "data": {
+                    "upstream_status_code": e.response.status_code,
+                },
             }
         )

@@ -13,9 +13,10 @@
 - Container: Frontend·Backend 이미지를 빌드하되 Registry에는 올리지 않음
 - Kubernetes: Kustomization 참조와 Kubernetes 리소스 스키마 검사
 
-현재 Backend 단위 테스트는 `/ready`와 `/ai-health`의 성공·실패 상태 코드를
-검사한다. 로그인·추천·채팅 기능 테스트는 아직 없으며, 자동 통합 검사는 DB
-스키마 전체 적용과 Backend 실제 연결 확인까지 수행한다.
+현재 Backend 단위 테스트는 `/ready`, `/ai-health`, AI 채팅의 500·502·504
+상태 코드와 스트리밍 연결 실패를 검사한다. 로그인·추천의 기능 테스트는 아직
+없으며, 자동 통합 검사는 DB 스키마 전체 적용과 Backend 실제 연결 확인까지
+수행한다.
 
 ## 수동 Release
 

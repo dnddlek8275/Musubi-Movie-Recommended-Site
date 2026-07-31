@@ -1,10 +1,11 @@
 import json
 import re
 
+from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.ai_client.chat import stream_character_chat
+from app.ai_client.chat import CharacterChatStream, open_character_chat_stream
 from app.repositories.chat_repository import create_message, create_room, get_room_messages, get_room_user, make_ai_history
 from app.schemas.chat import CharacterChatRequest, SendChatMessageRequest
 from app.services.character_service import get_active_character
@@ -39,6 +40,7 @@ async def stream_and_save_character_answer(
         message : str,
         history : list[dict],
         character : str,
+        ai_stream: CharacterChatStream,
 ):
     answer_parts = []
     # 제어 토큰이 여러 조각으로 들어오는 경우를 위한 시작 버퍼
@@ -46,7 +48,8 @@ async def stream_and_save_character_answer(
     prefix_checked = False
 
     try:
-        async for chunk in stream_character_chat(message, history, character):
+        async for line in ai_stream.iter_lines():
+            chunk = f"{line}\n\n"
             yield chunk
 
             if chunk.startswith("data: "):
@@ -94,7 +97,14 @@ async def stream_and_save_character_answer(
                 # # 정제한 조각만 정상 SSE 형식으로 전달
                 # yield f"data: {json.dumps(text, ensure_ascii=False)}\n\n"
 
+    except HTTPException as exc:
+        yield (
+            "data: "
+            + json.dumps(exc.detail, ensure_ascii=False)
+            + "\n\n"
+        )
     finally :
+        await ai_stream.aclose()
         # 스트림 정상 종료시 모아둔 답변 assistant 메시지로 저장
         answer = "".join(answer_parts).strip()
         if answer:
@@ -110,6 +120,15 @@ def make_streaming_response(generator):
             "X-Accel-Buffering" : "no",
         },
     )
+
+
+async def commit_before_streaming(db: Session, ai_stream: CharacterChatStream):
+    try:
+        db.commit()
+    except Exception:
+        await ai_stream.aclose()
+        raise
+
 
 async def start_character_chat_stream(db: Session, user_id: int, request: CharacterChatRequest):
     # 새 1대1 캐릭터 스트림 채팅방 생성
@@ -146,7 +165,13 @@ async def start_character_chat_stream(db: Session, user_id: int, request: Charac
         role="user",
         content=message,
     )
-    db.commit()
+
+    ai_stream = await open_character_chat_stream(
+        message=message,
+        history=history,
+        character=character,
+    )
+    await commit_before_streaming(db, ai_stream)
 
     return make_streaming_response(
         stream_and_save_character_answer(
@@ -155,6 +180,7 @@ async def start_character_chat_stream(db: Session, user_id: int, request: Charac
             message=message,
             history=history,
             character=character,
+            ai_stream=ai_stream,
         )
     )
 
@@ -228,7 +254,13 @@ async def continue_chat_stream(db: Session, user_id: int, room_id: int, request:
         role="user",
         content=message,
     )
-    db.commit()
+
+    ai_stream = await open_character_chat_stream(
+        message=message,
+        history=history,
+        character=character,
+    )
+    await commit_before_streaming(db, ai_stream)
 
     return make_streaming_response(
         stream_and_save_character_answer(
@@ -237,5 +269,6 @@ async def continue_chat_stream(db: Session, user_id: int, room_id: int, request:
             message=message,
             history=history,
             character=character,
+            ai_stream=ai_stream,
         )
     )

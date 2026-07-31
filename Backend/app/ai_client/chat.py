@@ -1,7 +1,48 @@
 import httpx
+from fastapi import HTTPException
 
 from app.core.config import settings
 from app.ai_client.base import post_ai
+
+
+AI_STREAM_TIMEOUT = httpx.Timeout(
+    connect=5.0,
+    read=60.0,
+    write=30.0,
+    pool=5.0,
+)
+
+
+class CharacterChatStream:
+    def __init__(self, client: httpx.AsyncClient, response: httpx.Response):
+        self.client = client
+        self.response = response
+
+    async def iter_lines(self):
+        try:
+            async for line in self.response.aiter_lines():
+                if line:
+                    yield line
+        except httpx.TimeoutException as exc:
+            raise HTTPException(
+                status_code=504,
+                detail={
+                    "state": "error",
+                    "message": "AI 스트리밍 응답 시간이 초과되었습니다.",
+                },
+            ) from exc
+        except httpx.RequestError as exc:
+            raise HTTPException(
+                status_code=502,
+                detail={
+                    "state": "error",
+                    "message": "AI 스트리밍 연결이 중단되었습니다.",
+                },
+            ) from exc
+
+    async def aclose(self):
+        await self.response.aclose()
+        await self.client.aclose()
 
 
 # AI 서버의 POST /chat/auto API 호출
@@ -32,8 +73,9 @@ async def request_character_chat(
     }
     return await post_ai("/chat/auto", payload)
 
-# 1대1대화 전용 stream챗
-async def stream_character_chat(
+# 1대1 대화용 AI stream을 미리 연결한다.
+# StreamingResponse의 HTTP 200 헤더를 보내기 전에 연결 오류를 판별하기 위함이다.
+async def open_character_chat_stream(
     message : str,
     history : list[dict],
     character : str,
@@ -49,17 +91,48 @@ async def stream_character_chat(
     # AI 서버 주소
     ai_base_url = settings.AI_BASE_URL.rstrip("/")
 
-    # 스트리밍은 오래 열려 있을 수 있음 - timeout=None
-    async with httpx.AsyncClient(timeout=None) as client:
-        async with client.stream("POST", f"{ai_base_url}/chat/stream", json=payload) as response:
-            response.raise_for_status()
+    client = httpx.AsyncClient(timeout=AI_STREAM_TIMEOUT)
+    request = client.build_request(
+        "POST",
+        f"{ai_base_url}/chat/stream",
+        json=payload,
+    )
 
-            # AI 서버가 보내는 SSE 라인을 한줄씩 읽음
-            async for line in response.aiter_lines():
-                if not line:
-                    continue
-
-                yield f"{line}\n\n"
+    try:
+        response = await client.send(request, stream=True)
+        response.raise_for_status()
+        return CharacterChatStream(client, response)
+    except httpx.TimeoutException as exc:
+        await client.aclose()
+        raise HTTPException(
+            status_code=504,
+            detail={
+                "state": "error",
+                "message": "AI 스트리밍 연결 시간이 초과되었습니다.",
+            },
+        ) from exc
+    except httpx.RequestError as exc:
+        await client.aclose()
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "state": "error",
+                "message": "AI 스트리밍 서버에 연결할 수 없습니다.",
+            },
+        ) from exc
+    except httpx.HTTPStatusError as exc:
+        await exc.response.aclose()
+        await client.aclose()
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "state": "error",
+                "message": "AI 스트리밍 서버가 에러 응답을 반환했습니다.",
+                "data": {
+                    "upstream_status_code": exc.response.status_code,
+                },
+            },
+        ) from exc
 
 
 # 그룹 채팅용

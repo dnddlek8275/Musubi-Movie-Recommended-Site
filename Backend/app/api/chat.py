@@ -37,16 +37,18 @@ async def chat(
         # 토큰 내 회원 ID 꺼내기
         user_id = current_user["user_id"]
         return await start_general_chat(db, user_id, request)
-    except HTTPException as e:
+    except HTTPException:
         db.rollback()
-        return e.detail
-    except Exception as e:
+        raise
+    except Exception:
         db.rollback()
-        return {
-            "state" : "error",
-            "message" : "AI 채팅 처리 중 에러났습니다.",
-            "error" : str(e)
-        }
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "state": "error",
+                "message": "AI 채팅 처리 중 오류가 발생했습니다.",
+            },
+        )
 
 # 채팅할 수 있는 캐릭터 조회
 @router.get("/characters")
@@ -128,16 +130,18 @@ async def chat_character(
 
         return await start_character_chat_stream(db, user_id, request)
         
-    except HTTPException as e:
+    except HTTPException:
         db.rollback()
-        return e.detail
-    except Exception as e:
+        raise
+    except Exception:
         db.rollback()
-        return {
-            "state": "error",
-            "message": "AI 캐릭터 채팅 처리 중 에러났습니다.",
-            "error": str(e)
-        }
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "state": "error",
+                "message": "AI 캐릭터 채팅 처리 중 오류가 발생했습니다.",
+            },
+        )
 
 # # 1대1 대화 스트림 모드
 # @router.post("/stream")
@@ -168,16 +172,18 @@ async def chat_group(
         user_id = current_user["user_id"]
         # user_id = 1
         return await start_group_chat(db, user_id, request)
-    except HTTPException as e:
+    except HTTPException:
         db.rollback()
-        return e.detail
-    except Exception as e:
+        raise
+    except Exception:
         db.rollback()
-        return {
-            "state": "error",
-            "message": "AI 그룹 채팅 처리 중 에러났습니다.",
-            "error": str(e),
-        }
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "state": "error",
+                "message": "AI 그룹 채팅 처리 중 오류가 발생했습니다.",
+            },
+        )
     
 # 사용자 채팅방 목록 조회 GET /chat/rooms?user_id=1
 @router.get("/rooms")
@@ -277,13 +283,18 @@ async def send_chat_message(
         return await continue_chat_stream(db, user_id, room_id, request)
         
 
-    except Exception as e:
+    except HTTPException:
         db.rollback()
-        return {
-            "state": "error",
-            "message": "채팅 메시지 전송 에러",
-            "error": str(e)
-        }
+        raise
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "state": "error",
+                "message": "채팅 메시지 전송 중 오류가 발생했습니다.",
+            },
+        )
 
 
 # 채팅방 삭제 DELETE /chat/rooms/{room_id}?user_id=1

@@ -765,6 +765,9 @@ export async function sendCharacterChatStream(request, signal, onChunk) {
       if (raw === '[DONE]') return true;
 
       const payload = parseStreamPayload(raw);
+      if (isFailureResponse(payload)) {
+        throw new Error(getErrorMessage(payload, 'AI 스트리밍 응답에 실패했습니다.'));
+      }
       finalPayload = payload;
       const chunk = String(getStreamText(payload) || '');
       if (!chunk) continue;
