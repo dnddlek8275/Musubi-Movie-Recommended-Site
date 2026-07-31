@@ -46,11 +46,25 @@ jobs:
   backend:
     name: Backend
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: cineverse
+          POSTGRES_USER: cineverse
+          POSTGRES_PASSWORD: ci-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cineverse -d cineverse"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     defaults:
       run:
         working-directory: Backend
     env:
-      DATABASE_URL: postgresql+psycopg://user:password@127.0.0.1:5432/cineverse
+      DATABASE_URL: postgresql+psycopg://cineverse:ci-only-password@127.0.0.1:5432/cineverse
       SECRET_KEY: ci-only-secret
       AI_BASE_URL: http://127.0.0.1:8001
       CORS_ORIGINS: http://localhost:5173
@@ -92,6 +106,47 @@ jobs:
               raise SystemExit(f"Missing required routes: {sorted(missing)}")
           print(f"Validated {len(paths)} API routes")
           PY
+
+      - name: Apply all database migrations
+        run: python -m alembic upgrade head
+
+      - name: Start Backend and test PostgreSQL integration
+        run: |
+          python -m uvicorn app.main:app \
+            --host 127.0.0.1 \
+            --port 8080 \
+            > /tmp/cineverse-backend.log 2>&1 &
+          backend_pid=$!
+          trap 'kill "${backend_pid}" 2>/dev/null || true' EXIT
+
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8080/health >/dev/null; then
+              break
+            fi
+            if ! kill -0 "${backend_pid}" 2>/dev/null; then
+              cat /tmp/cineverse-backend.log
+              exit 1
+            fi
+            if [ "${attempt}" -eq 30 ]; then
+              cat /tmp/cineverse-backend.log
+              exit 1
+            fi
+            sleep 1
+          done
+
+          curl --fail --silent --show-error \
+            http://127.0.0.1:8080/health
+          curl --fail --silent --show-error \
+            http://127.0.0.1:8080/db-test |
+            python -c '
+          import json
+          import sys
+
+          payload = json.load(sys.stdin)
+          if payload.get("state") != "success":
+              raise SystemExit(payload)
+          print(payload["message"])
+          '
 
   containers:
     name: Container - ${{ matrix.service }}

@@ -7,11 +7,14 @@
 
 - Frontend: `npm ci`, 의존성 감사, Vite 프로덕션 빌드
 - Backend: Python 3.12 설치, 의존성 검사, 구문 컴파일, FastAPI 라우트 검사
+- PostgreSQL: 임시 PostgreSQL 17 생성, Alembic 전체 적용, Backend 실제 기동,
+  `/health`와 `/db-test` HTTP 검사
 - Container: Frontend·Backend 이미지를 빌드하되 Registry에는 올리지 않음
 - Kubernetes: Kustomization 참조와 Kubernetes 리소스 스키마 검사
 
-현재 저장소에는 Backend 자동 테스트가 없으므로 CI는 기능 테스트를 수행하지
-않는다. 향후 테스트가 추가되면 별도의 pytest 단계를 넣어야 한다.
+현재 저장소에는 Backend 단위 테스트가 없으므로 CI는 로그인·추천·채팅 같은
+기능 테스트를 수행하지 않는다. 현재 자동 통합 검사는 DB 스키마 적용과
+Backend 연결 확인까지이며, 향후 테스트가 추가되면 pytest 단계를 넣어야 한다.
 
 ## 수동 Release
 
