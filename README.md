@@ -1,8 +1,16 @@
 # Musubi — Character-Driven Movie Recommendation Platform
 
+[![CI](https://github.com/dnddlek8275/Musubi-Movie-Recommended-Site/actions/workflows/ci.yaml/badge.svg?branch=dev)](https://github.com/dnddlek8275/Musubi-Movie-Recommended-Site/actions/workflows/ci.yaml)
+
 Musubi is a full-stack movie discovery and recommendation platform that combines personalized browsing with RAG-powered conversations in the voices of movie characters.
 
 The integrated application is maintained on the [`dev` branch](https://github.com/dnddlek8275/Musubi-Movie-Recommended-Site/tree/dev). The default `main` branch provides this project overview.
+
+## Demo
+
+[▶ Watch the implementation demo](https://github.com/dnddlek8275/Musubi-Movie-Recommended-Site/blob/frontend/implementation_video.mov)
+
+The recorded implementation demo is maintained on the `frontend` branch.
 
 ## Key Features
 
