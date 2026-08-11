@@ -19,7 +19,7 @@ import './index.css';
 // 좋아요 여부는 번역/원문 제목이 달라져도 같은 값을 유지하는 DB movie_id로
 // 판별한다. id가 없는 임시 영화 데이터만 정규화한 제목을 보조 키로 사용한다.
 function movieLikeKey(movie) {
-  const id = movie?.id ?? movie?.movie_id;
+  const id = movie?.movie_id ?? movie?.id;
   if (id !== undefined && id !== null) return `id:${id}`;
 
   const title = String(movie?.title || '').trim().toLocaleLowerCase('ko-KR');

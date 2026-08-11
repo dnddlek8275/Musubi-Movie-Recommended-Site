@@ -12,6 +12,10 @@ import {
 } from '../../api.js';
 import { normalizeMovie } from '../index/RecommendationRow.jsx';
 import { SkeletonBlock } from '../common/LoadingSkeleton.jsx';
+import {
+  getInternalMovieId,
+  hasMatchingMovieIdentity,
+} from '../../utils/movieIdentity.js';
 import './movieDetail.css';
 
 function toEmbedUrl(url) {
@@ -79,6 +83,9 @@ function MovieDetailPage({ authUser, movieId }) {
 
     fetchMovieDetail(movieId, new URLSearchParams(window.location.search).get('source') || 'direct', controller.signal)
       .then((movie) => {
+        if (!hasMatchingMovieIdentity(movieId, movie)) {
+          throw new Error('영화 식별 정보가 일치하지 않습니다. 페이지를 새로고침해 주세요.');
+        }
         setDetail(movie);
         const savedRating = Number(movie?.my_rating) || 0;
         setRating(savedRating);
@@ -104,7 +111,7 @@ function MovieDetailPage({ authUser, movieId }) {
     const controller = new AbortController();
     fetchLikedMovies(controller.signal)
       .then((movies) => {
-        setLiked(movies.some((movie) => String(movie.id ?? movie.movie_id) === String(movieId)));
+        setLiked(movies.some((movie) => String(getInternalMovieId(movie)) === String(movieId)));
       })
       .catch((error) => {
         if (error.name !== 'AbortError') setStatus(error.message);
@@ -198,14 +205,29 @@ function MovieDetailPage({ authUser, movieId }) {
 
   const handleRatingSave = async () => {
     if (!draftRating || ratingSaving) return;
+    const verifiedMovieId = getInternalMovieId(detail);
+    if (!verifiedMovieId || !hasMatchingMovieIdentity(movieId, detail)) {
+      setStatus('영화 식별 정보가 일치하지 않아 리뷰를 저장하지 않았습니다. 페이지를 새로고침해 주세요.');
+      return;
+    }
     setRatingSaving(true);
     setStatus('');
     try {
-      const result = await rateMovie(movieId, draftRating, draftComment.trim());
+      const result = await rateMovie(
+        verifiedMovieId,
+        draftRating,
+        draftComment.trim(),
+        {
+          expectedMovieId: verifiedMovieId,
+          expectedTmdbId: detail?.tmdb_id,
+          expectedTitle: detail?.title,
+        }
+      );
       setRating(Number(result.my_rating) || draftRating);
       setReviewComment(String(result.my_comment || ''));
       setDetail((current) => ({ ...current, ...result }));
       setRatingOpen(false);
+      setStatus(`${detail?.title || '선택한 영화'}에 리뷰가 저장되었습니다.`);
     } catch (error) {
       setStatus(error.message);
     } finally {
@@ -215,10 +237,19 @@ function MovieDetailPage({ authUser, movieId }) {
 
   const handleRatingDelete = async () => {
     if (!rating || ratingSaving) return;
+    const verifiedMovieId = getInternalMovieId(detail);
+    if (!verifiedMovieId || !hasMatchingMovieIdentity(movieId, detail)) {
+      setStatus('영화 식별 정보가 일치하지 않아 리뷰를 삭제하지 않았습니다. 페이지를 새로고침해 주세요.');
+      return;
+    }
     setRatingSaving(true);
     setStatus('');
     try {
-      const result = await deleteMovieRating(movieId);
+      const result = await deleteMovieRating(verifiedMovieId, {
+        expectedMovieId: verifiedMovieId,
+        expectedTmdbId: detail?.tmdb_id,
+        expectedTitle: detail?.title,
+      });
       setRating(0);
       setDraftRating(0);
       setReviewComment('');

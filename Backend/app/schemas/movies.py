@@ -118,7 +118,13 @@ class MovieDetailResponse(BaseModel):
     error: str | None = None
 
 
-class MovieRatingRequest(BaseModel):
+class MovieIdentityRequest(BaseModel):
+    expected_movie_id: int = Field(gt=0)
+    expected_tmdb_id: int | None = Field(default=None, gt=0)
+    expected_title: str = Field(min_length=1, max_length=300)
+
+
+class MovieRatingRequest(MovieIdentityRequest):
     score: int = Field(ge=1, le=5)
     comment: str | None = Field(default=None, max_length=500)
 

@@ -1,4 +1,7 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -6,7 +9,7 @@ from app.ai_client.recommend import request_ai_recommend
 from app.core.current_user import get_current_user, get_optional_current_user
 from app.core.api_responses import error_response
 from app.core.dependencies import get_db
-from app.schemas.movies import MovieCastData, MovieDetailData, MovieDetailResponse, MovieRatingRequest, PersonFilmographyResponse, RecommendRequest
+from app.schemas.movies import MovieCastData, MovieDetailData, MovieDetailResponse, MovieIdentityRequest, MovieRatingRequest, PersonFilmographyResponse, RecommendRequest
 from app.schemas.users import PreferenceRequest
 from app.services.actor_service import get_actors_result, get_onboarding_actors_result
 from app.services.movies.genre_service import genre_movies
@@ -24,6 +27,17 @@ from app.models.movies import Movie, MovieGenre
 from app.models.users import User
 
 TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500"
+logger = logging.getLogger(__name__)
+
+
+def rating_identity_matches(movie: Movie, movie_id: int, request: MovieIdentityRequest) -> bool:
+    if request.expected_movie_id != movie_id:
+        return False
+    if request.expected_tmdb_id is not None and request.expected_tmdb_id != movie.tmdb_id:
+        return False
+    if request.expected_title.strip() != movie.title.strip():
+        return False
+    return True
 
 def tmdb_image_url(path: str | None) -> str | None:
     if not path or not path.strip():
@@ -644,10 +658,32 @@ def rate_movie(
     db: Session = Depends(get_db),
 ):
     try:
-        if db.scalar(select(Movie.id).where(Movie.id == movie_id)) is None:
+        movie = db.scalar(select(Movie).where(Movie.id == movie_id))
+        if movie is None:
             return {"state": "failure", "message": "해당 영화를 찾을 수 없습니다."}
 
         user_id = current_user["user_id"]
+        if not rating_identity_matches(movie, movie_id, request):
+            logger.warning(
+                "rating_movie_identity_mismatch user_id=%s path_movie_id=%s "
+                "expected_movie_id=%s expected_tmdb_id=%s actual_tmdb_id=%s "
+                "expected_title=%r actual_title=%r",
+                user_id,
+                movie_id,
+                request.expected_movie_id,
+                request.expected_tmdb_id,
+                movie.tmdb_id,
+                request.expected_title,
+                movie.title,
+            )
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "state": "failure",
+                    "message": "영화 식별 정보가 일치하지 않아 리뷰를 저장하지 않았습니다. 페이지를 새로고침해 주세요.",
+                },
+            )
+
         rating = db.scalar(
             select(MovieRating).where(
                 MovieRating.movie_id == movie_id,
@@ -681,11 +717,35 @@ def rate_movie(
 @router.delete("/{movie_id}/rating")
 def delete_movie_rating(
     movie_id: int,
+    request: MovieIdentityRequest,
     current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     try:
         user_id = current_user["user_id"]
+        movie = db.scalar(select(Movie).where(Movie.id == movie_id))
+        if movie is None:
+            return {"state": "failure", "message": "해당 영화를 찾을 수 없습니다."}
+        if not rating_identity_matches(movie, movie_id, request):
+            logger.warning(
+                "delete_rating_movie_identity_mismatch user_id=%s path_movie_id=%s "
+                "expected_movie_id=%s expected_tmdb_id=%s actual_tmdb_id=%s "
+                "expected_title=%r actual_title=%r",
+                user_id,
+                movie_id,
+                request.expected_movie_id,
+                request.expected_tmdb_id,
+                movie.tmdb_id,
+                request.expected_title,
+                movie.title,
+            )
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "state": "failure",
+                    "message": "영화 식별 정보가 일치하지 않아 리뷰를 삭제하지 않았습니다. 페이지를 새로고침해 주세요.",
+                },
+            )
         rating = db.scalar(
             select(MovieRating).where(
                 MovieRating.movie_id == movie_id,

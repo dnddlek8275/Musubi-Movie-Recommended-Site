@@ -5,6 +5,7 @@ import { HOME_MOVIE_COUNT } from './constants.js';
 import MovieCard from '../movieCard/MovieCard.jsx';
 import { PosterRowSkeleton } from '../common/LoadingSkeleton.jsx';
 import SectionHeader from './SectionHeader.jsx';
+import { getInternalMovieId } from '../../utils/movieIdentity.js';
 
 const POSTER_BASE_URL =
   import.meta.env.VITE_TMDB_IMAGE_BASE_URL || 'https://image.tmdb.org/t/p/w500';
@@ -53,7 +54,7 @@ export function normalizeMovie(rawMovie) {
   );
 
   return {
-    id: rawMovie?.id ?? rawMovie?.movie_id ?? rawMovie?.tmdb_id,
+    id: getInternalMovieId(rawMovie),
     title: rawMovie?.title || rawMovie?.name || rawMovie?.movie || '',
     genre: Array.isArray(rawMovie?.genres)
       ? rawMovie.genres.join(', ')
@@ -75,7 +76,7 @@ export function normalizeMovie(rawMovie) {
 }
 
 function movieLikeKey(movie) {
-  const id = movie?.id ?? movie?.movie_id;
+  const id = movie?.movie_id ?? movie?.id;
   if (id !== undefined && id !== null) return `id:${id}`;
 
   const title = String(movie?.title || '').trim().toLocaleLowerCase('ko-KR');

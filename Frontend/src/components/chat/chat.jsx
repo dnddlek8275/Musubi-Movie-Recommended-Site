@@ -1175,7 +1175,7 @@ function ChatPage({ authUser }) {
                                   return (
                                     <div
                                       className="chat-movie"
-                                      key={movie.id || movie.movie_id || movie.title || index}
+                                      key={movie.movie_id || movie.id || movie.title || index}
                                     >
                                       <div className="chat-movie__poster">
                                         {poster ? (

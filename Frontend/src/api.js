@@ -1,3 +1,5 @@
+import { getInternalMovieId } from './utils/movieIdentity.js';
+
 // 기본값은 동일 출처의 /api 프록시이며, 개발 환경에서는 Vite가 백엔드로 전달한다.
 const BACKEND_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL || '/api'
@@ -40,7 +42,7 @@ export function addRecommendedMovies(movies) {
   // 새로 추천된 영화가 앞으로 오도록 new → old 순서로 넣고, 먼저 들어온 것만 유지.
   [...movies, ...(Array.isArray(existing) ? existing : [])].forEach((movie) => {
     if (!movie) return;
-    const key = String(movie.id ?? movie.movie_id ?? movie.title ?? movie.name ?? '');
+    const key = String(movie.movie_id ?? movie.id ?? movie.title ?? movie.name ?? '');
     if (!key || byKey.has(key)) return;
     byKey.set(key, movie);
   });
@@ -1298,7 +1300,7 @@ export async function fetchMovieRanking(signal, limit = 10) {
 
   return getArrayPayload(data, 'rankings').map((movie, index) => ({
     ...movie,
-    id: movie.id ?? movie.movie_id,
+    id: getInternalMovieId(movie),
     rank: index + 1,
     genre: Array.isArray(movie.genres)
       ? movie.genres.join(', ')
@@ -1409,11 +1411,27 @@ export async function fetchSimilarMovies(movieId, signal, limit = 6) {
   return getArrayPayload(data, 'movies');
 }
 
-export async function rateMovie(movieId, score, comment = '', signal) {
+export async function rateMovie(
+  movieId,
+  score,
+  comment = '',
+  {
+    expectedMovieId = movieId,
+    expectedTmdbId = null,
+    expectedTitle = '',
+    signal,
+  } = {}
+) {
   const response = await fetchWithAuth(`${BACKEND_BASE_URL}/movies/${movieId}/rating`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ score: clampNumber(score, 1, 5, 1), comment }),
+    body: JSON.stringify({
+      score: clampNumber(score, 1, 5, 1),
+      comment,
+      expected_movie_id: expectedMovieId,
+      expected_tmdb_id: expectedTmdbId,
+      expected_title: expectedTitle || null,
+    }),
     signal,
   });
   const data = await response.json().catch(() => null);
@@ -1425,9 +1443,23 @@ export async function rateMovie(movieId, score, comment = '', signal) {
   return data?.data || {};
 }
 
-export async function deleteMovieRating(movieId, signal) {
+export async function deleteMovieRating(
+  movieId,
+  {
+    expectedMovieId = movieId,
+    expectedTmdbId = null,
+    expectedTitle = '',
+    signal,
+  } = {}
+) {
   const response = await fetchWithAuth(`${BACKEND_BASE_URL}/movies/${movieId}/rating`, {
     method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      expected_movie_id: expectedMovieId,
+      expected_tmdb_id: expectedTmdbId,
+      expected_title: expectedTitle || null,
+    }),
     signal,
   });
   const data = await response.json().catch(() => null);
@@ -1492,7 +1524,7 @@ function toLikedMoviePayload(movie) {
 }
 
 async function requestLikedMovie(method, movie) {
-  const movieId = movie?.id ?? movie?.movie_id;
+  const movieId = movie?.movie_id ?? movie?.id;
 
   if (movieId !== undefined && movieId !== null) {
     return likeMovie(movieId);
@@ -1506,7 +1538,7 @@ export function addLikedMovie(movie) {
 }
 
 export function removeLikedMovie(movie, signal) {
-  const movieId = movie?.id ?? movie?.movie_id;
+  const movieId = movie?.movie_id ?? movie?.id;
 
   if (movieId === undefined || movieId === null) {
     throw new Error(

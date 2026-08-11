@@ -59,7 +59,7 @@ function formatChatHistoryDate(value) {
 }
 
 function movieLikeKey(movie) {
-  const id = movie?.id ?? movie?.movie_id;
+  const id = movie?.movie_id ?? movie?.id;
   if (id !== undefined && id !== null) return `id:${id}`;
 
   const title = String(movie?.title || '').trim().toLocaleLowerCase('ko-KR');

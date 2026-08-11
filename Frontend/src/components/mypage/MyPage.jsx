@@ -26,6 +26,7 @@ import CinemaNav from '../HeaderFooter/CinemaNav.jsx';
 import { normalizeMovie } from '../index/RecommendationRow.jsx';
 import { PanelSkeleton, PosterRowSkeleton, SkeletonBlock } from '../common/LoadingSkeleton.jsx';
 import { getKeywordLabel } from '../../utils/keywordLabels.js';
+import { getInternalMovieId } from '../../utils/movieIdentity.js';
 import './mypage.css';
 
 const TABS = [
@@ -56,7 +57,7 @@ function learnedValues(data, key) {
 }
 
 function movieId(movie) {
-  return movie?.id ?? movie?.movie_id ?? movie?.tmdb_id ?? movie?.tmdbId ?? '';
+  return getInternalMovieId(movie) ?? '';
 }
 
 function moviePoster(movie) {
