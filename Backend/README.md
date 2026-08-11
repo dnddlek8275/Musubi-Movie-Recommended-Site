@@ -1,6 +1,6 @@
-# CineVerse Backend
+# Musubi Backend
 
-CineVerse의 영화 탐색, 개인화 추천, 캐릭터 채팅, 회원 및 관리자 기능을
+Musubi의 영화 탐색, 개인화 추천, 캐릭터 채팅, 회원 및 관리자 기능을
 제공하는 FastAPI 백엔드입니다.
 
 ## 서버 구성
@@ -127,6 +127,10 @@ docker compose run --rm \
 CSV에는 배우 TMDB ID와 프로필 이미지, 캐릭터 정보가 없으므로 `actors`,
 `movie_actors`, `characters` 테이블은 이 작업으로 채우지 않습니다.
 
+러닝타임·제작 국가·연령등급 보강 방법과 현재 로컬 DB의 확보율은
+[`docs/current/backend/MOVIE_METADATA.md`](../docs/current/backend/MOVIE_METADATA.md)에
+정리되어 있습니다.
+
 ### TMDB 한국·일본 영화 보강
 
 `TMDB_ACCESS_TOKEN` 또는 `TMDB_API_KEY`를 설정하면 평점과 투표 수가 기준
@@ -141,7 +145,7 @@ docker compose run --rm \
   backend python scripts/import_tmdb_regional_movies.py
 ```
 
-결과를 확인한 뒤 `--apply`를 추가하면 영화, 장르, 상위 10명 배우 관계와
+결과를 확인한 뒤 `--apply`를 추가하면 성인물 필터를 통과한 영화, 장르, 장르 가중치, 상위 10명 배우 관계와
 0으로 초기화한 통계를 로컬 DB에 저장합니다.
 
 ```bash

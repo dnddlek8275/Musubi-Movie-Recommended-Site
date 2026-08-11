@@ -21,6 +21,7 @@ from app.services.admin.movie_service import (
 from app.services.admin.tmdb_register_service import (
     fetch_admin_tmdb_movie_detail,
 )
+from app.services.movies.genre_relevance import sync_movie_genre_weights
 from app.services.admin.tmdb_search_service import TMDB_BASE_URL
 from app.services.movies.tmdb_trailer_service import get_tmdb_auth
 
@@ -165,6 +166,7 @@ def insert_movie(movie_data: dict) -> None:
         session.add(movie)
         session.flush()
         sync_admin_movie_genres(session, movie, genres)
+        sync_movie_genre_weights(session, movie)
         session.add(MovieStats(movie_id=movie.id))
         sync_admin_movie_actors(session, movie, cast_credits)
 

@@ -1,0 +1,261 @@
+{
+  "case_count": 20,
+  "stage_counts": {
+    "general_v2": 8,
+    "single_v2": 8,
+    "group_v2": 4
+  },
+  "flag_counts": {},
+  "results": [
+    {
+      "stage": "general_v2",
+      "dialogue": "work_failure",
+      "turn": 1,
+      "message": "오늘 발표를 완전히 망쳤어",
+      "intent": "character_chat",
+      "answer": "계속 꼬이면 진이 빠지지. 지금은 잠깐 숨부터 돌리자.",
+      "flags": []
+    },
+    {
+      "stage": "general_v2",
+      "dialogue": "work_failure",
+      "turn": 2,
+      "message": "내일 다시 발표해야 해",
+      "intent": "character_chat",
+      "answer": "그럼 오늘 발표에서 막힌 부분 하나만 먼저 짚고, 내일 첫 문장부터 다시 준비하자.",
+      "flags": []
+    },
+    {
+      "stage": "general_v2",
+      "dialogue": "work_failure",
+      "turn": 3,
+      "message": "지금 뭘 먼저 준비할까?",
+      "intent": "character_chat",
+      "answer": "내일 발표에서 꼭 전달할 핵심 한 문장을 먼저 정하고, 시작 부분부터 다시 연습해 보자.",
+      "flags": []
+    },
+    {
+      "stage": "general_v2",
+      "dialogue": "truth_boundary",
+      "turn": 1,
+      "message": "너는 실제로 영화를 보고 감동한 적 있어?",
+      "intent": "character_chat",
+      "answer": "나는 직접 영화관에 가거나 영화를 보지는 못하지만, 영화 정보와 네 이야기를 바탕으로 같이 이야기할 수 있어.",
+      "flags": []
+    },
+    {
+      "stage": "general_v2",
+      "dialogue": "truth_boundary",
+      "turn": 2,
+      "message": "그럼 어떻게 내 취향을 알아?",
+      "intent": "character_chat",
+      "answer": "이 대화에서 네가 알려준 장르, 배우, 좋아하거나 싫어한 작품을 바탕으로 취향을 파악해.",
+      "flags": []
+    },
+    {
+      "stage": "general_v2",
+      "dialogue": "natural_short",
+      "turn": 1,
+      "message": "아 진짜",
+      "intent": "character_chat",
+      "answer": "왜, 무슨 일인데?",
+      "flags": []
+    },
+    {
+      "stage": "general_v2",
+      "dialogue": "natural_short",
+      "turn": 2,
+      "message": "상사가 또 일을 줬어",
+      "intent": "character_chat",
+      "answer": "또 일이 늘었네. 먼저 마감이 가장 가까운 것부터 확인하자.",
+      "flags": []
+    },
+    {
+      "stage": "general_v2",
+      "dialogue": "natural_short",
+      "turn": 3,
+      "message": "하...",
+      "intent": "character_chat",
+      "answer": "일이 또 늘어서 한숨 나오지.",
+      "flags": []
+    },
+    {
+      "stage": "single_v2",
+      "dialogue": "maseokdo_opinion",
+      "turn": 1,
+      "message": "장첸이 너무 잘생겨 보여. 어떡해?",
+      "character": "마석도",
+      "answer": "잘생겨 보이면 좋아하면 되지, 뭘 어떡해. 근데 얼굴만 보고 너무 푹 빠지진 마.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "stage": "single_v2",
+      "dialogue": "maseokdo_opinion",
+      "turn": 2,
+      "message": "그래도 네 생각은 어때?",
+      "character": "마석도",
+      "answer": "장첸은 구역을 엉망으로 만들어서 내가 잡으러 다녔던 놈이지.",
+      "rag_used": true,
+      "flags": []
+    },
+    {
+      "stage": "single_v2",
+      "dialogue": "tony_practical",
+      "turn": 1,
+      "message": "오늘 발표를 망쳤어.",
+      "character": "토니 스타크",
+      "answer": "오늘 뭔가 제대로 꼬였나 보네. 어디서부터 잘못됐어?",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "stage": "single_v2",
+      "dialogue": "tony_practical",
+      "turn": 2,
+      "message": "상사한테 뭐라고 말하면 좋을까?",
+      "character": "토니 스타크",
+      "answer": "길게 발표할 필요 없어. “오늘 발표에서 부족했던 부분을 정리했습니다. 내일은 보완해서 다시 말씀드리겠습니다.”면 충분해.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "stage": "single_v2",
+      "dialogue": "hermione_constraint",
+      "turn": 1,
+      "message": "시험 공부가 하나도 안 됐어.",
+      "character": "헤르미온느",
+      "answer": "오늘 볼 범위를 세 부분으로 나누고, 첫 부분부터 25분만 시작해 봐요.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "stage": "single_v2",
+      "dialogue": "hermione_constraint",
+      "turn": 2,
+      "message": "잔소리 말고 오늘 할 것만 짧게 말해줘.",
+      "character": "헤르미온느",
+      "answer": "우선 시험 범위를 잘게 나누고, 가장 불안한 부분부터 확인할 거예요.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "stage": "single_v2",
+      "dialogue": "gollum_paraphrase",
+      "turn": 1,
+      "message": "프로도를 믿어?",
+      "character": "골룸",
+      "answer": "프로도는 반지를 가진 채 나를 길잡이로 데리고 모르도르로 향한 호빗이야. 우린 반지를 두고 얽힌 사이였지.",
+      "rag_used": true,
+      "flags": []
+    },
+    {
+      "stage": "single_v2",
+      "dialogue": "gollum_paraphrase",
+      "turn": 2,
+      "message": "왜 같이 모르도르로 갔어?",
+      "character": "골룸",
+      "answer": "프로도는 반지를 가진 채 나를 길잡이로 데리고 모르도르로 향한 호빗이야. 우린 반지를 두고 얽힌 사이였지.",
+      "rag_used": true,
+      "flags": []
+    },
+    {
+      "stage": "group_v2",
+      "dialogue": "crime_user_opinion",
+      "message": "장첸이 잘생겼다는 말에 둘은 어떻게 생각해?",
+      "intent": "character_chat",
+      "movie_titles": [],
+      "responses": [
+        {
+          "character": "장첸",
+          "answer": "보는 눈은 있네. 그 말은 마음에 드는데.",
+          "finish_reason": "stop",
+          "rag_used": false
+        },
+        {
+          "character": "마석도",
+          "answer": "잘생겨 보이면 좋아하면 되지, 뭘 어떡해. 근데 얼굴만 보고 너무 푹 빠지진 마.",
+          "finish_reason": "stop",
+          "rag_used": false
+        }
+      ],
+      "flags": []
+    },
+    {
+      "stage": "group_v2",
+      "dialogue": "marvel_interview",
+      "message": "내일 면접이라 긴장돼. 각자 짧게 한마디만 해줘.",
+      "intent": "character_chat",
+      "movie_titles": [],
+      "responses": [
+        {
+          "character": "토니 스타크",
+          "answer": "첫 답만 또렷하게 준비해. 나머지는 그다음이야.",
+          "finish_reason": "stop",
+          "rag_used": false
+        },
+        {
+          "character": "스티브 로저스",
+          "answer": "첫 질문을 듣고 잠깐 생각한 뒤 답해도 괜찮습니다.",
+          "finish_reason": "stop",
+          "rag_used": false
+        },
+        {
+          "character": "피터 파커",
+          "answer": "첫 문장만 준비해 가. 시작하고 나면 생각보다 덜 떨릴 거야.",
+          "finish_reason": "stop",
+          "rag_used": false
+        }
+      ],
+      "flags": []
+    },
+    {
+      "stage": "group_v2",
+      "dialogue": "crossworld_disagreement",
+      "message": "친구랑 다퉜는데 먼저 연락할지 고민이야. 둘의 의견이 궁금해.",
+      "intent": "character_chat",
+      "movie_titles": [],
+      "responses": [
+        {
+          "character": "데드풀",
+          "answer": "먼저 연락해. 대신 농담으로 덮지 말고, 네가 미안한 부분부터 짧게 말해.",
+          "finish_reason": "stop",
+          "rag_used": false
+        },
+        {
+          "character": "엘사",
+          "answer": "먼저 연락하되, 바로 결론 내려고 하지 말고 서로 진정됐는지부터 물어봐요.",
+          "finish_reason": "stop",
+          "rag_used": false
+        }
+      ],
+      "flags": []
+    },
+    {
+      "stage": "group_v2",
+      "dialogue": "group_movie",
+      "message": "둘이 주말 밤에 볼 유쾌한 영화 세 편 골라줘.",
+      "intent": "movie_recommend",
+      "movie_titles": [
+        "알파 앤 오메가",
+        "레이디와 트램프",
+        "황금의 도시 엘도라도"
+      ],
+      "responses": [
+        {
+          "character": "데드풀",
+          "answer": "'알파 앤 오메가'를 강력 추천합니다. 귀여운 동물들의 유머러스한 모험이 가득해서 친구와 함께 웃으며 볼 수 있어요. 또 '레이디와 트램프'도 로맨틱하고 재미있는 요소가 많아 분위기를 한층 밝게 만들어 줄 거예요.",
+          "finish_reason": "stop",
+          "rag_used": false
+        },
+        {
+          "character": "슈렉",
+          "answer": "이유는 마음에 드네. 그 추천에 한 표 줄게.",
+          "finish_reason": "stop",
+          "rag_used": false
+        }
+      ],
+      "flags": []
+    }
+  ]
+}

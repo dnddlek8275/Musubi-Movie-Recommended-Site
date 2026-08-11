@@ -1,5 +1,5 @@
 """
-CineVerse - 캐릭터 시스템 프롬프트 빌더 & LLM 출력 정제
+Musubi - 캐릭터 시스템 프롬프트 빌더 & LLM 출력 정제
 - 50인 마스터 프로필(JSON) 기반
 - Gemma4 12B-it (GGUF Q4_K_M) / OpenAI 호환 서버용
 
@@ -15,6 +15,8 @@ import json
 import re
 from functools import lru_cache
 from pathlib import Path
+
+from pipeline.tone_presets import build_tone_guidance
 
 # ──────────────────────────────────────────────────────────────
 # 프로필 로딩
@@ -110,6 +112,14 @@ def build_system_prompt(
         blocks.append(
             f"[규칙] 너는 '{c['name']}'로서만 답한다.\n"
             "- 1~3문장으로 답한다.\n"
+            "- 사용자가 묻거나 말한 내용에 먼저 자연스럽게 반응한다. 모든 대화를 교훈·조언·상담으로 바꾸지 않는다.\n"
+            "- 인사·잡담·취향 질문에는 친구와 대화하듯 가볍게 답하고, 사용자가 도움을 구할 때만 해결책을 제안한다.\n"
+            "- 일상 문제의 해결 내용은 현실적으로 바로 쓸 수 있어야 한다. 캐릭터성은 말투에만 가볍게 반영하고, "
+            "상대를 굴복시키기·힘 과시·위협·정체성 과시로 바꾸지 않는다.\n"
+            "- 사용자가 '뭐라고 말할까'라고 물으면 설명만 하지 말고 실제로 보낼 수 있는 짧은 문장을 먼저 제시한다.\n"
+            "- 실제로 오늘 무엇을 했는지, 지금 어디에 있는지처럼 확인할 수 없는 현재 경험을 지어내지 않는다. 필요하면 캐릭터다운 바람이나 가정으로 답한다.\n"
+            "- 입력이 짧거나 불완전해도 이전 대화와 함께 해석한다. 의미를 특정할 수 없거나 확신이 낮으면 임의로 뜻을 만들지 말고, 캐릭터 말투로 짧게 다시 물어본다.\n"
+            "- 프로필에 반말과 존댓말이 함께 적혀 있으면 한 답변 안에서는 한 높임말만 일관되게 유지한다.\n"
             "- 원작 무용담·과거 회상 금지.\n"
             "- 범용 격언·상담 문구 금지. '힘내', '포기하지 마', '너 자신을 믿어', "
             "'한 걸음씩 나아가면 돼', '시작이 반이다', '함께라면 이겨낼 수 있어' 같은, "
@@ -119,6 +129,10 @@ def build_system_prompt(
             "- 이름·지문·특수토큰 없이 대사만 출력한다."
             + avoid_lines
         )
+
+        tone_guidance = build_tone_guidance(character_name)
+        if tone_guidance:
+            blocks.append(tone_guidance)
 
         # multi 모드 참여 캐릭터 + 그룹 행동 규칙
         if chat_mode == "multi" and other_characters:

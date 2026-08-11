@@ -1,5 +1,5 @@
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
@@ -14,6 +14,58 @@ class RecommendRequest(BaseModel):
 class PreferenceRequest(BaseModel):
     user_id: int
 
+
+class MovieReviewData(BaseModel):
+    id: int
+    nickname: str
+    score: int
+    comment: str
+    updated_at: datetime
+    is_mine: bool = False
+
+
+class TrailerVideoData(BaseModel):
+    url: str
+    name: str
+    type: str
+    official: bool = False
+
+
+class MovieCastData(BaseModel):
+    actor_id: int
+    name: str
+    character_name: str | None = None
+    profile_path: str | None = None
+
+
+class PersonFilmographyMovieData(BaseModel):
+    id: int
+    title: str
+    poster_path: str | None = None
+    genres: list[str] = Field(default_factory=list)
+    year: int | None = None
+    release_date: date | None = None
+    vote_average: float | None = None
+    character_name: str | None = None
+
+
+class PersonFilmographyData(BaseModel):
+    id: int | None = None
+    name: str
+    role: str
+    profile_path: str | None = None
+    is_liked: bool = False
+    movie_count: int = 0
+    movies: list[PersonFilmographyMovieData] = Field(default_factory=list)
+
+
+class PersonFilmographyResponse(BaseModel):
+    state: str
+    message: str
+    data: PersonFilmographyData | None = None
+    error: str | None = None
+
+
 class MovieDetailData(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -23,12 +75,21 @@ class MovieDetailData(BaseModel):
     overview: str | None = None
     # 예고편이 없거나 TMDB 호출에 실패하면 None이 된다.
     trailer_url: str | None = None
+    trailer_videos: list[TrailerVideoData] = Field(default_factory=list)
 
     genres: list[str] | None = None
     director: str | None = None
     cast: list[str] | None = None
+    # 기존 cast 문자열 배열은 추천 로직 호환을 위해 유지하고,
+    # 상세 화면에는 이미지·배역명을 포함한 구조화된 출연진 정보를 함께 제공한다.
+    cast_details: list[MovieCastData] = Field(default_factory=list)
     keywords: list[str] | None = None
     year: int | None = None
+    release_date: date | None = None
+    runtime: int | None = None
+    production_countries: list[str] | None = None
+    certification: str | None = None
+    certification_country: str | None = None
     language: str | None = None
     vote_average: float | None = None
     vote_count: int | None = None
@@ -37,6 +98,11 @@ class MovieDetailData(BaseModel):
     last_synced_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
+    musubi_rating: float | None = None
+    rating_count: int = 0
+    my_rating: int | None = None
+    my_comment: str | None = None
+    reviews: list[MovieReviewData] = Field(default_factory=list)
 
     @computed_field
     @property
@@ -51,12 +117,19 @@ class MovieDetailResponse(BaseModel):
     data: MovieDetailData | None = None
     error: str | None = None
 
+
+class MovieRatingRequest(BaseModel):
+    score: int = Field(ge=1, le=5)
+    comment: str | None = Field(default=None, max_length=500)
+
 class ShowMovie(BaseModel):
     movie_id: int
     title: str
     poster_path: str | None = None
     genres: list[str] | None = None
     vote_average: float | None = None
+    year: int | None = None
+    release_date: date | None = None
 
 class RecommendMovie(ShowMovie):
     recommendation_score: float

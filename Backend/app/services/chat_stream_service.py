@@ -10,6 +10,8 @@ from app.repositories.chat_repository import create_message, create_room, get_ro
 from app.schemas.chat import CharacterChatRequest, SendChatMessageRequest
 from app.services.character_service import get_active_character
 from app.services.chat_service import process_chat_message
+from app.services.chat_context_service import build_chat_user_context
+
 
 # AI 서버가 답변 앞에 보내는 내부 제어 문자열을 찾는 정규식
 # 사용자에게 보여줄 실제 답변이 아니므로 스트림 시작 부분에서 제거
@@ -43,6 +45,7 @@ async def stream_and_save_character_answer(
         ai_stream: CharacterChatStream,
 ):
     answer_parts = []
+    response_metadata = {}
     # 제어 토큰이 여러 조각으로 들어오는 경우를 위한 시작 버퍼
     leading_buffer = ""
     prefix_checked = False
@@ -67,6 +70,7 @@ async def stream_and_save_character_answer(
                     elif isinstance(parsed, dict) and "error" not in parsed:
                         answer_parts.append(parsed.get("answer", ""))
                         text = parsed.get("answer", "")
+                        response_metadata.update(parsed)
                 except json.JSONDecodeError:
                     answer_parts.append(data)
                     text = data
@@ -107,7 +111,15 @@ async def stream_and_save_character_answer(
         # 스트림 정상 종료시 모아둔 답변 assistant 메시지로 저장
         answer = "".join(answer_parts).strip()
         if answer:
-            create_message(db, room_id, "assistant", answer, character)
+            create_message(
+                db,
+                room_id,
+                "assistant",
+                answer,
+                response_metadata.get("character") or character,
+                recommended_movies=response_metadata.get("movies") or None,
+                emotion=response_metadata.get("emotion"),
+            )
             db.commit()
 
 def make_streaming_response(generator):
@@ -169,6 +181,7 @@ async def start_character_chat_stream(db: Session, user_id: int, request: Charac
         message=message,
         history=history,
         character=character,
+        user_context=build_chat_user_context(db, user_id),
     )
     await commit_before_streaming(db, ai_stream)
 
@@ -258,6 +271,7 @@ async def continue_chat_stream(db: Session, user_id: int, room_id: int, request:
         message=message,
         history=history,
         character=character,
+        user_context=build_chat_user_context(db, user_id),
     )
     await commit_before_streaming(db, ai_stream)
 

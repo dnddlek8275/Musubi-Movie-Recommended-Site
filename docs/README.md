@@ -1,4 +1,4 @@
-# CineVerse 문서 안내
+# Musubi 문서 안내
 
 문서는 현재 배포 기준, 코드 참고자료, 과거 기록으로 구분합니다.
 
@@ -17,6 +17,15 @@
 ### 백엔드
 
 - [DB 테이블](current/backend/DB_TABLES.md)
+- [일일 박스오피스 자동 갱신](current/backend/BOX_OFFICE.md)
+- [TMDB–PostgreSQL–Milvus 일일 동기화](current/backend/TMDB_DAILY_SYNC.md)
+
+### 제품 정책
+
+- [비회원 채팅 정책 및 후속 운영 계획](current/product/guest-chat-policy.md)
+- [일반 채팅 입력 복구 응답](current/product/CHAT_INPUT_RECOVERY.md)
+- [무무 일반 채팅 정체성·대화 품질 기준](current/product/MUMU_GENERAL_CHAT.md)
+- [전체 대화 흐름 품질 감사](current/product/CONVERSATION_QUALITY_AUDIT_20260810.md)
 
 ## 참고자료
 

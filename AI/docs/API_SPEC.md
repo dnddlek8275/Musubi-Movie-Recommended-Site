@@ -1,4 +1,4 @@
-# CineVerse AI API 명세서
+# Musubi AI API 명세서
 
 **Base URL**: `http://210.109.15.251`  
 **Port**: 80 (HTTP)  
@@ -34,9 +34,17 @@
 ```json
 [
   { "role": "user",      "content": "안녕" },
-  { "role": "assistant", "content": "어, 뭔일이야." }
+  {
+    "role": "assistant",
+    "content": "이 영화들은 어때요?",
+    "recommended_movies": [{ "title": "영화 제목" }]
+  }
 ]
 ```
+
+`recommended_movies`는 선택 항목이지만 영화 추천 응답을 다시 history로 보낼 때는 유지해야
+합니다. 그래야 `다른 걸로`, `로맨스는 싫어`, `좀 더 최신 걸로` 같은 후속 요청에서 직전
+조건을 이어가고 같은 영화를 다시 추천하지 않습니다.
 
 ### 오류 응답
 ```json
@@ -108,6 +116,24 @@
 | character | string | 응답에 실제로 적용된 캐릭터 이름. 캐릭터 없이 범용 대화로 응답했으면 빈 문자열 `""` |
 | answer    | string | 캐릭터(또는 범용 어시스턴트) 답변 |
 | movies    | array  | 영화 추천 시 영화 목록, 캐릭터 대화 시 `[]` |
+
+캐릭터가 없는 일반 영화 추천의 `answer`는 친근한 한국어 해요체로 반환합니다. 생성 결과에
+반말이나 딱딱한 `~합니다` 체가 섞이면 서버에서 교정하며, 교정할 수 없는 종결이 남으면
+응답의 `movies`에 포함된 제목만 사용한 안전한 해요체 문장으로 대체합니다. 캐릭터가 지정된
+추천은 해당 캐릭터의 말투를 유지하므로 이 일반 말투 교정 대상이 아닙니다.
+
+영화 추천의 `movies` 항목에는 다음 설명 필드가 추가됩니다.
+
+```json
+{
+  "title": "러브, 어게인",
+  "recommendation_role": "가장 잘 맞는 선택",
+  "recommendation_reason": "로맨스 · 코미디 장르라 데이트 분위기에 맞춰 고른 작품이에요."
+}
+```
+
+`recommendation_role`은 `가장 잘 맞는 선택`, `다른 결의 대안`, `취향 확장 선택` 순서입니다.
+`recommendation_reason`은 응답에 포함된 영화 메타데이터만 사용합니다.
 
 #### 캐릭터 자동 감지 (character 필드를 생략했을 때)
 
@@ -360,6 +386,8 @@ data: [DONE]
       "director":     "이상용",
       "cast":         "마동석, 손석구",
       "vote_average": 7.3,
+      "certification": "15",
+      "certification_country": "KR",
       "overview":     "...",
       "poster_url":   "https://image.tmdb.org/t/p/w500/xxxxx.jpg",
       "tmdb_id":      "123456"
@@ -376,6 +404,8 @@ data: [DONE]
 | director     | string | 감독 |
 | cast         | string | 출연진 |
 | vote_average | float  | 평점 |
+| certification | string | 관람등급. 값이 없으면 빈 문자열 |
+| certification_country | string | 관람등급 기준 국가 코드 (`KR`, `US` 등). 값이 없으면 빈 문자열 |
 | overview     | string | 줄거리 |
 | poster_url   | string | 포스터 이미지 전체 URL (TMDB CDN, `w500` 사이즈). 포스터 없으면 빈 문자열 |
 | tmdb_id      | string | TMDB 영화 ID |

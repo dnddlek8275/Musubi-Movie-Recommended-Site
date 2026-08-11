@@ -66,8 +66,7 @@ textarea {
 .app-shell {
   width: 1920px;
   min-height: 100vh;
-  transform-origin: top left;
-  transform: scale(var(--page-scale, 1));
+  zoom: var(--page-scale, 1);
 }
 
 .page {
@@ -76,11 +75,28 @@ textarea {
   padding: 25px 0 46px;
 }
 
+.app-shell.is-arriving-from-onboarding .site-header > :not(.site-logo),
+.app-shell.is-arriving-from-onboarding .page > :not(.site-header) {
+  animation: homeContentArrive 520ms 90ms ease-out both;
+}
+
+@keyframes homeContentArrive {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell.is-arriving-from-onboarding .site-header > :not(.site-logo),
+  .app-shell.is-arriving-from-onboarding .page > :not(.site-header) {
+    animation: none;
+  }
+}
+
 /* 모바일: 1920px 캔버스 축소를 끄고 화면 폭에 맞춘 실제 반응형 레이아웃으로 전환 */
 @media (max-width: 768px) {
   .app-shell {
     width: 100%;
-    transform: none;
+    zoom: 1;
   }
 
   .page {

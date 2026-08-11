@@ -2,12 +2,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.character import Character, CharacterAlias
+from app.models.movies import Movie
 
 # 채팅 가능한 캐릭터들 반환 함수
 def characters_all_active(db : Session):
     # 캐릭터 테이블에서 is_active가 true인 캐릭터만 반환
-    result = db.scalars(
-        select(Character)
+    result = db.execute(
+        select(Character, Movie)
+        .outerjoin(Movie, Movie.id == Character.movie_id)
         .where(Character.is_active.is_(True))
         .order_by(Character.id.asc())
     ).all()
@@ -17,9 +19,13 @@ def characters_all_active(db : Session):
             "id" : character.id,
             "name" : character.name,
             "movie_title" : character.movie_title,
+            "actor": character.actor,
+            "genres": movie.genres if movie else [],
+            "keywords": movie.keywords if movie else [],
+            "greeting_message": character.greeting_message,
             "profile_image" : character.profile_image,
         }
-        for character in result
+        for character, movie in result
     ]
 
 # 캐릭터 지금 가능 여부 확인 함수

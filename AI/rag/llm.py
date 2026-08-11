@@ -1,5 +1,5 @@
 """
-CineVerse LLM 클라이언트 - llama-server OpenAI 호환
+Musubi LLM 클라이언트 - llama-server OpenAI 호환
 """
 
 from __future__ import annotations

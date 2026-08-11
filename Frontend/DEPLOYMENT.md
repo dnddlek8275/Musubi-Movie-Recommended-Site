@@ -1,4 +1,4 @@
-# CineVerse Frontend Docker 배포 메모
+# Musubi Frontend Docker 배포 메모
 
 이 프론트는 Vite 기반 React 앱이다. 배포 이미지는 `npm run build`로 만든 `dist/`를 nginx로 서빙한다.
 

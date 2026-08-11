@@ -1,18 +1,10 @@
-name: Build, Push, and Deploy
+name: Build and Push Images
 
 on:
   workflow_dispatch:
     inputs:
       confirmation:
-        description: Type DEPLOY to confirm the production release
-        required: true
-        type: string
-      backup_confirmation:
-        description: Type BACKUP_VERIFIED after confirming a restorable DB backup
-        required: true
-        type: string
-      image_tag:
-        description: Immutable image tag, such as a commit SHA
+        description: Type PUBLISH to build and push immutable images
         required: true
         type: string
 
@@ -20,81 +12,62 @@ permissions:
   contents: read
 
 concurrency:
-  group: production-deploy
+  group: image-publish-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  preflight:
-    name: Validate release inputs
+  validate:
+    name: Validate publish settings
     runs-on: ubuntu-latest
     environment: production
     env:
-      REGISTRY_HOST: ${{ vars.REGISTRY_HOST }}
-      REGISTRY_NAMESPACE: ${{ vars.REGISTRY_NAMESPACE }}
+      FRONTEND_IMAGE_REPOSITORY: ${{ vars.FRONTEND_IMAGE_REPOSITORY }}
+      BACKEND_IMAGE_REPOSITORY: ${{ vars.BACKEND_IMAGE_REPOSITORY }}
       BUILD_PLATFORMS: ${{ vars.BUILD_PLATFORMS }}
-      KUBECTL_VERSION: ${{ vars.KUBECTL_VERSION }}
+      REGISTRY_HOST: ${{ vars.REGISTRY_HOST }}
       REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
       REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
-      KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
     steps:
-      - name: Require explicit confirmation and deployment settings
+      - name: Require explicit confirmation and registry settings
         run: |
-          test "${{ inputs.confirmation }}" = "DEPLOY"
-          test "${{ inputs.backup_confirmation }}" = "BACKUP_VERIFIED"
-          test -n "${REGISTRY_HOST}"
-          test -n "${REGISTRY_NAMESPACE}"
+          test "${{ inputs.confirmation }}" = "PUBLISH"
+          test -n "${FRONTEND_IMAGE_REPOSITORY}"
+          test -n "${BACKEND_IMAGE_REPOSITORY}"
           test -n "${BUILD_PLATFORMS}"
-          test -n "${KUBECTL_VERSION}"
+          test -n "${REGISTRY_HOST}"
           test -n "${REGISTRY_USERNAME}"
           test -n "${REGISTRY_PASSWORD}"
-          test -n "${KUBE_CONFIG}"
-          case "${{ inputs.image_tag }}" in
-            *[!A-Za-z0-9._-]* | "") exit 1 ;;
-          esac
-
-  cluster-preflight:
-    name: Check deployment prerequisites
-    needs: preflight
-    runs-on: ubuntu-latest
-    environment: production
-    env:
-      KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v4
-        with:
-          version: ${{ vars.KUBECTL_VERSION }}
-
-      - name: Configure kubectl
-        run: |
-          mkdir -p "${HOME}/.kube"
-          printf '%s' "${KUBE_CONFIG}" | base64 --decode > "${HOME}/.kube/config"
-          chmod 600 "${HOME}/.kube/config"
-          kubectl cluster-info
-
-      - name: Validate live deployment prerequisites
-        run: bash Infra/k8s/scripts/cluster-preflight.sh cineverse
 
   publish:
-    name: Publish container images
-    needs:
-      - preflight
-      - cluster-preflight
+    name: Publish ${{ matrix.service }} image
+    needs: validate
     runs-on: ubuntu-latest
     environment: production
     strategy:
+      fail-fast: false
       matrix:
         include:
           - service: frontend
             context: Frontend
+            repository_variable: FRONTEND_IMAGE_REPOSITORY
           - service: backend
             context: Backend
+            repository_variable: BACKEND_IMAGE_REPOSITORY
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Resolve immutable image name
+        id: image
+        env:
+          FRONTEND_IMAGE_REPOSITORY: ${{ vars.FRONTEND_IMAGE_REPOSITORY }}
+          BACKEND_IMAGE_REPOSITORY: ${{ vars.BACKEND_IMAGE_REPOSITORY }}
+          MATRIX_REPOSITORY_VARIABLE: ${{ matrix.repository_variable }}
+        run: |
+          repository="${!MATRIX_REPOSITORY_VARIABLE}"
+          test -n "${repository}"
+          echo "name=${repository}:${GITHUB_SHA}" >> "${GITHUB_OUTPUT}"
+        shell: bash
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -112,77 +85,9 @@ jobs:
           context: ${{ matrix.context }}
           push: true
           platforms: ${{ vars.BUILD_PLATFORMS }}
-          tags: ${{ vars.REGISTRY_HOST }}/${{ vars.REGISTRY_NAMESPACE }}/${{ matrix.service }}:${{ inputs.image_tag }}
+          tags: ${{ steps.image.outputs.name }}
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 
-  deploy:
-    name: Run migration and deploy
-    needs: publish
-    runs-on: ubuntu-latest
-    environment: production
-    env:
-      BACKEND_IMAGE: ${{ vars.REGISTRY_HOST }}/${{ vars.REGISTRY_NAMESPACE }}/backend:${{ inputs.image_tag }}
-      FRONTEND_IMAGE: ${{ vars.REGISTRY_HOST }}/${{ vars.REGISTRY_NAMESPACE }}/frontend:${{ inputs.image_tag }}
-      KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
-      MIGRATION_JOB: backend-migration-${{ github.run_id }}-${{ github.run_attempt }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v4
-        with:
-          version: ${{ vars.KUBECTL_VERSION }}
-
-      - name: Configure kubectl
-        run: |
-          mkdir -p "${HOME}/.kube"
-          printf '%s' "${KUBE_CONFIG}" | base64 --decode > "${HOME}/.kube/config"
-          chmod 600 "${HOME}/.kube/config"
-          kubectl cluster-info
-
-      - name: Verify deployment secrets
-        run: |
-          kubectl -n cineverse get secret cineverse-secrets >/dev/null
-          kubectl -n cineverse get secret cineverse-migration-secrets >/dev/null
-
-          app_db_url="$(
-            kubectl -n cineverse get secret cineverse-secrets \
-              -o jsonpath='{.data.DATABASE_URL}' | base64 --decode
-          )"
-          migration_db_url="$(
-            kubectl -n cineverse get secret cineverse-migration-secrets \
-              -o jsonpath='{.data.DATABASE_URL}' | base64 --decode
-          )"
-
-          test -n "${app_db_url}"
-          test -n "${migration_db_url}"
-          test "${app_db_url}" != "${migration_db_url}"
-
-      - name: Run database migration
-        run: |
-          sed \
-            -e "s/name: backend-migration/name: ${MIGRATION_JOB}/" \
-            -e "s#registry.example.com/cineverse/backend:dev#${BACKEND_IMAGE}#" \
-            Infra/k8s/base/migration-job.yaml > /tmp/migration-job.yaml
-          kubectl apply -f /tmp/migration-job.yaml
-
-          if ! kubectl -n cineverse wait \
-            --for=condition=complete "job/${MIGRATION_JOB}" \
-            --timeout=300s; then
-            kubectl -n cineverse logs "job/${MIGRATION_JOB}" --all-containers
-            kubectl -n cineverse describe "job/${MIGRATION_JOB}"
-            exit 1
-          fi
-
-          kubectl -n cineverse logs "job/${MIGRATION_JOB}"
-
-      - name: Update application images
-        run: |
-          kubectl -n cineverse set image deployment/backend \
-            "backend=${BACKEND_IMAGE}"
-          kubectl -n cineverse set image deployment/frontend \
-            "frontend=${FRONTEND_IMAGE}"
-          kubectl -n cineverse rollout status deployment/backend --timeout=300s
-          kubectl -n cineverse rollout status deployment/frontend --timeout=300s
+      - name: Publish image name to workflow summary
+        run: echo '`${{ steps.image.outputs.name }}`' >> "${GITHUB_STEP_SUMMARY}"

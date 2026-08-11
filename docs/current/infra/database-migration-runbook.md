@@ -1,8 +1,9 @@
 # 운영 DB Migration Runbook
 
-이 문서는 PostgreSQL/PgBouncer VM과 Object Storage가 아직 생성되지 않은
-상태에서 준비할 수 있는 운영 migration 절차를 정의한다. 실제 운영 DB 주소,
-계정과 백업 저장소는 관리자 제공 후 채운다.
+이 문서는 PostgreSQL/PgBouncer 전용 VM과 Object Storage를 사용하는 운영
+migration 및 백업 절차를 정의한다. 운영 DB는 `10.30.2.185`, 백업 저장소는
+`storage-prod-team3/backups/postgresql/`이다. 실제 자격증명은 문서나 저장소에
+기록하지 않는다.
 
 ## 연결 분리
 
@@ -27,11 +28,35 @@ Job을 실패 처리한다. Release workflow는 Job 성공 전에는 Deployment 
 
 ## 백업 확인
 
-Object Storage 자동 백업이 준비되기 전에는 관리자가 PostgreSQL VM에서 수동
-백업을 만들고 별도 안전한 위치에 보관해야 한다. 저장소에는 DB 자격증명과
-실제 백업 경로를 기록하지 않는다.
+DB VM에는 `cineverse-db-backup.timer`가 설치되어 있다. 매일 03:20 KST 이후
+최대 15분의 임의 지연을 두고 custom-format `pg_dump`를 생성하여
+`storage-prod-team3/backups/postgresql/`에 업로드한다. 재부팅 중 실행 시각을
+놓치더라도 `Persistent=true`로 다음 부팅 후 실행한다.
 
-관리자 실행 예시:
+백업 작업은 다음 안전장치를 적용한다.
+
+- `flock`으로 중복 실행 방지
+- `.partial` 파일에 먼저 생성 후 완료 시 원자적으로 이름 변경
+- `pg_restore --list` 성공 후에만 업로드
+- SHA-256 파일 동시 업로드
+- 업로드 후 Object Storage의 파일 크기 재확인
+- DB VM 로컬 파일은 3일만 보관
+- `Nice=10`, 낮은 I/O 우선순위로 운영 부하 완화
+
+상태 및 수동 실행 방법:
+
+```bash
+sudo systemctl status cineverse-db-backup.timer
+sudo systemctl list-timers cineverse-db-backup.timer
+sudo systemctl start cineverse-db-backup.service
+sudo journalctl -u cineverse-db-backup.service -n 50 --no-pager
+```
+
+Object Storage 자격증명은 DB VM의
+`/etc/cineverse/object-storage-backup.env`에 root 전용 `0600` 권한으로 둔다.
+DB 비밀번호는 기존 `/etc/cineverse/db-credentials.env`를 사용한다.
+
+Migration 직전 추가 수동 백업이 필요한 경우:
 
 ```bash
 pg_dump \
@@ -39,7 +64,7 @@ pg_dump \
   --no-owner \
   --no-privileges \
   --file=/안전한/백업경로/cineverse-before-migration.dump \
-  "postgresql://백업계정@DB_PRIVATE_ADDRESS:5432/CineVerse"
+  "postgresql://백업계정@DB_PRIVATE_ADDRESS:5432/cineverse"
 ```
 
 백업 파일이 생성됐다는 사실만으로 복구 가능성을 확정하지 않는다. 최소한
@@ -55,10 +80,12 @@ pg_restore --list /안전한/백업경로/cineverse-before-migration.dump
 
 ## 수동 Release 실행 조건
 
-GitHub Actions의 `Build, Push, and Deploy` workflow에는 두 확인값이 필요하다.
+GitHub Actions는 이미지를 Build·Push할 뿐 운영 DB와 Kubernetes를 변경하지
+않는다. 운영자는 `Infra/k8s/scripts/manual-release.sh`를 실행할 때 다음 두
+환경변수를 명시해야 한다.
 
-- `confirmation`: `DEPLOY`
-- `backup_confirmation`: `BACKUP_VERIFIED`
+- `CONFIRM_DEPLOY=DEPLOY`
+- `BACKUP_VERIFIED=BACKUP_VERIFIED`
 
 `BACKUP_VERIFIED`는 다음 항목을 모두 확인했다는 의미다.
 
@@ -79,12 +106,51 @@ Migration은 자동으로 downgrade하지 않는다. downgrade에는 테이블·
 삭제한다. 애플리케이션 rollback이 필요하면 기존 image로 되돌리되, DB downgrade는
 별도 검토와 백업 확인 후 수동으로 수행한다.
 
-## 현재 보류 항목
+## 검증 이력과 보류 항목
 
-- KakaoCloud Object Storage bucket과 접근키
-- 자동 `pg_dump` 일정과 업로드 작업
-- 백업 보존 기간과 Lifecycle
-- 복구 시험용 PostgreSQL 환경
-- 운영 migration 계정과 `pgcrypto` 설치
+- 2026-08-10: 자동 백업 1회 실행 및 Object Storage 업로드 성공
+- 2026-08-10: 별도 임시 DB에 복원 성공, public 테이블 26개와 Alembic
+  revision `20260808_0026` 확인 후 임시 DB 삭제
+- 2026-08-10: 신규 DB에 스키마와 일일 박스오피스 9건만 있고 기존 데이터가
+  복원되지 않은 상태를 확인했다. 로컬의
+  `musubi_before_tmdb_daily_sync_20260807.dump`를 현재 `0026` 스키마의 임시
+  DB에 data-only로 복원하여 무결성을 먼저 검증한 뒤 운영 DB를 교체했다.
+- 복원 후 운영 DB는 영화 32,302개, 캐릭터 50개, 배우 103,510개,
+  영화-배우 관계 282,388개이며 검사한 고아 관계는 0건이다.
+- 활성 Milvus alias `movies_active`는 `movies_postgres_20260807`을 가리킨다.
+  PostgreSQL 복원 후 DB에 없는 잔여 벡터 6개를 제거했으며, 최종 TMDB ID는
+  PostgreSQL과 Milvus 각각 32,302개로 누락·추가 모두 0건이다.
+- 복원 직후 기준 백업은
+  `storage-prod-team3/backups/postgresql/cineverse-20260810T090236Z.dump`이며
+  크기는 19,322,788 bytes이다. 교체 직전 베타 DB 백업은
+  `cineverse-20260810T084912Z.dump`이다.
+- `/api/ready`, `/api/db-test`, `/api/ai-health`, `/api/movies/ranking`,
+  `/api/chat/characters`를 3회 연속 검사해 모두 HTTP 200을 확인했고 영화 검색도
+  HTTP 200을 확인했다.
 
-위 값이 확정되기 전에는 Production Release를 실행하지 않는다.
+아직 추가할 운영 안전장치는 다음과 같다.
+
+- Object Storage Lifecycle에 `backups/postgresql/` Prefix 30일 보존 설정
+- 백업 서비스 실패 알림 연동
+- 정기 복구 훈련과 복구 시간 기록
+- 접근키 교체 주기와 폐기 절차 확정
+
+## Object Storage Lifecycle 권장값
+
+현재 일일 백업에는 다음 단일 정책을 적용한다.
+
+| 항목 | 값 |
+|---|---|
+| 대상 버킷 | `storage-prod-team3` |
+| 정책 이름 | `postgresql-daily-30d` |
+| 필터 | Prefix 지정 |
+| Prefix | `backups/postgresql/` |
+| 동작 | 만료 후 삭제 |
+| 보존 기간 | 30일 |
+| 상태 | 활성화 |
+
+버킷 전체에 정책을 적용하면 `assets/`까지 삭제될 수 있으므로 반드시 Prefix를
+지정한다. 카카오클라우드 Lifecycle은 객체 생성 후 지정 일수가 지나면 자동
+삭제하도록 설정할 수 있다. 월간 1년 보존이 필요해지면 일일 백업과 같은
+Prefix에 예외를 섞지 않고 `backups/postgresql-monthly/`처럼 분리한 뒤 별도
+정책을 추가한다.

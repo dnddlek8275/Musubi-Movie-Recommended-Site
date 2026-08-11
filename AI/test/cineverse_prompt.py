@@ -1,5 +1,5 @@
 """
-CineVerse - 캐릭터 시스템 프롬프트 빌더 & LLM 출력 정제
+Musubi - 캐릭터 시스템 프롬프트 빌더 & LLM 출력 정제
 - 50인 마스터 프로필(JSON) 기반
 - Gemma4 12B-it (GGUF Q4_K_M) / OpenAI 호환 서버용
 

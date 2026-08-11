@@ -1,0 +1,98 @@
+[
+  {
+    "id": "light_mood",
+    "message": "가볍게 볼 영화 추천해줘",
+    "seconds": 6.237,
+    "titles": [
+      "레이디와 트램프",
+      "야! 러그래츠: 파리 대모험",
+      "로빈슨 가족"
+    ],
+    "failures": [],
+    "passed": true
+  },
+  {
+    "id": "comedy",
+    "message": "웃긴 코미디 영화 추천해줘",
+    "seconds": 5.246,
+    "titles": [
+      "로미와 미셀",
+      "아메리카: 영화 같은 이야기",
+      "우주에서 온 고양이"
+    ],
+    "failures": [],
+    "passed": true
+  },
+  {
+    "id": "action",
+    "message": "긴장감 있는 액션 영화 추천해줘",
+    "seconds": 6.647,
+    "titles": [
+      "38선: DMZ 탈출 작전",
+      "12 솔져스",
+      "긴급 명령"
+    ],
+    "failures": [],
+    "passed": true
+  },
+  {
+    "id": "latest",
+    "message": "최신 영화 추천해줘",
+    "seconds": 8.582,
+    "titles": [
+      "사랑해 줘 사랑해 줘",
+      "멜라니아",
+      "나우 유 씨 미 3"
+    ],
+    "failures": [],
+    "passed": true
+  },
+  {
+    "id": "touching",
+    "message": "감동적인 영화 추천해줘",
+    "seconds": 7.219,
+    "titles": [
+      "뷰티풀 데이 인 더 네이버후드",
+      "우정의 스트라이크!",
+      "뜨거운 우정"
+    ],
+    "failures": [],
+    "passed": true
+  },
+  {
+    "id": "uplift",
+    "message": "우울할 때 보기 좋은 영화 추천해줘",
+    "seconds": 6.367,
+    "titles": [
+      "드림 쏭",
+      "로빈슨 가족",
+      "밀리언 달러 트러블"
+    ],
+    "failures": [],
+    "passed": true
+  },
+  {
+    "id": "date",
+    "message": "데이트할 때 볼 영화 추천해줘",
+    "seconds": 6.621,
+    "titles": [
+      "러브, 어게인",
+      "연인과 도둑",
+      "라이 레인"
+    ],
+    "failures": [],
+    "passed": true
+  },
+  {
+    "id": "with_children",
+    "message": "아이와 함께 볼 영화 추천해줘",
+    "seconds": 5.987,
+    "titles": [
+      "크루즈 패밀리: 뉴 에이지",
+      "엘리안과 빛나는 마법 모험",
+      "올라프의 겨울왕국 어드벤처"
+    ],
+    "failures": [],
+    "passed": true
+  }
+]

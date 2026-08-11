@@ -3,10 +3,12 @@ kind: Ingress
 metadata:
   name: cineverse-frontend
   namespace: cineverse
+  annotations:
+    nginx.ingress.kubernetes.io/server-alias: www.movieverse.cloud
 spec:
   ingressClassName: nginx
   rules:
-    - host: service.example.com
+    - host: movieverse.cloud
       http:
         paths:
           - path: /
@@ -23,6 +25,7 @@ metadata:
   name: cineverse-backend
   namespace: cineverse
   annotations:
+    nginx.ingress.kubernetes.io/server-alias: www.movieverse.cloud
     nginx.ingress.kubernetes.io/use-regex: "true"
     nginx.ingress.kubernetes.io/rewrite-target: /$2
     nginx.ingress.kubernetes.io/proxy-body-size: 20m
@@ -30,7 +33,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    - host: service.example.com
+    - host: movieverse.cloud
       http:
         paths:
           - path: /api(/|$)(.*)

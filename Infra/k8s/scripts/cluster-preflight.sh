@@ -44,28 +44,33 @@ for resource_name in \
   "configmap cineverse-config" \
   "secret cineverse-secrets" \
   "secret cineverse-migration-secrets" \
-  "persistentvolumeclaim backend-uploads" \
   "service backend" \
   "service frontend" \
   "deployment backend" \
   "deployment frontend" \
+  "horizontalpodautoscaler backend" \
+  "horizontalpodautoscaler frontend" \
   "ingress cineverse-backend" \
   "ingress cineverse-frontend"; do
   read -r resource name <<<"${resource_name}"
   require_resource "${resource}" "${name}"
 done
 
-pvc_phase="$(require_jsonpath_value persistentvolumeclaim backend-uploads '{.status.phase}' 'backend-uploads PVC phase')"
-[[ "${pvc_phase}" == "Bound" ]] ||
-  fail "persistentvolumeclaim/backend-uploads is ${pvc_phase}; it must be Bound."
-
-pvc_access_modes="$(require_jsonpath_value persistentvolumeclaim backend-uploads '{.spec.accessModes[*]}' 'backend-uploads access mode')"
-[[ " ${pvc_access_modes} " == *" ReadWriteMany "* ]] ||
-  fail "persistentvolumeclaim/backend-uploads must support ReadWriteMany for two backend replicas."
-
-for key in AI_BASE_URL CORS_ORIGINS FRONTEND_BASE_URL MAIL_HOST MAIL_FROM; do
+for key in AI_BASE_URL CORS_ORIGINS FRONTEND_BASE_URL \
+  OBJECT_STORAGE_ENDPOINT OBJECT_STORAGE_REGION OBJECT_STORAGE_BUCKET \
+  OBJECT_STORAGE_PROFILE_PREFIX OBJECT_STORAGE_PRESIGN_EXPIRES_SECONDS; do
   value="$(require_jsonpath_value configmap cineverse-config "{.data.${key}}" "configmap/cineverse-config ${key}")"
   reject_placeholder "configmap/cineverse-config ${key}" "${value}"
+done
+
+for key in OBJECT_STORAGE_ACCESS_KEY OBJECT_STORAGE_SECRET_KEY \
+  MAIL_HOST MAIL_PORT MAIL_USERNAME MAIL_PASSWORD MAIL_FROM; do
+  encoded_value="$(
+    require_jsonpath_value secret cineverse-secrets \
+      "{.data.${key}}" "secret/cineverse-secrets ${key}"
+  )"
+  decoded_value="$(printf '%s' "${encoded_value}" | base64 --decode)"
+  reject_placeholder "secret/cineverse-secrets ${key}" "${decoded_value}"
 done
 
 app_database_url="$(
@@ -97,6 +102,17 @@ for deployment in backend frontend; do
       "{.spec.template.spec.containers[?(@.name==\"${deployment}\")].resources.${resource_path}}" \
       "deployment/${deployment} resources.${resource_path}" >/dev/null
   done
+done
+
+metrics_available="$(kubectl get apiservice v1beta1.metrics.k8s.io -o jsonpath='{.status.conditions[?(@.type=="Available")].status}' 2>/dev/null || true)"
+[[ "${metrics_available}" == "True" ]] ||
+  fail "metrics.k8s.io is not available; install Metrics Server before enabling HPA."
+
+for hpa in backend frontend; do
+  require_jsonpath_value horizontalpodautoscaler "${hpa}" \
+    '{.spec.minReplicas}' "horizontalpodautoscaler/${hpa} minReplicas" >/dev/null
+  require_jsonpath_value horizontalpodautoscaler "${hpa}" \
+    '{.spec.maxReplicas}' "horizontalpodautoscaler/${hpa} maxReplicas" >/dev/null
 done
 
 for ingress in cineverse-backend cineverse-frontend; do

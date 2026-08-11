@@ -1,5 +1,5 @@
 from app.core.base import Base
-from sqlalchemy import ARRAY, BigInteger, Column, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import ARRAY, BigInteger, CheckConstraint, Column, Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 
 # movies 테이블과 연결되는 SQLAlchemy ORM 모델
@@ -23,6 +23,15 @@ class Movie(Base):
     keywords = Column(ARRAY(String), nullable=True)
     # 개봉 연도
     year = Column(Integer, nullable=True)
+    # 실제 개봉일. 최신순 정렬과 개봉 예정작 구분의 기준으로 사용한다.
+    release_date = Column(Date, nullable=True, index=True)
+    # 상영시간(분)
+    runtime = Column(Integer, nullable=True)
+    # ISO 3166-1 alpha-2 제작국가 코드 목록
+    production_countries = Column(ARRAY(String(2)), nullable=True)
+    # 국가별 관람등급과 그 등급의 국가 코드(KR 우선, US 보조)
+    certification = Column(String(20), nullable=True)
+    certification_country = Column(String(2), nullable=True)
     # 언어 코드
     language = Column(String(10), nullable=True)
     # TMDB 평균 평점
@@ -55,6 +64,12 @@ class Movie(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    genre_weights = relationship(
+        "MovieGenreWeight",
+        back_populates="movie",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
 
 # movie_genres 테이블과 연결되는 ORM 모델
@@ -75,6 +90,25 @@ class MovieGenre(Base):
 
     # Movie 모델과 양방향으로 연결
     movie = relationship("Movie", back_populates="genre_rows")
+
+
+class MovieGenreWeight(Base):
+    __tablename__ = "movie_genre_weights"
+    __table_args__ = (
+        UniqueConstraint("movie_id", "genre", name="uq_movie_genre_weights_movie_genre"),
+        CheckConstraint("weight >= 0 AND weight <= 1", name="ck_movie_genre_weights_weight"),
+        CheckConstraint("evidence_count >= 0", name="ck_movie_genre_weights_evidence_count"),
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    movie_id = Column(BigInteger, ForeignKey("movies.id", ondelete="CASCADE"), nullable=False, index=True)
+    genre = Column(String(50), nullable=False, index=True)
+    weight = Column(Float, nullable=False, index=True)
+    evidence_count = Column(Integer, nullable=False, default=0, server_default="0")
+    calculation_version = Column(String(50), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    movie = relationship("Movie", back_populates="genre_weights")
 
 # movie_stats 테이블과 연결되는 ORM 모델
 # 영화별 조회수, 검색 클릭 수, 좋아요 수, 랭킹 점수를 저장한다.

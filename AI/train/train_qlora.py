@@ -1,5 +1,5 @@
 """
-CineVerse Gemma-4 12B QLoRA 추가 학습 스크립트
+Musubi Gemma-4 12B QLoRA 추가 학습 스크립트
 Unsloth + HuggingFace Trainer 사용
 
 변경점: SFTTrainer 대신 Trainer 사용 (VLM pickle 오류 우회)

@@ -3,11 +3,13 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 from fastapi import HTTPException
+from starlette.requests import Request
 
 from app.ai_client.chat import open_character_chat_stream
 from app.api.chat import chat
 from app.schemas.chat import AutoChatRequest
 from app.services.chat_stream_service import stream_and_save_character_answer
+from app.services.guest_chat_service import _daily_usage, reserve_guest_request
 
 
 class FakeSession:
@@ -19,6 +21,10 @@ class FakeSession:
 
 
 class ChatRouteErrorTests(unittest.IsolatedAsyncioTestCase):
+    @staticmethod
+    def request():
+        return Request({"type": "http", "headers": [], "client": ("127.0.0.1", 1234)})
+
     async def test_chat_preserves_ai_timeout_status(self):
         session = FakeSession()
         upstream_error = HTTPException(
@@ -36,6 +42,7 @@ class ChatRouteErrorTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(HTTPException) as raised:
                 await chat(
                     AutoChatRequest(message="영화 추천"),
+                    self.request(),
                     {"user_id": 1},
                     session,
                 )
@@ -53,6 +60,7 @@ class ChatRouteErrorTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(HTTPException) as raised:
                 await chat(
                     AutoChatRequest(message="영화 추천"),
+                    self.request(),
                     {"user_id": 1},
                     session,
                 )
@@ -145,6 +153,36 @@ class CharacterStreamForwardingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(chunks.count("data: [DONE]\n\n"), 1)
         self.assertTrue(ai_stream.closed)
         self.assertTrue(session.committed)
+
+
+class GuestChatProtectionTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        _daily_usage.clear()
+
+    async def test_guest_request_limit_is_scoped_by_chat_type(self):
+        request = Request(
+            {"type": "http", "headers": [], "client": ("203.0.113.10", 1234)}
+        )
+
+        for expected_remaining in range(9, -1, -1):
+            self.assertEqual(
+                await reserve_guest_request(request, "general"),
+                expected_remaining,
+            )
+
+        with self.assertRaises(HTTPException) as raised:
+            await reserve_guest_request(request, "general")
+
+        self.assertEqual(raised.exception.status_code, 429)
+        self.assertEqual(
+            raised.exception.detail["code"],
+            "GUEST_DAILY_LIMIT_REACHED",
+        )
+
+        self.assertEqual(
+            await reserve_guest_request(request, "character"),
+            9,
+        )
 
 
 if __name__ == "__main__":

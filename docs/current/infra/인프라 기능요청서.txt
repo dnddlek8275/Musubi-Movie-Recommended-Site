@@ -1,4 +1,4 @@
-CineVerse 최종 클라우드 아키텍처 구성
+Musubi 최종 클라우드 아키텍처 구성
 
 사용자
   ↓ HTTPS 443
@@ -104,7 +104,9 @@ GPU AI Security Group 1개
 인터넷 → Public ALB: TCP 443
 인터넷 → Public ALB: TCP 80은 HTTPS Redirect 용도로만 선택 허용
 관리자 지정 IP → NAT+Bastion: TCP 22
-Public ALB → ingress-nginx: LoadBalancer 대상 포트 및 헬스체크
+Public ALB → ingress-nginx: Worker NodePort TCP 31664
+  (ALB 서비스·헬스체크 IP 10.30.2.10, 10.30.2.27,
+   10.30.2.229, 10.30.2.232에서만 허용)
 NAT+Bastion → Worker Node, PostgreSQL, GPU AI: TCP 22
 Backend Pod 또는 Worker Node → PgBouncer: TCP 6432
 Alembic Job → PostgreSQL: TCP 5432
@@ -166,8 +168,9 @@ HTTP 80 → HTTPS 443 Redirect
 TLS 1.2 이상 적용
 인증서 갱신 방식 확인
 
-카카오클라우드 Kubernetes Engine의 ALB 인증서 설정은 최초
-LoadBalancer Service 생성 전에 준비합니다.
+인증서는 별도 생성한 Public ALB `LoadBalancer03`에 적용합니다.
+ingress-nginx Service는 고정 NodePort 31664/31364를 사용하며,
+Kubernetes `LoadBalancer` Service는 사용하지 않습니다.
 
 ⸻
 
@@ -215,10 +218,10 @@ Backend 최소 Replica 2, 초기 최대 Replica 4
 
 ● 연결
 Backend Deployment DATABASE_URL
-postgresql+psycopg://USER:PASSWORD@db.internal:6432/CineVerse
+postgresql+psycopg://USER:PASSWORD@db.internal:6432/cineverse
 
 Alembic Job DATABASE_URL
-postgresql+psycopg://USER:PASSWORD@db.internal:5432/CineVerse
+postgresql+psycopg://USER:PASSWORD@db.internal:5432/cineverse
 
 ● 애플리케이션 연결 설정
 SQLAlchemy NullPool 적용

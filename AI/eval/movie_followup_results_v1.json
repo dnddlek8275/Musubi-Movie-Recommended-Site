@@ -1,0 +1,41 @@
+[
+  {
+    "id": "lighter_action_followup",
+    "message": "너무 무거워. 좀 더 가벼운 걸로",
+    "seconds": 5.28,
+    "intent": "movie_recommend",
+    "titles": [
+      "니노쿠니",
+      "극장판 스파이 패밀리 코드 : 화이트",
+      "스파이 지니어스"
+    ],
+    "failures": [],
+    "passed": true
+  },
+  {
+    "id": "exclude_romance_followup",
+    "message": "로맨스는 싫어. 다른 걸로",
+    "seconds": 2.339,
+    "intent": "movie_recommend",
+    "titles": [
+      "베스트 맨",
+      "로미와 미셀",
+      "맨 프롬 엉클"
+    ],
+    "failures": [],
+    "passed": true
+  },
+  {
+    "id": "latest_comedy_followup",
+    "message": "좀 더 최신 걸로",
+    "seconds": 2.971,
+    "intent": "movie_recommend",
+    "titles": [
+      "니키 글레이저: 굿 걸",
+      "솅 왕: 퍼플",
+      "Aaron Chen: Funny Garden"
+    ],
+    "failures": [],
+    "passed": true
+  }
+]

@@ -3,15 +3,19 @@
 from app.core.base import Base
 from app.models.actors import Actor, MovieActor
 from app.models.admin import AdminAuditLog
+from app.models.ai_usage import AiUsageEvent
 from app.models.character import Character, CharacterAlias
 from app.models.chat import ChatMessage, ChatRoom
+from app.models.contact import ContactInquiry
 from app.models.daily_ai_recommendation import (
     DailyAiRecommendation,
     DailyAiRecommendationMovie,
 )
-from app.models.interactions import UserMovieInteraction
-from app.models.movies import Movie, MovieGenre, MovieStats
-from app.models.tokens import EmailVerificationCode, PasswordResetToken, RefreshToken
+from app.models.interactions import MovieRating, UserMovieInteraction
+from app.models.movies import Movie, MovieGenre, MovieGenreWeight, MovieStats
+from app.models.ranking import DailyBoxOfficeRanking, DailyMovieRankingSnapshot, KobisMovieMapping
+from app.models.sync import MovieVectorSyncJob, TmdbDailySyncRun
+from app.models.tokens import AuthRequestEvent, EmailVerificationCode, PasswordResetToken, RefreshToken
 from app.models.users import User, UserPreferenceScore
 
 __all__ = [
@@ -19,17 +23,27 @@ __all__ = [
     "Actor",
     "MovieActor",
     "AdminAuditLog",
+    "AiUsageEvent",
     "Character",
     "CharacterAlias",
     "ChatMessage",
     "ChatRoom",
+    "ContactInquiry",
     "DailyAiRecommendation",
     "DailyAiRecommendationMovie",
     "UserMovieInteraction",
+    "MovieRating",
     "Movie",
     "MovieGenre",
+    "MovieGenreWeight",
     "MovieStats",
+    "DailyMovieRankingSnapshot",
+    "DailyBoxOfficeRanking",
+    "KobisMovieMapping",
+    "MovieVectorSyncJob",
+    "TmdbDailySyncRun",
     "EmailVerificationCode",
+    "AuthRequestEvent",
     "PasswordResetToken",
     "RefreshToken",
     "User",

@@ -1,0 +1,33 @@
+controller:
+  replicaCount: 2
+  # KakaoCloud KKE requires webhook-enabled controllers to use the node network.
+  hostNetwork: true
+  dnsPolicy: ClusterFirstWithHostNet
+  service:
+    # Public HTTPS terminates at LoadBalancer03; keep stable worker ports for its target group.
+    type: NodePort
+    externalTrafficPolicy: Cluster
+    nodePorts:
+      http: 31664
+      https: 31364
+  config:
+    use-forwarded-headers: "true"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: DoNotSchedule
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/name: ingress-nginx
+          app.kubernetes.io/instance: ingress-nginx
+          app.kubernetes.io/component: controller
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1

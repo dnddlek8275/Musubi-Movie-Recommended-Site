@@ -34,10 +34,13 @@
 **/node_modules/
 **/dist/
 **/.vite/
+**/test-results/
+**/playwright-report/
 
 # Runtime files
 **/*.log
 **/*.tmp
+**/.runtime/
 Backend/app/uploads/*
 !Backend/app/uploads/images/
 Backend/app/uploads/images/*
@@ -60,6 +63,7 @@ AI/outputs/
 movies_final.csv
 
 # Local archives and demonstrations
+backups/
 *.zip
 *.mov
 

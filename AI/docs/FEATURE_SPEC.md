@@ -1,4 +1,4 @@
-# CineVerse 기능 명세서
+# Musubi 기능 명세서
 
 ---
 

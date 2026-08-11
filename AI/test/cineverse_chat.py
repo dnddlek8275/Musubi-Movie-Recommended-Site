@@ -1,5 +1,5 @@
 """
-CineVerse - 캐릭터 1:1 채팅 클라이언트 & 테스트 러너
+Musubi - 캐릭터 1:1 채팅 클라이언트 & 테스트 러너
 
 - 실제 서버(OpenAI 호환, 예: llama.cpp / Ollama)가 있으면 그쪽으로 호출
 - 없거나 USE_MOCK=1 이면 Mock 응답으로 파이프라인만 검증
@@ -191,7 +191,7 @@ def run_tests():
     profiles = load_profiles(PROFILE_PATH)
     mode_label = "MOCK" if USE_MOCK else f"REAL ({LLM_BASE_URL})"
     print(f"\n{'='*70}")
-    print(f"  CineVerse 캐릭터 채팅 종합 테스트 [{mode_label}]")
+    print(f"  Musubi 캐릭터 채팅 종합 테스트 [{mode_label}]")
     print(f"{'='*70}\n")
 
     # ─────────────────────────────────────────────

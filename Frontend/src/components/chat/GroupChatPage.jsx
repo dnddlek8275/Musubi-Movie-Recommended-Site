@@ -1,16 +1,23 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import {
   addRecommendedMovies,
   deleteChatRoom,
+  fetchChatRooms,
   fetchChatRoomMessages,
   fetchCharacters,
+  fetchUserPreferences,
+  getLocalPreferences,
   sendChat,
   sendRoomMessage,
 } from '../../api.js';
 
 import './chat.css';
-import SttMicButton from './SttMicButton.jsx';
+import CinemaNav from '../HeaderFooter/CinemaNav.jsx';
+import PosterArt from '../index/PosterArt.jsx';
+import GuestChatNotice from './GuestChatNotice.jsx';
+import { rankCharactersForRecommendation } from '../../utils/characterRecommendation.js';
+import '../homeVariants/homeVariants.css';
 
 // 배우대기실(menu2). /chat 과 /chat/group 을 한 페이지에서 다룬다.
 // "멤버 추가하기" + 로 캐릭터를 고르고 — 1명이면 1:1(/chat), 2명 이상이면 그룹(/chat/group).
@@ -18,34 +25,132 @@ import SttMicButton from './SttMicButton.jsx';
 // 사이드바 아래 대화 내역은 대화한 캐릭터들의 이름을 제목으로 보여준다.
 const STORAGE_KEY = 'cineverse.groupchat.conversations';
 const AUTH_SESSION_KEY = 'cineverse.authSession';
+const MUMU_DEFAULT_IMAGE = '/images/character/mu/upper-body/mu-upper-default-v1.png';
 
-const POSTER_BASE_URL =
-  import.meta.env.VITE_TMDB_IMAGE_BASE_URL || 'https://image.tmdb.org/t/p/w500';
-
-const QUICK_TABS = [
-  ['오늘의 기분', null],
-  ['장르 추천', null],
-  ['자동추천', '내 취향대로 아무거나 골라줘'],
+// 장르별 캐릭터는 한 캐릭터가 한 줄에만 노출되도록 영화의 대표 장르 하나로 정규화한다.
+// 복수 장르 성격이 강한 작품은 KOFIC·DC·Disney의 작품 분류를 확인해 대표 축을 정했다.
+const REPRESENTATIVE_GENRE_BY_MOVIE = [
+  ['범죄도시', '범죄·느와르'],
+  ['베테랑', '액션·수사'],
+  ['아저씨', '액션·수사'],
+  ['타짜', '범죄·느와르'],
+  ['신과함께', '재난·오컬트'],
+  ['내부자들', '범죄·느와르'],
+  ['암살', '역사·전쟁'],
+  ['부산행', '재난·오컬트'],
+  ['파묘', '재난·오컬트'],
+  ['명량', '역사·전쟁'],
+  ['아이언맨', '슈퍼히어로'],
+  ['캡틴 아메리카', '역사·전쟁'],
+  ['스파이더맨', '슈퍼히어로'],
+  ['토르', '슈퍼히어로'],
+  ['닥터 스트레인지', '마법 판타지'],
+  ['어벤져스: 인피니티 워', '다크 히어로·빌런'],
+  ['어벤져스', '슈퍼히어로'],
+  ['가디언즈 오브 갤럭시', '슈퍼히어로'],
+  ['데드풀', '다크 히어로·빌런'],
+  ['다크 나이트', '다크 히어로·빌런'],
+  ['조커', '다크 히어로·빌런'],
+  ['수어사이드 스쿼드', '다크 히어로·빌런'],
+  ['맨 오브 스틸', '슈퍼히어로'],
+  ['원더우먼', '슈퍼히어로'],
+  ['해리 포터', '마법 판타지'],
+  ['반지의 제왕', '판타지 모험'],
+  ['매트릭스', 'SF'],
+  ['인터스텔라', 'SF'],
+  ['인셉션', 'SF'],
+  ['듄', 'SF'],
+  ['오펜하이머', '역사·전쟁'],
+  ['존 윅', '액션·수사'],
+  ['미션 임파서블', '액션·수사'],
+  ['탑건', '역사·전쟁'],
+  ['캐리비안의 해적', '판타지 모험'],
+  ['겨울왕국', '애니메이션'],
+  ['슈렉', '애니메이션'],
+  ['토이 스토리', '애니메이션'],
 ];
 
-const MOOD_OPTIONS = [
-  { emoji: '😊', label: '좋아요', prompt: '오늘 기분이 좋아! 신나는 영화 추천해줘' },
-  { emoji: '😒', label: '시큰둥', prompt: '오늘 좀 시큰둥해... 그냥 볼만한 영화 없을까' },
-  { emoji: '😔', label: '힘들다', prompt: '힘들다... 위로가 되는 영화 추천해 줘' },
-  { emoji: '🤔', label: '고민중', prompt: '뭘 볼지 고민되는데 추천해줘' },
-  { emoji: '🤨', label: '의심반', prompt: '그냥 아무거나 재밌는 거 추천해줘' },
-  { emoji: '😫', label: '지쳤어', prompt: '너무 지쳤어... 가볍게 볼 수 있는 영화 추천해줘' },
-  { emoji: '😡', label: '화나요', prompt: '열받아 죽겠어! 스트레스 풀리는 영화 추천해줘' },
+const REPRESENTATIVE_GENRE_ORDER = [
+  '범죄·느와르',
+  '액션·수사',
+  '역사·전쟁',
+  '재난·오컬트',
+  '슈퍼히어로',
+  '다크 히어로·빌런',
+  'SF',
+  '마법 판타지',
+  '판타지 모험',
+  '애니메이션',
+  '기타',
 ];
 
-const GENRE_TAGS = ['액션', '드라마', '로맨스', 'SF', '공포', '코미디', '스릴러', '애니메이션'];
+function normalizeGenre(value) {
+  const genre = String(value || '').trim().toLocaleLowerCase('ko-KR');
+  if (!genre) return '';
+  if (/animation|애니/.test(genre)) return '애니메이션';
+  if (/science fiction|sci-fi|sf/.test(genre)) return 'SF';
+  if (/fantasy|판타지/.test(genre)) return '판타지';
+  if (/horror|공포|mystery|미스터리|thriller|스릴러/.test(genre)) return '재난·오컬트';
+  if (/crime|범죄/.test(genre)) return '범죄·느와르';
+  if (/history|historical|war|전쟁|역사|사극/.test(genre)) return '역사·전쟁';
+  if (/adventure|모험/.test(genre)) return '판타지 모험';
+  if (/action|액션/.test(genre)) return '액션·수사';
+  if (/drama|드라마/.test(genre)) return '기타';
+  return '';
+}
 
-const MAX_COMPOSER_HEIGHT = 168;
+function normalizeCharacterSearchText(value) {
+  return String(value || '').replace(/\s+/g, '').toLocaleLowerCase('ko-KR');
+}
 
-const formatTime = (value) =>
-  new Intl.DateTimeFormat('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false }).format(
-    new Date(value)
-  );
+function withObjectParticle(value) {
+  const text = String(value || '').trim();
+  const lastCharacter = text.at(-1) || '';
+  const code = lastCharacter.charCodeAt(0);
+  const isHangulSyllable = code >= 0xac00 && code <= 0xd7a3;
+  const hasFinalConsonant = isHangulSyllable && (code - 0xac00) % 28 !== 0;
+  return `${text}${hasFinalConsonant ? '을' : '를'}`;
+}
+
+function withSubjectParticle(value) {
+  const text = String(value || '').trim();
+  const lastCharacter = text.at(-1) || '';
+  const code = lastCharacter.charCodeAt(0);
+  const isHangulSyllable = code >= 0xac00 && code <= 0xd7a3;
+  const hasFinalConsonant = isHangulSyllable && (code - 0xac00) % 28 !== 0;
+  return `${text}${hasFinalConsonant ? '이' : '가'}`;
+}
+
+function getEditDistance(leftValue, rightValue) {
+  const left = Array.from(normalizeCharacterSearchText(leftValue));
+  const right = Array.from(normalizeCharacterSearchText(rightValue));
+  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+
+  for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+    const current = [leftIndex];
+    for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+      current[rightIndex] = Math.min(
+        current[rightIndex - 1] + 1,
+        previous[rightIndex] + 1,
+        previous[rightIndex - 1] + (left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1)
+      );
+    }
+    previous.splice(0, previous.length, ...current);
+  }
+
+  return previous[right.length];
+}
+
+function getRepresentativeGenre(character) {
+  const movieTitle = String(character.movieTitle || '').replace(/\s+/g, '').toLocaleLowerCase('ko-KR');
+  const researchedGenre = REPRESENTATIVE_GENRE_BY_MOVIE.find(([title]) => (
+    movieTitle.includes(title.replace(/\s+/g, '').toLocaleLowerCase('ko-KR'))
+  ))?.[1];
+  if (researchedGenre) return researchedGenre;
+
+  const normalizedDbGenres = character.genres.map(normalizeGenre).filter(Boolean);
+  return REPRESENTATIVE_GENRE_ORDER.find((genre) => normalizedDbGenres.includes(genre)) || '기타';
+}
 
 // 그룹채팅 순차 타이핑용 유틸 ---------------------------------------------
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -76,10 +181,24 @@ function readJson(key, fallback) {
 
 function readSessionConversations() {
   const stored = readJson(STORAGE_KEY, null);
-  const sessionId = window.localStorage.getItem(AUTH_SESSION_KEY);
+  return Array.isArray(stored?.conversations) ? stored.conversations : [];
+}
 
-  if (!sessionId || stored?.sessionId !== sessionId) return [];
-  return Array.isArray(stored.conversations) ? stored.conversations : [];
+function formatConversationStartedAt(conversation) {
+  const value = conversation?.createdAt || conversation?.messages?.[0]?.createdAt;
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return '채팅 시작 시간 정보 없음';
+
+  const formatted = new Intl.DateTimeFormat('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date);
+
+  return `${formatted}`;
 }
 
 function orbGradient(seed) {
@@ -89,25 +208,6 @@ function orbGradient(seed) {
     hue = (hue * 31 + text.charCodeAt(i)) % 360;
   }
   return `radial-gradient(circle at 34% 28%, hsl(${hue} 70% 78%) 0%, hsl(${hue} 55% 48%) 24%, hsl(${hue} 60% 28%) 52%, hsl(${hue} 65% 12%) 100%)`;
-}
-
-function toPosterUrl(value) {
-  const path = String(value || '').trim();
-  if (!path) return '';
-  if (/^(https?:|data:|blob:)/i.test(path)) return path;
-  return `${POSTER_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
-}
-
-function getMoviePoster(movie) {
-  return toPosterUrl(
-    movie?.posterUrl ||
-      movie?.poster_url ||
-      movie?.poster_path ||
-      movie?.poster ||
-      movie?.image_url ||
-      movie?.image ||
-      ''
-  );
 }
 
 function normalizeName(value) {
@@ -160,43 +260,117 @@ function normalizeCharacter(rawCharacter, index) {
   return {
     id: String(rawCharacter?.id ?? rawCharacter?.character_id ?? name ?? index),
     name,
-    image: rawCharacter?.image || rawCharacter?.image_url || rawCharacter?.avatar_url || '',
+    actor: String(rawCharacter?.actor || '').trim(),
+    genres: Array.isArray(rawCharacter?.genres) ? rawCharacter.genres : [],
+    keywords: Array.isArray(rawCharacter?.keywords) ? rawCharacter.keywords : [],
+    movieTitle: String(rawCharacter?.movie_title || rawCharacter?.movieTitle || '').trim(),
+    greetingMessage: String(rawCharacter?.greeting_message || rawCharacter?.greetingMessage || '').trim(),
+    image:
+      rawCharacter?.image ||
+      rawCharacter?.image_url ||
+      rawCharacter?.avatar_url ||
+      rawCharacter?.profile_image ||
+      '',
   };
 }
 
-function GroupChatPage() {
+function CharacterDiscoveryRow({ title, description, characters, onSelect }) {
+  if (!characters.length) return null;
+
+  return (
+    <section className="group-character-row" aria-label={title}>
+      <header>
+        <div>
+          <h2>{title}</h2>
+          {description ? <p>{description}</p> : null}
+        </div>
+      </header>
+      <div className="group-character-row__track">
+        {characters.map((character) => (
+          <button type="button" key={character.id} onClick={() => onSelect(character)}>
+            <span className="group-character-row__image">
+              {character.image ? <img src={character.image} alt="" /> : null}
+            </span>
+            <strong>{character.name}</strong>
+            <small>{character.movieTitle || '출연 영화 정보 없음'}</small>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function GroupChatPage({ authUser, onLogout }) {
   const [characters, setCharacters] = useState([]);
   const [characterLoadError, setCharacterLoadError] = useState('');
+  const [charactersLoading, setCharactersLoading] = useState(true);
+  const [preferences, setPreferences] = useState(() => getLocalPreferences());
 
   // 대화 내역: 각 대화는 멤버(캐릭터들)를 갖고, 제목은 멤버 이름들이다.
-  const [conversations, setConversations] = useState(readSessionConversations);
+  const [conversations, setConversations] = useState(() =>
+    authUser ? readSessionConversations() : []
+  );
   const [activeId, setActiveId] = useState('');
 
   const [isPickerOpen, setPickerOpen] = useState(false);
+  const [pickerMode, setPickerMode] = useState('new');
+  const [pickerQuery, setPickerQuery] = useState('');
   const [pickedIds, setPickedIds] = useState([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyMenuId, setHistoryMenuId] = useState('');
+  const [historyMenuPosition, setHistoryMenuPosition] = useState({ top: 0, left: 0 });
+  const [promptMenuOpen, setPromptMenuOpen] = useState(false);
+  const [photoName, setPhotoName] = useState('');
+  const [characterSearchMessages, setCharacterSearchMessages] = useState([]);
+  const [characterSearchPending, setCharacterSearchPending] = useState(false);
+  const [searchChatActive, setSearchChatActive] = useState(false);
 
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState('');
-  const [activePicker, setActivePicker] = useState(null);
 
   // 그룹 응답을 하나씩 타이핑 재생하는 동안 "입력 중"인 캐릭터와 재생 진행 여부
   const [typingCharacter, setTypingCharacter] = useState(null);
-  const [isPlayingGroupMessages, setIsPlayingGroupMessages] = useState(false);
 
   const messagesRef = useRef(null);
-  const textareaRef = useRef(null);
-  const quickPickerRef = useRef(null);
-  const composingRef = useRef(false);
+  const searchMessagesRef = useRef(null);
+  const chatStageRef = useRef(null);
+  const promptAreaRef = useRef(null);
+  const promptStartRectRef = useRef(null);
+  const chatActivatedRef = useRef(false);
+  const restorePromptFocusRef = useRef(false);
+  const photoInputRef = useRef(null);
+  const promptAddButtonRef = useRef(null);
+  const promptMenuRef = useRef(null);
+  const historyPanelRef = useRef(null);
+  const historyMoreMenuRef = useRef(null);
+  const characterPickerRef = useRef(null);
   const abortRef = useRef(null);
   const stickToBottomRef = useRef(true);
   const loadedRoomIdsRef = useRef(new Set());
   // 순차 재생 취소용 토큰: 값이 바뀌면 실행 중인 재생 루프가 스스로 멈춘다.
   const playbackIdRef = useRef(0);
+  const characterSearchRequestRef = useRef(0);
+  const scrollHideTimerRef = useRef(0);
+  const visibleScrollbarRef = useRef(null);
+
+  const showScrollbarWhileScrolling = (event) => {
+    const element = event.currentTarget;
+    if (visibleScrollbarRef.current && visibleScrollbarRef.current !== element) {
+      visibleScrollbarRef.current.classList.remove('is-scrolling');
+    }
+    visibleScrollbarRef.current = element;
+    element.classList.add('is-scrolling');
+    window.clearTimeout(scrollHideTimerRef.current);
+    scrollHideTimerRef.current = window.setTimeout(() => {
+      element.classList.remove('is-scrolling');
+      if (visibleScrollbarRef.current === element) visibleScrollbarRef.current = null;
+    }, 700);
+  };
 
   useEffect(() => {
     const controller = new AbortController();
+    setCharactersLoading(true);
 
     fetchCharacters(controller.signal)
       .then((data) => {
@@ -216,12 +390,56 @@ function GroupChatPage() {
         if (fetchError.name === 'AbortError') return;
         setCharacterLoadError(fetchError.message);
         setCharacters([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setCharactersLoading(false);
       });
 
     return () => controller.abort();
   }, []);
 
   useEffect(() => {
+    if (!authUser) {
+      setPreferences(getLocalPreferences());
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    fetchUserPreferences(controller.signal)
+      .then((result) => setPreferences(
+        result?.recommendationPreferences || result?.preferences || getLocalPreferences()
+      ))
+      .catch((fetchError) => {
+        if (fetchError.name !== 'AbortError') setPreferences(getLocalPreferences());
+      });
+    return () => controller.abort();
+  }, [authUser]);
+
+  useEffect(() => {
+    if (!promptMenuOpen && !historyOpen && !isPickerOpen && !historyMenuId) return undefined;
+
+    const closeFloatingPanels = (event) => {
+      if (
+        promptAddButtonRef.current?.contains(event.target)
+        || promptMenuRef.current?.contains(event.target)
+        || historyPanelRef.current?.contains(event.target)
+        || historyMoreMenuRef.current?.contains(event.target)
+        || characterPickerRef.current?.contains(event.target)
+      ) return;
+
+      setPromptMenuOpen(false);
+      setHistoryOpen(false);
+      setHistoryMenuId('');
+      setPickerOpen(false);
+      setPickedIds([]);
+    };
+
+    document.addEventListener('pointerdown', closeFloatingPanels);
+    return () => document.removeEventListener('pointerdown', closeFloatingPanels);
+  }, [promptMenuOpen, historyOpen, isPickerOpen, historyMenuId]);
+
+  useEffect(() => {
+    if (!authUser) return;
     const sessionId = window.localStorage.getItem(AUTH_SESSION_KEY);
     if (!sessionId) return;
 
@@ -229,7 +447,56 @@ function GroupChatPage() {
       STORAGE_KEY,
       JSON.stringify({ sessionId, conversations })
     );
-  }, [conversations]);
+  }, [authUser, conversations]);
+
+  useEffect(() => {
+    if (!authUser) return undefined;
+
+    const controller = new AbortController();
+    fetchChatRooms(controller.signal)
+      .then((rooms) => {
+        const characterRooms = (rooms || []).filter((room) => {
+          const type = String(room?.room_type || room?.roomType || '');
+          return type === 'character' || type === 'group';
+        });
+
+        setConversations((current) => {
+          const localByRoomId = new Map(
+            current
+              .filter((conversation) => conversation.roomId)
+              .map((conversation) => [String(conversation.roomId), conversation]),
+          );
+          const serverRoomIds = new Set(characterRooms.map((room) => String(room.room_id ?? room.roomId ?? '')));
+          const hydrated = characterRooms.map((room) => {
+            const roomId = String(room.room_id ?? room.roomId ?? '');
+            const local = localByRoomId.get(roomId);
+            const memberNames = Array.isArray(room.characters) ? room.characters.filter(Boolean) : [];
+            return {
+              id: local?.id || `server-room-${roomId}`,
+              title: local?.title || memberNames.join(', ') || '캐릭터 대화',
+              members: local?.members?.length
+                ? local.members
+                : memberNames.map((name) => createMember(name)),
+              roomId,
+              createdAt: local?.createdAt || room.created_at || room.createdAt || new Date().toISOString(),
+              updatedAt: room.updated_at || room.updatedAt || local?.updatedAt || new Date().toISOString(),
+              messages: Array.isArray(local?.messages) ? local.messages : [],
+              pinned: Boolean(local?.pinned),
+              manualTitle: Boolean(local?.manualTitle),
+            };
+          });
+          const localOnly = current.filter((conversation) => (
+            !conversation.roomId || !serverRoomIds.has(String(conversation.roomId))
+          ));
+          return [...hydrated, ...localOnly];
+        });
+      })
+      .catch((loadError) => {
+        if (loadError.name !== 'AbortError') setCharacterLoadError(loadError.message);
+      });
+
+    return () => controller.abort();
+  }, [authUser]);
 
   useEffect(() => {
     if (characters.length === 0) return;
@@ -247,15 +514,14 @@ function GroupChatPage() {
     const params = new URLSearchParams(window.location.search);
     const roomParam = params.get('room');
 
-    // room 파라미터가 없으면, 저장된 대화가 있을 때 첫 대화를 자동 선택한다(재방문 시 빈 화면 방지).
+    // 일반 진입에서는 저장된 대화 목록만 유지하고 활성 대화는 복원하지 않는다.
+    // 특정 대화를 명시한 room 파라미터가 있을 때만 해당 대화를 연다.
     if (!roomParam) {
-      const stored = readSessionConversations();
-      if (stored.length > 0) {
-        setActiveId((current) => current || stored[0].id);
-      }
+      setActiveId('');
       return;
     }
 
+    if (!authUser) return;
     const memberNames = (params.get('members') || '')
       .split(',')
       .map((name) => name.trim())
@@ -278,28 +544,149 @@ function GroupChatPage() {
       setConversations((current) => [conversation, ...current]);
       setActiveId(conversation.id);
     }
-  }, []);
+  }, [authUser]);
 
   const activeConversation = conversations.find((c) => c.id === activeId) || null;
+  const historyConversations = useMemo(() => conversations
+    .map((conversation, index) => ({ conversation, index }))
+    .sort((left, right) => (
+      Number(Boolean(right.conversation.pinned)) - Number(Boolean(left.conversation.pinned))
+      || left.index - right.index
+    ))
+    .map(({ conversation }) => conversation), [conversations]);
   const messages = activeConversation?.messages || [];
   const members = activeConversation?.members || [];
   const canChat = Boolean(activeConversation);
+  const chatLayoutActive = canChat || searchChatActive;
 
-  const activeName = members.map((m) => m.name).join(', ') || '멤버를 추가해보세요';
+  const prepareChatActivation = () => {
+    if (chatLayoutActive || chatActivatedRef.current) return;
+    const promptRect = promptAreaRef.current?.getBoundingClientRect();
+    promptStartRectRef.current = promptRect
+      ? {
+          documentTop: promptRect.top + window.scrollY,
+          scrollY: window.scrollY,
+        }
+      : null;
+
+    const focusedElement = document.activeElement;
+    restorePromptFocusRef.current = Boolean(
+      focusedElement && promptAreaRef.current?.contains(focusedElement)
+    );
+  };
+
+  useLayoutEffect(() => {
+    if (!chatLayoutActive) {
+      chatActivatedRef.current = false;
+      return undefined;
+    }
+    if (chatActivatedRef.current) return undefined;
+    chatActivatedRef.current = true;
+
+    const prompt = promptAreaRef.current;
+    const stage = chatStageRef.current;
+    if (!prompt || !stage) return undefined;
+
+    let animationFrameId = 0;
+    let cleanupTimer = 0;
+    const startedAt = window.performance.now();
+    const duration = 720;
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const startRect = promptStartRectRef.current;
+    const startScroll = startRect?.scrollY ?? window.scrollY;
+
+    if (!prefersReducedMotion && startRect) {
+      const currentDocumentTop = prompt.getBoundingClientRect().top + window.scrollY;
+      prompt.style.transition = 'none';
+      prompt.style.transform = `translateY(${startRect.documentTop - currentDocumentTop}px)`;
+      prompt.style.willChange = 'transform';
+      window.scrollTo({ top: startScroll, left: 0, behavior: 'auto' });
+      void prompt.offsetHeight;
+    }
+
+    const followPrompt = (now) => {
+      const activeStage = chatStageRef.current;
+      if (!activeStage) return;
+
+      const progress = Math.min(1, Math.max(0, (now - startedAt) / duration));
+      const easedProgress = 1 - ((1 - progress) ** 3);
+      const stageRect = activeStage.getBoundingClientRect();
+      const stageCenter = stageRect.top + window.scrollY + (stageRect.height / 2);
+      const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+      const centeredScroll = Math.min(maxScroll, Math.max(0, stageCenter - (window.innerHeight / 2)));
+
+      window.scrollTo({
+        top: startScroll + ((centeredScroll - startScroll) * easedProgress),
+        left: window.scrollX,
+        behavior: 'auto',
+      });
+
+      if (!prefersReducedMotion && progress < 1) {
+        animationFrameId = window.requestAnimationFrame(followPrompt);
+      }
+    };
+
+    animationFrameId = window.requestAnimationFrame((now) => {
+      if (!prefersReducedMotion && startRect) {
+        prompt.style.transition = `transform ${duration}ms cubic-bezier(0.4, 0, 0.2, 1)`;
+        prompt.style.transform = 'translateY(0)';
+      }
+      if (restorePromptFocusRef.current) {
+        prompt.querySelector('input')?.focus({ preventScroll: true });
+      }
+      followPrompt(now);
+    });
+
+    cleanupTimer = window.setTimeout(() => {
+      prompt.style.removeProperty('transition');
+      prompt.style.removeProperty('transform');
+      prompt.style.removeProperty('will-change');
+      promptStartRectRef.current = null;
+      if (restorePromptFocusRef.current) {
+        prompt.querySelector('input')?.focus({ preventScroll: true });
+        restorePromptFocusRef.current = false;
+      }
+    }, duration);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrameId);
+      window.clearTimeout(cleanupTimer);
+    };
+  }, [chatLayoutActive]);
+
+  const recommendedCharacters = useMemo(() => {
+    return rankCharactersForRecommendation(characters, preferences, { limit: 8 });
+  }, [characters, preferences]);
+
+  const characterGenreGroups = useMemo(() => {
+    const groups = new Map();
+    characters.forEach((character) => {
+      const representativeGenre = getRepresentativeGenre(character);
+      if (!groups.has(representativeGenre)) groups.set(representativeGenre, []);
+      groups.get(representativeGenre).push(character);
+    });
+    return REPRESENTATIVE_GENRE_ORDER
+      .filter((genre) => groups.has(genre))
+      .map((genre) => ({ genre, characters: groups.get(genre) }));
+  }, [characters]);
+
+  const activeName = members.map((m) => m.name).join(', ') || '새로운 대화를 시작해보세요';
   const activeSubText =
     members.length > 1
       ? `${members.length}명 그룹 대화 · AI 대화`
       : members.length === 1
         ? '영화 속 캐릭터 · AI 대화'
-        : '멤버를 추가하면 대화가 시작됩니다';
+        : '영화 속 캐릭터를 선택하면 대화가 시작됩니다';
 
   // 이름으로 캐릭터 이미지를 찾아 아바타에 쓴다(없으면 색상 그라디언트).
-  const findImage = (name, fallbackMembers = members) =>
-    getCharacterFromList(name, characters)?.image ||
-    hydrateMembers(fallbackMembers, characters).find(
-      (member) => normalizeName(member.name) === normalizeName(name)
-    )?.image ||
-    '';
+  const findImage = (name, fallbackMembers = members) => {
+    if (normalizeName(name) === '무무') return MUMU_DEFAULT_IMAGE;
+    return getCharacterFromList(name, characters)?.image ||
+      hydrateMembers(fallbackMembers, characters).find(
+        (member) => normalizeName(member.name) === normalizeName(name)
+      )?.image ||
+      '';
+  };
 
   useEffect(() => {
     const roomId = activeConversation?.roomId;
@@ -314,7 +701,10 @@ function GroupChatPage() {
 
         updateConversation(activeConversation.id, (conversation) => ({
           ...conversation,
-          messages: mapRoomMessages(roomId, roomMessages),
+          messages: [
+            ...conversation.messages.filter((message) => message.localOnly),
+            ...mapRoomMessages(roomId, roomMessages),
+          ],
         }));
       })
       .catch((fetchError) => {
@@ -325,14 +715,6 @@ function GroupChatPage() {
 
     return () => controller.abort();
   }, [activeConversation?.id, activeConversation?.roomId]);
-
-  const resizeTextarea = (textarea) => {
-    if (!textarea) return;
-    textarea.style.height = 'auto';
-    const nextHeight = Math.min(textarea.scrollHeight, MAX_COMPOSER_HEIGHT);
-    textarea.style.height = `${nextHeight}px`;
-    textarea.style.overflowY = textarea.scrollHeight > MAX_COMPOSER_HEIGHT ? 'auto' : 'hidden';
-  };
 
   useEffect(() => {
     const el = messagesRef.current;
@@ -351,38 +733,81 @@ function GroupChatPage() {
     el.scrollTop = el.scrollHeight;
   }, [messages, activeId, typingCharacter]);
 
+  useEffect(() => {
+    const el = searchMessagesRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [characterSearchMessages, characterSearchPending]);
+
   // 컴포넌트 언마운트 시 실행 중인 타이핑 재생을 중단(타이머 정리).
   useEffect(
     () => () => {
       playbackIdRef.current += 1;
+      window.clearTimeout(scrollHideTimerRef.current);
+      visibleScrollbarRef.current?.classList.remove('is-scrolling');
     },
     []
   );
-
-  useEffect(() => {
-    resizeTextarea(textareaRef.current);
-  }, [input]);
-
-  useEffect(() => {
-    if (!activePicker) return;
-    const picker = quickPickerRef.current;
-    if (!picker) return;
-    picker.style.display = 'none';
-    void picker.offsetHeight;
-    picker.style.display = '';
-  }, [activePicker]);
 
   const updateConversation = (id, updater) => {
     setConversations((current) => current.map((c) => (c.id === id ? updater(c) : c)));
   };
 
-  const togglePicker = () => {
-    setPickerOpen((current) => !current);
+  const openCharacterPicker = (mode = 'new') => {
+    if (busy || typingCharacter) return;
+    setPickerMode(mode);
+    setPickerQuery('');
+    setPickedIds(mode === 'manage' ? members.map((member) => member.id) : []);
+    setPromptMenuOpen(false);
+    setHistoryOpen(false);
+    setPickerOpen(true);
+  };
+
+  const openGroupConversationSetup = () => {
+    if (busy || typingCharacter) return;
+    prepareChatActivation();
+    setSearchChatActive(true);
+    window.requestAnimationFrame(() => openCharacterPicker('new'));
+  };
+
+  const returnToCharacterSearch = () => {
+    abortRef.current?.abort();
+    playbackIdRef.current += 1;
+    prepareChatActivation();
+    setActiveId('');
+    setSearchChatActive(false);
+    setInput('');
+    setError('');
+    setBusy(false);
+    setTypingCharacter(null);
+    setCharacterSearchMessages([]);
+    setCharacterSearchPending(false);
+    characterSearchRequestRef.current += 1;
+    setPromptMenuOpen(false);
+    setHistoryOpen(false);
+    setPickerOpen(false);
+    setPickerMode('new');
+    setPickerQuery('');
     setPickedIds([]);
+    stickToBottomRef.current = true;
+    chatActivatedRef.current = false;
+    promptStartRectRef.current = null;
+
+    if (window.location.search) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+
+    window.requestAnimationFrame(() => {
+      document.querySelector('.group-chat-home-stage')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    });
   };
 
   // 대화 삭제: 서버 방이 있으면 삭제(DELETE /chat/rooms/{id})하고 로컬 리스트에서도 제거.
   const handleDeleteConversation = async (conversation) => {
+    setHistoryMenuId('');
     if (conversation.roomId) {
       try {
         await deleteChatRoom(conversation.roomId);
@@ -400,37 +825,358 @@ function GroupChatPage() {
     });
   };
 
-  const togglePick = (id) => {
-    setPickedIds((current) =>
-      current.includes(id) ? current.filter((x) => x !== id) : [...current, id]
-    );
+  const toggleConversationPin = (conversation) => {
+    setConversations((current) => current.map((item) => (
+      item.id === conversation.id ? { ...item, pinned: !item.pinned } : item
+    )));
+    setHistoryMenuId('');
   };
 
-  // 완료: 고른 멤버들로 새 대화를 만든다(1명=1:1, 2명 이상=그룹). 제목은 멤버 이름들.
-  const confirmPicker = () => {
-    const pickedMembers = pickedIds
-      .map((id) => characters.find((c) => c.id === id))
-      .filter(Boolean)
-      .map((c) => ({ id: c.id, name: c.name, image: c.image }));
+  const renameConversation = (conversation) => {
+    const title = window.prompt('대화 이름을 입력해 주세요.', conversation.title || '');
+    const normalizedTitle = String(title || '').trim();
+    if (!normalizedTitle) return;
 
+    setConversations((current) => current.map((item) => (
+      item.id === conversation.id ? { ...item, title: normalizedTitle, manualTitle: true } : item
+    )));
+    setHistoryMenuId('');
+  };
+
+  const togglePick = (id) => {
+    setPickedIds((current) => {
+      if (current.includes(id)) return current.filter((x) => x !== id);
+      if (current.length >= 3) return current;
+      return [...current, id];
+    });
+  };
+
+  const startCharacterConversation = (
+    pickedMembers,
+    { mumuMessage = '', includeSearchHistory = false } = {},
+  ) => {
     if (pickedMembers.length === 0) return;
+
+    abortRef.current?.abort();
+    prepareChatActivation();
+
+    const createdAt = new Date().toISOString();
+    const firstCharacter = pickedMembers[0];
+    const lastSearchAnswerIndex = includeSearchHistory
+      ? characterSearchMessages.findLastIndex((message) => message.role === 'assistant' && message.searchResult)
+      : -1;
+    const preservedSearchMessages = includeSearchHistory
+      ? characterSearchMessages.map(({ searchResult, ...message }, index) => ({
+          ...message,
+          ...(index === lastSearchAnswerIndex ? {
+            selectedCharacter: {
+              id: firstCharacter.id,
+              name: firstCharacter.name,
+              image: firstCharacter.image,
+              movieTitle: firstCharacter.movieTitle || '',
+            },
+          } : {}),
+        }))
+      : [];
+    const openingMessages = [
+      ...preservedSearchMessages,
+      ...(mumuMessage ? [{
+        id: createId(),
+        role: 'assistant',
+        character: '무무',
+        content: mumuMessage,
+        createdAt,
+        localOnly: true,
+      }] : []),
+      ...(firstCharacter.greetingMessage ? [{
+        id: createId(),
+        role: 'assistant',
+        character: firstCharacter.name,
+        content: firstCharacter.greetingMessage,
+        createdAt,
+        localOnly: true,
+      }] : []),
+    ];
 
     const conversation = {
       id: crypto.randomUUID(),
       title: pickedMembers.map((m) => m.name).join(', '),
       members: pickedMembers,
       roomId: '',
-      createdAt: new Date().toISOString(),
-      messages: [],
+      createdAt,
+      messages: openingMessages,
     };
 
     setConversations((current) => [conversation, ...current]);
     setActiveId(conversation.id);
     setPickerOpen(false);
+    setPickerMode('new');
+    setPickerQuery('');
     setPickedIds([]);
     setInput('');
     setError('');
+    setCharacterSearchMessages([]);
+    setCharacterSearchPending(false);
+    characterSearchRequestRef.current += 1;
     stickToBottomRef.current = true;
+  };
+
+  // 완료: 고른 멤버들로 새 대화를 만든다(1명=1:1, 2명 이상=그룹). 제목은 멤버 이름들.
+  const getPickedMembers = () => pickedIds
+    .map((id) => characters.find((character) => character.id === id))
+    .filter(Boolean)
+    .map((character) => ({
+      id: character.id,
+      name: character.name,
+      image: character.image,
+      movieTitle: character.movieTitle,
+      greetingMessage: character.greetingMessage,
+    }));
+
+  const confirmPicker = () => {
+    const pickedMembers = getPickedMembers();
+    startCharacterConversation(pickedMembers);
+  };
+
+  const applyMemberChanges = () => {
+    if (!activeConversation || pickedIds.length === 0 || busy || typingCharacter) return;
+
+    const nextMembers = getPickedMembers();
+    const currentNames = new Set(members.map((member) => member.name));
+    const nextNames = new Set(nextMembers.map((member) => member.name));
+    const addedNames = nextMembers.filter((member) => !currentNames.has(member.name)).map((member) => member.name);
+    const removedNames = members.filter((member) => !nextNames.has(member.name)).map((member) => member.name);
+
+    if (addedNames.length === 0 && removedNames.length === 0) {
+      setPickerOpen(false);
+      return;
+    }
+
+    const eventParts = [];
+    if (addedNames.length) {
+      eventParts.push(addedNames.length === 1
+        ? `${withSubjectParticle(addedNames[0])} 대화에 참여했어요.`
+        : `${addedNames.join(', ')} 캐릭터가 대화에 참여했어요.`);
+    }
+    if (removedNames.length) {
+      eventParts.push(removedNames.length === 1
+        ? `${withSubjectParticle(removedNames[0])} 대화에서 나갔어요.`
+        : `${removedNames.join(', ')} 캐릭터가 대화에서 나갔어요.`);
+    }
+    const createdAt = new Date().toISOString();
+
+    updateConversation(activeConversation.id, (conversation) => ({
+      ...conversation,
+      members: nextMembers,
+      roomId: '',
+      title: conversation.manualTitle ? conversation.title : nextMembers.map((member) => member.name).join(', '),
+      messages: [
+        ...conversation.messages,
+        {
+          id: createId(),
+          role: 'system',
+          content: eventParts.join(' '),
+          createdAt,
+          localOnly: true,
+          memberChange: true,
+        },
+      ],
+    }));
+    setPickerOpen(false);
+    setPickerMode('new');
+    setPickerQuery('');
+    setPickedIds([]);
+    stickToBottomRef.current = true;
+  };
+
+  const startSingleCharacterConversation = (character, options) => {
+    startCharacterConversation(
+      [{
+        id: character.id,
+        name: character.name,
+        image: character.image,
+        movieTitle: character.movieTitle,
+        greetingMessage: character.greetingMessage,
+      }],
+      options
+    );
+    window.requestAnimationFrame(() => {
+      document.querySelector('.group-chat-home-stage')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  };
+
+  // 홈 등의 캐릭터 카드에서 전달한 캐릭터를 새 1:1 대화로 연다.
+  // 캐릭터를 찾은 뒤 쿼리를 제거해 새로고침/뒤로가기로 같은 대화가 중복 생성되지 않게 한다.
+  useEffect(() => {
+    if (characters.length === 0) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const characterId = params.get('characterId');
+    const characterName = normalizeName(params.get('characterName'));
+    if (!characterId && !characterName) return;
+
+    const selectedCharacter = characters.find((character) => (
+      (characterId && String(character.id) === String(characterId))
+      || (characterName && normalizeName(character.name) === characterName)
+    ));
+
+    window.history.replaceState({}, '', window.location.pathname);
+
+    if (!selectedCharacter) {
+      setError('선택한 캐릭터 정보를 찾을 수 없어요. 다른 캐릭터를 선택해 주세요.');
+      return;
+    }
+
+    startSingleCharacterConversation(selectedCharacter);
+  // 쿼리는 한 번만 소비하며, 캐릭터 목록이 준비됐을 때만 실행한다.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [characters]);
+
+  const selectCharacterFromDiscovery = (character) => {
+    if (!activeConversation) {
+      startSingleCharacterConversation(character);
+      return;
+    }
+
+    if (members.some((member) => member.id === character.id || member.name === character.name)) {
+      document.querySelector('.group-chat-home-stage')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    if (members.length >= 3) {
+      setError('단체 대화에는 최대 3명까지 참여할 수 있어요.');
+      return;
+    }
+    if (busy || typingCharacter) {
+      setError('현재 답변이 끝난 뒤 캐릭터를 추가해 주세요.');
+      return;
+    }
+
+    const addedMember = {
+      id: character.id,
+      name: character.name,
+      image: character.image,
+      movieTitle: character.movieTitle,
+      greetingMessage: character.greetingMessage,
+    };
+    const createdAt = new Date().toISOString();
+
+    updateConversation(activeConversation.id, (conversation) => {
+      const nextMembers = [...conversation.members, addedMember];
+      return {
+        ...conversation,
+        members: nextMembers,
+        roomId: '',
+        title: conversation.manualTitle ? conversation.title : nextMembers.map((member) => member.name).join(', '),
+        messages: [
+          ...conversation.messages,
+          {
+            id: createId(),
+            role: 'system',
+            content: `${withSubjectParticle(character.name)} 대화에 참여했어요.`,
+            createdAt,
+            localOnly: true,
+            memberChange: true,
+          },
+        ],
+      };
+    });
+    setError('');
+    stickToBottomRef.current = true;
+    window.requestAnimationFrame(() => {
+      document.querySelector('.group-chat-home-stage')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  };
+
+  const searchCharacterBeforeChat = async () => {
+    const query = input.trim();
+    if (!query || characterSearchPending) return;
+
+    const requestId = characterSearchRequestRef.current + 1;
+    characterSearchRequestRef.current = requestId;
+    setInput('');
+    setCharacterSearchPending(true);
+
+    // 즉시 결과가 튀어나오지 않도록 무무의 짧은 입력 중 상태를 먼저 보여준다.
+    await sleep(600);
+    if (characterSearchRequestRef.current !== requestId) return;
+
+    const appendSearchExchange = (result) => {
+      const createdAt = new Date().toISOString();
+      setCharacterSearchMessages((current) => [
+        ...current,
+        {
+          id: createId(),
+          role: 'user',
+          content: query,
+          createdAt,
+          localOnly: true,
+        },
+        {
+          id: createId(),
+          role: 'assistant',
+          character: '무무',
+          content: result.message,
+          createdAt,
+          localOnly: true,
+          searchResult: result,
+        },
+      ]);
+      setCharacterSearchPending(false);
+    };
+
+    if (charactersLoading) {
+      appendSearchExchange({
+        query,
+        matches: [],
+        message: '캐릭터 목록을 불러오고 있어요. 잠시 후 다시 검색해 주세요.',
+      });
+      return;
+    }
+
+    const normalizedQuery = normalizeCharacterSearchText(query);
+    const exactMatches = characters.filter((character) => (
+      normalizeCharacterSearchText(character.name) === normalizedQuery
+    ));
+    const partialMatches = exactMatches.length > 0 ? exactMatches : characters.filter((character) => (
+      normalizeCharacterSearchText(character.name).includes(normalizedQuery)
+    ));
+    let matches = partialMatches.slice(0, 6);
+    let usedClosestMatch = false;
+
+    if (matches.length === 0 && characters.length > 0) {
+      const queryLength = Array.from(normalizedQuery).length;
+      matches = characters
+        .map((character, index) => {
+          const normalizedName = normalizeCharacterSearchText(character.name);
+          return {
+            character,
+            index,
+            distance: getEditDistance(normalizedQuery, normalizedName),
+            lengthGap: Math.abs(queryLength - Array.from(normalizedName).length),
+          };
+        })
+        .sort((left, right) => (
+          left.distance - right.distance
+          || left.lengthGap - right.lengthGap
+          || left.index - right.index
+        ))
+        .slice(0, 1)
+        .map(({ character }) => character);
+      usedClosestMatch = matches.length > 0;
+    }
+
+    appendSearchExchange({
+      query,
+      matches,
+      usedClosestMatch,
+      message: usedClosestMatch
+        ? `“${query}”는 아직 등록되지 않은 캐릭터예요. 이름이 가장 비슷한 ${matches[0].name} 캐릭터를 찾아봤어요.`
+        : matches.length > 0
+        ? matches.length === 1
+          ? `${matches[0].name} 캐릭터를 찾았어요. 이미지를 누르면 바로 대화를 시작할 수 있어요.`
+          : `${query}와(과) 관련된 캐릭터를 ${matches.length}명 찾았어요.`
+        : '검색할 수 있는 캐릭터 정보가 없어요.',
+    });
   };
 
   const updateMessage = (conversationId, messageId, updater) => {
@@ -459,7 +1205,6 @@ function GroupChatPage() {
   const cancelGroupPlayback = () => {
     playbackIdRef.current += 1;
     setTypingCharacter(null);
-    setIsPlayingGroupMessages(false);
   };
 
   // 그룹 응답(여러 캐릭터 메시지)을 배열 순서대로 하나씩 "입력 중 → 타이핑"으로 재생한다.
@@ -468,7 +1213,6 @@ function GroupChatPage() {
     const myPlaybackId = ++playbackIdRef.current;
     const isCancelled = () => myPlaybackId !== playbackIdRef.current;
 
-    setIsPlayingGroupMessages(true);
 
     for (const reply of replyMessages) {
       if (isCancelled()) break;
@@ -533,7 +1277,6 @@ function GroupChatPage() {
     // 정상 종료일 때만 상태 정리(취소된 경우엔 다음 재생/취소자가 관리).
     if (!isCancelled()) {
       setTypingCharacter(null);
-      setIsPlayingGroupMessages(false);
     }
   };
 
@@ -589,20 +1332,31 @@ function GroupChatPage() {
 
     try {
       // 이어 대화는 방 기준, 새 대화는 멤버 수에 따라 1:1(/chat) vs 그룹(/chat/group).
+      const history = activeConversation.messages
+        .filter((message) => !message.pending && !message.error && !message.localOnly)
+        .slice(-10)
+        .map((message) => ({
+          role: message.role,
+          content: String(message.content || '').slice(0, 1000),
+          ...(message.character ? { character: message.character } : {}),
+          ...(Array.isArray(message.movies) && message.movies.length > 0
+            ? { recommended_movies: message.movies }
+            : {}),
+        }));
       const response = isGroup
         ? await sendChat(
-            { mode: 'group', characters: memberNames, message: content },
+            { mode: 'group', characters: memberNames, message: content, history, guest: !authUser },
             controller.signal
           )
-        : roomId
+        : authUser && roomId
           ? await sendRoomMessage(
               roomId,
-              { message: content, character: memberNames[0] },
+              { message: content, character: memberNames[0], history, guest: !authUser },
               controller.signal,
               handleStreamChunk
             )
           : await sendChat(
-              { message: content, character: memberNames[0] },
+              { message: content, character: memberNames[0], history, guest: !authUser },
               controller.signal,
               handleStreamChunk
             );
@@ -641,7 +1395,12 @@ function GroupChatPage() {
             intent: roundLabel,
             emotion: reply?.emotion,
             // 캐릭터가 말하기 전 대기 시간(백엔드가 안 주면 기본값)
-            delayMs: reply?.delay_ms ?? reply?.delayMs ?? 600,
+            // input_recovery는 api.js가 이미 요청 시작부터 600ms 로딩을 보장한다.
+            // 그룹 재생 단계에서 다시 600ms를 더 기다리지 않는다.
+            delayMs:
+              response?.intent === 'input_recovery'
+                ? 0
+                : reply?.delay_ms ?? reply?.delayMs ?? 600,
             movies: [],
           });
         });
@@ -659,7 +1418,9 @@ function GroupChatPage() {
           movies: response?.movies || [],
         });
       } else if (response?.movies?.length) {
-        replyMessages[replyMessages.length - 1].movies = response.movies;
+        // 첫 번째 라운드의 첫 응답자가 실제 추천자다. 반응만 한 마지막
+        // 캐릭터에게 영화 카드가 붙으면 추천 주체가 뒤바뀌어 보인다.
+        replyMessages[0].movies = response.movies;
       }
 
       // 그룹 응답은 여러 캐릭터가 순차적으로 "입력 중 → 한 글자씩" 말하도록 재생한다.
@@ -672,7 +1433,7 @@ function GroupChatPage() {
         }));
 
         // 추천받은 영화를 마이페이지 추천과 잇기 위해 저장한다.
-        addRecommendedMovies(response?.movies || []);
+        if (authUser) addRecommendedMovies(response?.movies || []);
 
         // busy를 먼저 풀어, 재생 중에도 사용자가 새 메시지를 보낼 수 있게 한다.
         setBusy(false);
@@ -691,7 +1452,7 @@ function GroupChatPage() {
       }));
 
       // 추천받은 영화를 마이페이지 추천과 잇기 위해 저장한다.
-      addRecommendedMovies(response?.movies || []);
+      if (authUser) addRecommendedMovies(response?.movies || []);
     } catch (requestError) {
       const aborted = requestError.name === 'AbortError';
       const errorMessage = aborted ? '응답을 중단했습니다.' : requestError.message;
@@ -709,461 +1470,373 @@ function GroupChatPage() {
     }
   };
 
-  const clearMessages = () => {
-    if (!activeConversation) return;
-    abortRef.current?.abort();
-    cancelGroupPlayback();
-    updateConversation(activeConversation.id, (conversation) => ({
-      ...conversation,
-      roomId: '',
-      messages: [],
-    }));
-    setInput('');
-    setError('');
-    setBusy(false);
-  };
-
-  const canSend = Boolean(input.trim() && canChat && !busy);
   const statusText = busy ? 'AI가 답변 중입니다.' : error || characterLoadError || '';
-
-  const stopIcon = (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="7" y="7" width="10" height="10" rx="2" />
-    </svg>
-  );
-
-  const topbarAvatarImage = members[0] ? findImage(members[0].name) : '';
+  const normalizedPickerQuery = normalizeCharacterSearchText(pickerQuery);
+  const pickerCharacters = normalizedPickerQuery
+    ? characters.filter((character) => (
+        normalizeCharacterSearchText(character.name).includes(normalizedPickerQuery)
+        || normalizeCharacterSearchText(character.movieTitle).includes(normalizedPickerQuery)
+      ))
+    : characters;
+  const selectedPickerCharacters = pickedIds
+    .map((id) => characters.find((character) => character.id === id))
+    .filter(Boolean);
 
   return (
-    <main className="chat-page" aria-label="배우대기실">
-      <div className="chat-layout">
-        {/* 좌측: 멤버 추가하기 + 대화 내역 */}
-        <aside className="chat-sidebar">
-          <div className="chat-sidebar__head">
-            <span>멤버 추가하기</span>
-            <button
-              type="button"
-              className={`chat-sidebar__new ${isPickerOpen ? 'chat-sidebar__new--active' : ''}`}
-              onClick={togglePicker}
-              title="멤버 선택 (1명=1:1, 2명 이상=그룹)"
-              aria-label="멤버 추가"
-              aria-expanded={isPickerOpen}
-            >
-              +
-            </button>
-          </div>
+    <main className="home-variant home3-page group-chat-home-page" aria-label="캐릭터와 대화">
+      <CinemaNav authUser={authUser} onLogout={onLogout} />
 
-          <div className="chat-charlist">
-            {isPickerOpen ? (
-              <div className="chat-partner-picker chat-partner-picker--open">
-                <div className="chat-partner-picker__inner">
-                  <p className="chat-partner-picker__label">
-                    멤버 선택 · 1명이면 1:1, 2명 이상이면 그룹 대화
-                  </p>
+      <div className="group-character-recommended">
+        <CharacterDiscoveryRow
+          title="추천 캐릭터"
+          description="취향과 관심 장르를 바탕으로 먼저 골라봤어요."
+          characters={recommendedCharacters}
+          onSelect={selectCharacterFromDiscovery}
+        />
+      </div>
 
-                  {characters.map((character) => (
-                    <button
-                      type="button"
-                      key={character.id}
-                      className={`chat-charitem ${
-                        pickedIds.includes(character.id) ? 'chat-charitem--active' : ''
-                      }`}
-                      onClick={() => togglePick(character.id)}
-                    >
-                      <span
-                        className="chat-charitem__avatar"
-                        style={character.image ? undefined : { background: orbGradient(character.name) }}
-                      >
-                        {character.image ? <img src={character.image} alt="" /> : null}
-                      </span>
-                      <span className="chat-charitem__body">
-                        <span className="chat-charitem__name">{character.name}</span>
-                        <span className="chat-charitem__desc">
-                          {pickedIds.includes(character.id) ? '선택됨' : '영화 속 캐릭터'}
-                        </span>
-                      </span>
-                    </button>
-                  ))}
-
-                  <button
-                    type="button"
-                    className="chat-picker-done"
-                    onClick={confirmPicker}
-                    disabled={pickedIds.length === 0}
-                  >
-                    완료 ({pickedIds.length}명 선택
-                    {pickedIds.length >= 2 ? ' · 그룹' : pickedIds.length === 1 ? ' · 1:1' : ''})
+      <section ref={chatStageRef} className={`home3-chat-stage group-chat-home-stage${chatLayoutActive ? ' is-chatting' : ''}${(characterSearchMessages.length > 0 || characterSearchPending) && !canChat ? ' has-character-search' : ''}${isPickerOpen ? ' has-member-picker' : ''}`}>
+        {historyOpen ? (
+          <aside className="home3-chat-history group-chat-history" aria-label="대화 기록" ref={historyPanelRef}>
+            <header>
+              <strong>대화 기록</strong>
+              <button type="button" onClick={() => { setHistoryOpen(false); setHistoryMenuId(''); }} aria-label="대화 기록 닫기">×</button>
+            </header>
+            <div className="home3-chat-history__list">
+              {historyConversations.map((conversation) => (
+                <div className="home3-chat-history__row" key={conversation.id}>
+                  <button type="button" onClick={() => {
+                    prepareChatActivation();
+                    setActiveId(conversation.id);
+                    setHistoryOpen(false);
+                    setHistoryMenuId('');
+                  }}>
+                    <strong>{conversation.title}</strong>
+                    <time dateTime={conversation.createdAt || undefined}>
+                      {formatConversationStartedAt(conversation)}
+                    </time>
                   </button>
-                </div>
-              </div>
-            ) : conversations.length > 0 ? (
-              conversations.map((conversation) => {
-                const firstMember = conversation.members?.[0];
-                const conversationImage = firstMember
-                  ? findImage(firstMember.name, conversation.members)
-                  : '';
-
-                return (
-                  <div className="chat-conv-row" key={conversation.id}>
+                  <div className="home3-chat-history__actions">
                     <button
+                      className={`home3-chat-history__pin${conversation.pinned ? ' is-pinned' : ''}`}
                       type="button"
-                      className={`chat-charitem ${
-                        conversation.id === activeId ? 'chat-charitem--active' : ''
-                      }`}
-                      onClick={() => setActiveId(conversation.id)}
-                      disabled={busy}
+                      onClick={() => toggleConversationPin(conversation)}
+                      aria-label={conversation.pinned ? `${conversation.title} 고정 해제` : `${conversation.title} 상단 고정`}
+                      title={conversation.pinned ? '고정 해제' : '상단 고정'}
                     >
-                      <span
-                        className="chat-charitem__avatar"
-                        style={
-                          conversationImage
-                            ? undefined
-                            : { background: orbGradient(conversation.title) }
-                        }
+                      <svg aria-hidden="true" viewBox="0 0 24 24">
+                        <path d="m14.8 4.2 5 5-2.4 1.1-3.3 3.3-.4 4-1.2 1.2-3.6-3.6-4.1 4.1-1.1-1.1 4.1-4.1-3.6-3.6 1.2-1.2 4-.4 3.3-3.3 1.1-2.4Z" />
+                      </svg>
+                    </button>
+                    <button
+                      className="home3-chat-history__more"
+                      type="button"
+                      onClick={(event) => {
+                        const rect = event.currentTarget.getBoundingClientRect();
+                        setHistoryMenuPosition({ top: rect.top, left: rect.right + 12 });
+                        setHistoryMenuId((current) => current === conversation.id ? '' : conversation.id);
+                      }}
+                      aria-label={`${conversation.title} 메뉴`}
+                      aria-expanded={historyMenuId === conversation.id}
+                    >⋮</button>
+                    {historyMenuId === conversation.id ? (
+                      <div
+                        className="home3-chat-history__menu"
+                        ref={historyMoreMenuRef}
+                        style={{ top: historyMenuPosition.top, left: historyMenuPosition.left }}
                       >
-                        {conversationImage ? <img src={conversationImage} alt="" /> : null}
-                      </span>
-                      <span className="chat-charitem__body">
-                        <span className="chat-charitem__name">{conversation.title}</span>
-                        <span className="chat-charitem__desc">
-                          {conversation.members.length > 1 ? '그룹 대화' : '1:1 대화'}
-                        </span>
-                      </span>
-                    </button>
-
-                    <button
-                      type="button"
-                      className="chat-conv-del"
-                      onClick={() => handleDeleteConversation(conversation)}
-                      title="대화 삭제"
-                      aria-label="대화 삭제"
-                    >
-                      ✕
-                    </button>
+                        <button type="button" onClick={() => toggleConversationPin(conversation)}>
+                          {conversation.pinned ? '고정 해제' : '채팅 고정'}
+                        </button>
+                        <button type="button" onClick={() => renameConversation(conversation)}>이름 수정</button>
+                        <button className="is-danger" type="button" onClick={() => handleDeleteConversation(conversation)}>삭제하기</button>
+                      </div>
+                    ) : null}
                   </div>
-                );
-              })
-            ) : (
-              <p className="chat-charlist__empty">
-                {characterLoadError || '+ 버튼으로 멤버를 추가해 대화를 시작해보세요'}
-              </p>
-            )}
-          </div>
-        </aside>
-
-        {/* 우측: 대화 패널 */}
-        <section className="chat-panel">
-          <header className="chat-topbar">
-            <span
-              className="chat-topbar__avatar"
-              style={topbarAvatarImage ? undefined : { background: orbGradient(activeName) }}
-            >
-              {topbarAvatarImage ? <img src={topbarAvatarImage} alt="" /> : null}
-            </span>
-            <div className="chat-topbar__info">
-              <div className="chat-topbar__nameline">
-                <strong>{activeName}</strong>
-                {canChat ? (
-                  <>
-                    <span className="chat-topbar__dot" />
-                    <span className="chat-topbar__status">온라인</span>
-                  </>
-                ) : null}
-              </div>
-              <div className="chat-topbar__sub">{activeSubText}</div>
-            </div>
-            <div className="chat-topbar__actions">
-              <button type="button" className="chat-chip chat-chip--danger" onClick={clearMessages}>
-                대화 초기화
-              </button>
-            </div>
-          </header>
-
-          <section className="chat-messages" ref={messagesRef} aria-live="polite">
-            {messages.length === 0 ? (
-              <div className="chat-empty">
-                <p>
-                  {canChat
-                    ? `${activeName}와(과) 대화를 시작해보세요`
-                    : '+ 버튼으로 멤버를 추가해보세요'}
-                </p>
-              </div>
-            ) : (
-              <>
-                <div className="chat-divider">
-                  <span>오늘</span>
                 </div>
+              ))}
+              {conversations.length === 0 ? <p className="home3-chat-history__empty">저장된 대화가 없습니다.</p> : null}
+            </div>
+          </aside>
+        ) : null}
 
-                {messages.map((message) => {
-                  const isUser = message.role === 'user';
-                  const avatarImage = !isUser ? findImage(message.character) : '';
-
-                  return (
-                    <article
-                      key={message.id}
-                      className={`chat-msg chat-msg--${message.role} ${
-                        message.error ? 'chat-msg--error' : ''
-                      }`}
-                    >
-                      {!isUser ? (
-                        <span
-                          className="chat-msg__avatar"
-                          style={
-                            avatarImage
-                              ? undefined
-                              : { background: orbGradient(message.character || activeName) }
-                          }
-                        >
-                          {avatarImage ? <img src={avatarImage} alt="" /> : null}
-                        </span>
-                      ) : null}
-
-                      <div className="chat-msg__col">
-                        <div className="chat-msg__meta">
-                          <strong>{isUser ? '나' : message.character || 'AI'}</strong>
-                          {message.intent ? (
-                            <span className="chat-msg__intent">{message.intent}</span>
-                          ) : null}
-                          <time>{formatTime(message.createdAt)}</time>
-                        </div>
-
-                        {message.pending ? (
-                          <div className="chat-typing">
-                            <span />
-                            <span />
-                            <span />
-                          </div>
-                        ) : (
-                          <>
-                            <div className="chat-msg__bubble">
-                              {message.content || '답변을 기다리는 중...'}
-                            </div>
-
-                            {message.movies?.length > 0 ? (
-                              <div className="chat-movies-row">
-                                {message.movies.map((movie, index) => {
-                                  const title = movie.title || movie.name || '추천작';
-                                  const meta = [movie.year, movie.genre].filter(Boolean).join(' · ');
-                                  const rating = movie.rating ?? movie.score;
-                                  const poster = getMoviePoster(movie);
-
-                                  return (
-                                    <div className="chat-movie" key={movie.id || movie.title || index}>
-                                      <div
-                                        className="chat-movie__poster"
-                                        style={poster ? { backgroundImage: `url(${poster})` } : undefined}
-                                      >
-                                      </div>
-                                      <div className="chat-movie__body">
-                                        <div className="chat-movie__title">{title}</div>
-                                        {meta ? <div className="chat-movie__meta">{meta}</div> : null}
-                                        {rating != null ? (
-                                          <div className="chat-movie__rating">
-                                            <span>★</span>
-                                            {rating}
-                                          </div>
-                                        ) : null}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            ) : null}
-                          </>
-                        )}
-                      </div>
-                    </article>
-                  );
-                })}
-
-                {typingCharacter ? (
-                  <article className="chat-msg chat-msg--assistant chat-msg--typing">
-                    <span
-                      className="chat-msg__avatar"
-                      style={
-                        typingCharacter.image
-                          ? undefined
-                          : { background: orbGradient(typingCharacter.name || activeName) }
-                      }
-                    >
-                      {typingCharacter.image ? (
-                        <img src={typingCharacter.image} alt="" />
-                      ) : null}
-                    </span>
-
-                    <div className="chat-msg__col">
-                      <div className="chat-msg__meta">
-                        <strong>{typingCharacter.name || 'AI'}</strong>
-                      </div>
-
-                      <div className="chat-typing">
-                        <em className="chat-typing__label">입력 중</em>
-                        <span />
-                        <span />
-                        <span />
-                      </div>
-                    </div>
-                  </article>
-                ) : null}
-              </>
-            )}
-          </section>
-
-          <div className="chat-composer-wrap">
-            <div className="chat-tabs">
-              {QUICK_TABS.map(([label, prompt]) => (
+        {isPickerOpen ? (
+          <aside className="home3-chat-history group-chat-character-picker" aria-label="캐릭터 선택" ref={characterPickerRef}>
+            <header>
+              <strong>{pickerMode === 'manage' ? '대화 멤버 관리' : '대화 상대 선택'}</strong>
+              <span>{pickedIds.length} / 3</span>
+              <button type="button" onClick={() => { setPickerOpen(false); setPickerQuery(''); }} aria-label="캐릭터 선택 닫기">×</button>
+            </header>
+            <p className="group-chat-character-picker__guide">
+              {pickerMode === 'manage'
+                ? '추가하거나 제외할 캐릭터를 고른 뒤 변경을 적용해 주세요.'
+                : '한 명은 1:1, 두 명 이상은 그룹 대화로 시작돼요.'}
+            </p>
+            {selectedPickerCharacters.length ? (
+              <div className="group-chat-character-picker__selected" aria-label="선택한 캐릭터">
+                {selectedPickerCharacters.map((character) => (
+                  <button type="button" key={character.id} onClick={() => togglePick(character.id)}>
+                    <span>{character.image ? <img src={character.image} alt="" /> : null}</span>
+                    <strong>{character.name}</strong>
+                    <b aria-hidden="true">×</b>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            <label className="group-chat-character-picker__search">
+              <span aria-hidden="true">⌕</span>
+              <input
+                type="search"
+                value={pickerQuery}
+                onChange={(event) => setPickerQuery(event.target.value)}
+                placeholder="캐릭터 또는 영화 이름 검색"
+                autoComplete="off"
+              />
+            </label>
+            <div className="group-chat-character-picker__list" onScroll={showScrollbarWhileScrolling}>
+              {charactersLoading ? <p className="home3-chat-history__empty">캐릭터를 불러오고 있어요.</p> : pickerCharacters.map((character) => (
                 <button
-                  key={label}
                   type="button"
-                  className={`chat-tab ${activeTab === label ? 'chat-tab--active' : ''}`}
-                  onClick={() => {
-                    setActiveTab(label);
-                    if (label === '오늘의 기분') {
-                      setActivePicker((current) => (current === 'mood' ? null : 'mood'));
-                      return;
-                    }
-                    if (label === '장르 추천') {
-                      setActivePicker((current) => (current === 'genre' ? null : 'genre'));
-                      return;
-                    }
-                    setActivePicker(null);
-                    setInput(prompt);
-                  }}
+                  key={character.id}
+                  className={pickedIds.includes(character.id) ? 'is-selected' : ''}
+                  onClick={() => togglePick(character.id)}
                 >
-                  {label}
+                  <span style={character.image ? undefined : { background: orbGradient(character.name) }}>
+                    {character.image ? <img src={character.image} alt="" /> : null}
+                  </span>
+                  <strong>{character.name}</strong>
                 </button>
               ))}
+              {!charactersLoading && pickerCharacters.length === 0 ? (
+                <p className="home3-chat-history__empty">일치하는 캐릭터가 없습니다.</p>
+              ) : null}
             </div>
-
-            <div
-              ref={quickPickerRef}
-              className={`chat-picker ${activePicker ? 'chat-picker--open' : ''}`}
+            <button
+              className="group-chat-character-picker__done"
+              type="button"
+              onClick={pickerMode === 'manage' ? applyMemberChanges : confirmPicker}
+              disabled={!pickedIds.length || busy || Boolean(typingCharacter)}
             >
-              <div className="chat-picker__inner">
-                {activePicker === 'mood' ? (
-                  <div className="chat-mood-grid">
-                    {MOOD_OPTIONS.map((mood) => (
-                      <button
-                        key={mood.emoji}
-                        type="button"
-                        className="chat-mood-btn"
-                        onClick={() => {
-                          setInput(mood.prompt);
-                          setActivePicker(null);
-                        }}
-                      >
-                        <span className="chat-mood-btn__emoji">{mood.emoji}</span>
-                        <span className="chat-mood-btn__label">{mood.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
+              {pickedIds.length
+                ? pickerMode === 'manage' ? '변경 적용' : `선택한 ${pickedIds.length}명과 대화 시작`
+                : '최소 한 명을 선택해 주세요'}
+            </button>
+          </aside>
+        ) : null}
 
-                {activePicker === 'genre' ? (
-                  <div className="chat-genre-grid">
-                    {GENRE_TAGS.map((genre) => (
-                      <button
-                        key={genre}
-                        type="button"
-                        className="chat-genre-tag"
-                        onClick={() => {
-                          setInput(`#${genre} 영화 추천해줘`);
-                          setActivePicker(null);
-                        }}
-                      >
-                        #{genre}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
+        <header>
+          <h1>{canChat ? `${activeName}와 이야기해볼까요?` : '영화 속 캐릭터와 대화해보세요.'}</h1>
+          <p>{canChat ? activeSubText : '좋아하는 캐릭터를 선택하고 자유롭게 이야기를 시작해보세요.'}</p>
+        </header>
+
+        <div className="home3-chat-stage__conversation">
+          {chatLayoutActive ? (
+            <div className="group-chat-member-bar" aria-label="현재 대화 멤버">
+              <div className="group-chat-member-bar__people">
+                <div className="group-chat-member-bar__avatars" aria-hidden="true">
+                  {(canChat ? members : [{ id: 'mumu-search', name: '무무', image: MUMU_DEFAULT_IMAGE }]).slice(0, 3).map((member) => (
+                    <span className={member.name === '무무' ? 'is-mumu' : ''} key={member.id}>{member.image ? <img src={member.image} alt="" /> : null}</span>
+                  ))}
+                </div>
+                <div>
+                  <strong>{canChat ? members.map((member) => member.name).join(' · ') : '무무'}</strong>
+                  <small>{canChat ? (members.length > 1 ? `${members.length}명이 함께 대화 중` : '1:1 대화 중') : '대화할 캐릭터 검색 중'}</small>
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={() => openCharacterPicker(canChat ? 'manage' : 'new')}
+                disabled={busy || Boolean(typingCharacter)}
+              >멤버 관리</button>
             </div>
+          ) : null}
+          {(characterSearchMessages.length > 0 || characterSearchPending) && !canChat ? (
+            <div className="group-character-search-answer" ref={searchMessagesRef} aria-live="polite" onScroll={showScrollbarWhileScrolling}>
+              {characterSearchMessages.map((message) => {
+                const isUser = message.role === 'user';
+                const result = message.searchResult;
+                return (
+                  <div className={`home-variant-message is-${message.role}`} key={message.id}>
+                    {!isUser ? (
+                      <span className="home-variant-message__avatar">
+                        <img src={MUMU_DEFAULT_IMAGE} alt="" />
+                      </span>
+                    ) : null}
+                    <div className="home-variant-message__body">
+                      {!isUser ? <span className="home-variant-message__name">무무</span> : null}
+                      <p>{message.content}</p>
+                      {result?.matches?.length > 0 ? (
+                        <div className="group-character-search-answer__results">
+                          {result.matches.map((character) => (
+                            <button
+                              type="button"
+                              key={character.id}
+                              onClick={() => startSingleCharacterConversation(character, {
+                                includeSearchHistory: true,
+                                mumuMessage: `좋아요. ${withObjectParticle(character.name)} 불러볼게요.\n포스터를 눌러 원하는 캐릭터를 추가하거나 멤버 관리를 통해 단체 대화를 시작해보세요.`,
+                              })}
+                            >
+                              <span>{character.image ? <img src={character.image} alt="" /> : null}</span>
+                              <strong>{character.name}</strong>
+                              <small>{character.movieTitle || '출연 영화 정보 없음'}</small>
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+              {characterSearchPending ? (
+                <div className="home-variant-message is-assistant">
+                  <span className="home-variant-message__avatar">
+                    <img src={MUMU_DEFAULT_IMAGE} alt="" />
+                  </span>
+                  <div className="home-variant-message__body">
+                    <span className="home-variant-message__name">무무</span>
+                    <div className="home-variant-message__typing" role="status" aria-label="캐릭터를 찾고 있습니다"><span /><span /><span /></div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
-            <form
-              className="chat-composer"
-              onSubmit={(event) => {
-                event.preventDefault();
-                sendMessage();
-              }}
-            >
-              <div className="chat-inputbox">
-                <button type="button" className="chat-attach" title="파일 첨부" aria-label="파일 첨부">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <rect x="3" y="4" width="18" height="16" rx="3" />
-                    <circle cx="8.5" cy="9.5" r="1.6" />
-                    <path d="M5 18l5-5 4 4 3-3 2 2" />
-                  </svg>
-                </button>
+          {messages.length > 0 || typingCharacter ? (
+            <div className="home-variant-chat__messages is-drag-scroll" ref={messagesRef} aria-live="polite" onScroll={showScrollbarWhileScrolling}>
+              {messages.map((message) => {
+                if (message.memberChange) {
+                  return <div className="group-chat-member-event" key={message.id}>{message.content}</div>;
+                }
+                const isUser = message.role === 'user';
+                const avatarImage = isUser ? '' : findImage(message.character);
+                return (
+                  <div className={`home-variant-message is-${message.role}${message.error ? ' is-error' : ''}`} key={message.id}>
+                    {!isUser ? (
+                      <span className="home-variant-message__avatar">
+                        {avatarImage ? <img src={avatarImage} alt="" /> : null}
+                      </span>
+                    ) : null}
+                    <div className="home-variant-message__body">
+                      {!isUser ? <span className="home-variant-message__name">{message.character || 'AI'}</span> : null}
+                      {message.pending ? (
+                        <div className="home-variant-message__typing" role="status" aria-label="응답을 준비하고 있습니다"><span /><span /><span /></div>
+                      ) : <p>{message.content || '답변을 기다리는 중...'}</p>}
+                      {message.selectedCharacter ? (
+                        <div className="group-chat-preserved-character" aria-label={`${message.selectedCharacter.name} 캐릭터`}>
+                          <span>{message.selectedCharacter.image ? <img src={message.selectedCharacter.image} alt="" /> : null}</span>
+                          <strong>{message.selectedCharacter.name}</strong>
+                          <small>{message.selectedCharacter.movieTitle || '출연 영화 정보 없음'}</small>
+                        </div>
+                      ) : null}
+                      {message.movies?.length ? (
+                        <div className="home-variant-message__movies" aria-label="추천 영화">
+                          {message.movies.slice(0, 3).map((movie, index) => {
+                            const movieId = movie.movie_id || movie.id;
+                            const title = movie.title || movie.name || `추천 영화 ${index + 1}`;
+                            return (
+                              <button type="button" key={movieId || `${title}-${index}`} onClick={() => {
+                                if (movieId) window.location.href = `/movies/${movieId}`;
+                              }}>
+                                <PosterArt movie={{ ...movie, title }} compact />
+                                {movie.recommendation_role ? <small className="home-variant-message__movie-role">{movie.recommendation_role}</small> : null}
+                                <strong>{title}</strong>
+                                {movie.recommendation_reason ? <span className="home-variant-message__movie-reason">{movie.recommendation_reason}</span> : null}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+              {typingCharacter ? (
+                <div className="home-variant-message is-assistant">
+                  <span className="home-variant-message__avatar">{typingCharacter.image ? <img src={typingCharacter.image} alt="" /> : null}</span>
+                  <div className="home-variant-message__body">
+                    <span className="home-variant-message__name">{typingCharacter.name || 'AI'}</span>
+                    <div className="home-variant-message__typing" role="status"><span /><span /><span /></div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
-                <textarea
-                  ref={textareaRef}
-                  value={input}
-                  onChange={(event) => {
-                    setInput(event.target.value);
-                    resizeTextarea(event.target);
-                  }}
-                  onCompositionStart={() => {
-                    composingRef.current = true;
-                  }}
-                  onCompositionEnd={(event) => {
-                    composingRef.current = false;
-                    setInput(event.currentTarget.value);
-                    resizeTextarea(event.currentTarget);
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && !event.shiftKey) {
-                      if (
-                        event.nativeEvent.isComposing ||
-                        composingRef.current ||
-                        event.keyCode === 229
-                      ) {
-                        return;
-                      }
-                      event.preventDefault();
-                      sendMessage();
-                    }
-                  }}
-                  rows={1}
-                  maxLength={1000}
-                  placeholder={canChat ? `${activeName}에게 메시지 보내기` : '+ 버튼으로 멤버를 추가해보세요'}
-                  aria-label="메시지"
-                  disabled={busy || !canChat}
-                />
-
-                <button
-                  className="chat-enter"
-                  type="button"
-                  onClick={() => (busy ? abortRef.current?.abort() : sendMessage())}
-                  disabled={!busy && !canSend}
-                  title={busy ? '응답 중단' : '메시지 보내기 (Enter)'}
-                  aria-label={busy ? '응답 중단' : '메시지 보내기'}
-                >
-                  {busy ? (
-                    stopIcon
-                  ) : (
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M20 6v5a3 3 0 0 1-3 3H5" />
-                      <path d="M9 10l-4 4 4 4" />
-                    </svg>
-                  )}
-                </button>
-              </div>
-
-              <SttMicButton
-                disabled={busy || !canChat}
-                onTranscript={(text) => {
-                  setError('');
-                  void sendMessage(text);
+          <div className="home3-prompt-area" ref={promptAreaRef}>
+            <form className="home3-prompt" onSubmit={(event) => {
+              event.preventDefault();
+              if (busy) abortRef.current?.abort();
+              else if (canChat) sendMessage();
+              else if (input.trim()) {
+                if (!searchChatActive) {
+                  prepareChatActivation();
+                  setSearchChatActive(true);
+                }
+                void searchCharacterBeforeChat();
+              }
+            }}>
+              <button ref={promptAddButtonRef} className="home3-prompt__add" type="button" aria-label="채팅 메뉴 열기" aria-expanded={promptMenuOpen} onClick={() => setPromptMenuOpen((current) => !current)}>+</button>
+              {promptMenuOpen ? (
+                <div className="home3-prompt-menu" ref={promptMenuRef}>
+                  <button type="button" onClick={() => { window.location.href = '/home'; }}>무무와 새 채팅</button>
+                  <button type="button" onClick={returnToCharacterSearch}>캐릭터와 새 채팅</button>
+                  <button type="button" onClick={() => { setHistoryOpen(true); setPromptMenuOpen(false); }}>대화 기록</button>
+                  <button type="button" onClick={() => { photoInputRef.current?.click(); setPromptMenuOpen(false); }}>사진 첨부</button>
+                </div>
+              ) : null}
+              <input className="home3-photo-input" type="file" accept="image/*" ref={photoInputRef} onChange={(event) => setPhotoName(event.target.files?.[0]?.name || '')} />
+              <input
+                aria-label={canChat ? `${activeName}에게 메시지 보내기` : '대화할 캐릭터 검색하기'}
+                autoComplete="off"
+                placeholder={canChat
+                  ? members.length > 1
+                    ? '캐릭터들과 나누고 싶은 이야기를 입력해보세요.'
+                    : `${activeName}에게 말을 걸어보세요.`
+                  : '+ 버튼을 눌러 대화기록을 불러오거나, 원하는 캐릭터를 검색해보세요.'}
+                value={input}
+                onChange={(event) => {
+                  const nextInput = event.target.value;
+                  setInput(nextInput);
                 }}
-                onError={setError}
+                aria-busy={busy}
               />
+              <button className="home3-prompt__voice-input" type="button" aria-label="음성 인식 기능 준비 중" data-tooltip="음성 인식은 준비 중이에요">
+                <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="8.5" y="3" width="7" height="12" rx="3.5" /><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3M8.5 21h7" /></svg>
+              </button>
+              <button className="home3-prompt__voice-chat" type="button" aria-label="AI 음성 대화 기능 준비 중" data-tooltip="AI 음성 대화는 준비 중이에요">
+                <svg aria-hidden="true" viewBox="0 0 28 28"><path d="M5 11v6M9.5 7v14M14 10v8M18.5 5v18M23 11v6" /></svg>
+              </button>
             </form>
-
-            {statusText ? <p className="chat-status">{statusText}</p> : null}
-
-            <p className="chat-disclaimer">AI가 생성한 응답으로, 실제 정보와 다를 수 있어요.</p>
+            {photoName ? (
+              <div className="home3-photo-chip"><span>{photoName}</span><small>이미지 분석 API 연결 전</small><button type="button" onClick={() => setPhotoName('')} aria-label="첨부 사진 제거">×</button></div>
+            ) : null}
+            {statusText ? <p className="home3-prompt-status" role="status">{statusText}</p> : null}
           </div>
-        </section>
+
+          <GuestChatNotice
+            showGuestMessage={!authUser}
+            hidden={searchChatActive || messages.length > 0 || characterSearchMessages.length > 0 || characterSearchPending}
+            mode="group"
+            onGroupStart={openGroupConversationSetup}
+            onSuggestionSelect={(suggestion) => {
+              setInput(suggestion);
+              window.requestAnimationFrame(() => {
+                promptAreaRef.current?.querySelector('input:not([type="file"])')?.focus();
+              });
+            }}
+          />
+        </div>
+      </section>
+
+      <div className="group-character-genres" aria-label="장르별 캐릭터">
+        {characterGenreGroups.map((group) => (
+          <CharacterDiscoveryRow
+            key={group.genre}
+            title={group.genre}
+            characters={group.characters}
+            onSelect={selectCharacterFromDiscovery}
+          />
+        ))}
       </div>
     </main>
   );

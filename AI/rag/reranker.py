@@ -1,12 +1,14 @@
 """
-CineVerse RAG Reranker
+Musubi RAG Reranker
 CrossEncoder (BGE-Reranker-v2-m3) 싱글턴
 """
 
+import os
 from functools import lru_cache
 from sentence_transformers import CrossEncoder
 
 MODEL_NAME = "BAAI/bge-reranker-v2-m3"
+RERANK_BATCH_SIZE = max(1, int(os.getenv("RERANK_BATCH_SIZE", "8")))
 
 
 @lru_cache(maxsize=1)
@@ -16,7 +18,9 @@ def get_reranker() -> CrossEncoder:
     GPU에 유지한다. 실측 결과 후보 9개(최대 512토큰)만 재랭킹해도
     CPU에서는 ~6.5s, GPU에서는 <1s로 차이가 커서 GPU가 필수적이다.
     """
-    return CrossEncoder(MODEL_NAME, max_length=512)
+    # The GPU subnet can run without internet egress.  The model is provisioned in
+    # the Hugging Face cache, so startup must never depend on a metadata HEAD call.
+    return CrossEncoder(MODEL_NAME, max_length=512, local_files_only=True)
 
 
 def rerank(
@@ -42,7 +46,7 @@ def rerank(
 
     reranker = get_reranker()
     pairs  = [[query, c[text_key]] for c in candidates]
-    scores = reranker.predict(pairs)
+    scores = reranker.predict(pairs, batch_size=RERANK_BATCH_SIZE)
 
     ranked = sorted(
         [dict(c, _score=float(s)) for c, s in zip(candidates, scores)],

@@ -1,9 +1,29 @@
 import re
 
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import and_, case, func, literal, or_, select
 from sqlalchemy.orm import Session
 
-from app.models.movies import Movie, MovieGenre
+from app.models.actors import Actor, MovieActor
+from app.models.movies import Movie, MovieGenre, MovieGenreWeight
+from app.models.users import User
+from app.services.movies.genre_relevance import (
+    GENRE_KEYWORD_SIGNALS,
+    GENRE_RELEVANCE_MINIMUM,
+    genre_relevance_score,
+)
+
+
+COUNTRY_ALIASES = {
+    "한국": "KR", "대한민국": "KR", "일본": "JP", "미국": "US", "영국": "GB",
+    "프랑스": "FR", "중국": "CN", "홍콩": "HK", "대만": "TW", "캐나다": "CA",
+    "독일": "DE", "이탈리아": "IT", "스페인": "ES",
+}
+ROMANCE_RELATED_TERMS = (
+    "로맨스", "연애", "첫사랑", "사랑", "결혼", "이별", "연인",
+    "romance", "love", "first love", "dating", "wedding", "marriage", "breakup",
+)
+ROMANCE_NEGATIVE_TERMS = ("액션", "전쟁", "범죄", "action", "war", "crime")
+SEARCH_STOP_WORDS = {"영화", "작품", "관련", "추천", "같은", "비슷한"}
 
 # DB 컬럼/SQL 표현식을 검색용으로 정규화
 # lower: 대소문자 차이 제거
@@ -12,120 +32,483 @@ from app.models.movies import Movie, MovieGenre
 def normalize_search_expr(column):
     return func.regexp_replace(func.lower(func.coalesce(column, "")), r"\s+", "", "g")
 
-# 영화 검색 기능 구현
-def search_movies_result(
-        db : Session,
-        search_keyword : str,
-        page : int = 1,
-        limit : int = 20,
+
+def search_suggestions_result(
+        db: Session,
+        search_keyword: str,
+        limit: int = 8,
 ):
-    # 검색어 앞뒤 공백 빼기
-    search_keyword = search_keyword.strip().lower()
-    if search_keyword is None:
-        return {
-            "state" : "failure",
-            "message" : "검색어를 입력해주세요."
-        }
-    
-    # 검색 키워드 내부 공백을 제거한 값
-    normalized_keyword = re.sub(r"\s+", "", search_keyword)
-    
-    # 부분 일치 검색용 패턴
-    contains_pattern = f"%{search_keyword}%"
-    # 앞부분 일치 검색용 패턴
-    startwith_pattern = f"{search_keyword}%"
+    """Return distinct, prefix-matched terms from the same metadata used by movie search."""
+    keyword = (search_keyword or "").strip()
+    normalized_keyword = re.sub(r"\s+", "", keyword.lower())
+    if not normalized_keyword:
+        return {"state": "success", "message": "검색어 자동완성", "data": []}
 
-    # 보정 검색 방식 - 공백 제거 검색어 기준 부분 일치, 앞부분 일치 패턴
-    normalized_contains_pattern = f"%{normalized_keyword}%"
-    normalized_startwith_pattern = f"{normalized_keyword}%"
+    prefix_pattern = f"{normalized_keyword}%"
+    per_source_limit = max(limit * 2, 12)
 
-    # DB 컬럼 내부 공백을 제거한 값
-    title_normalized = normalize_search_expr(Movie.title)
-    director_normalized = normalize_search_expr(Movie.director)
-    overview_normalized = normalize_search_expr(Movie.overview)
+    title_value = normalize_search_expr(Movie.title)
+    title_completion_score = (
+        func.ln(func.max(func.coalesce(Movie.vote_count, 0)) + 1)
+        - (func.char_length(title_value) - len(normalized_keyword)) * 0.45
+    )
+    title_rows = db.execute(
+        select(Movie.title)
+        .where(title_value.ilike(prefix_pattern))
+        .group_by(Movie.title)
+        .order_by(
+            case((title_value == normalized_keyword, 0), else_=1),
+            title_completion_score.desc(),
+            Movie.title.asc(),
+        )
+        .limit(per_source_limit)
+    ).scalars().all()
 
-    # 배열 컬럼들 문자열 하나로 합친다.
-    cast_text = func.array_to_string(Movie.cast, " ")
-    keyword_text = func.array_to_string(Movie.keywords, " ")
+    suggestions = []
+    seen = set()
 
-    cast_text_normalized = normalize_search_expr(cast_text)
-    keyword_text_normalized = normalize_search_expr(keyword_text)
-    
-    # 장르 테이블에 맞는 영화id 찾는 서브쿼리
-    genre_movie_ids = select(MovieGenre.movie_id).where(MovieGenre.genre.ilike(contains_pattern))
+    def add_suggestions(source, values):
+        for value in values:
+            text = str(value or "").strip()
+            normalized_text = re.sub(r"\s+", "", text.lower())
+            if not text or normalized_text in seen:
+                continue
+            seen.add(normalized_text)
+            suggestions.append({"text": text, "type": source})
+            if len(suggestions) >= limit:
+                return True
+        return False
 
+    if add_suggestions("영화", title_rows):
+        return {"state": "success", "message": "검색어 자동완성", "data": suggestions}
 
-    # 관련도 점수
-    search_score = (
-        # 제목
-        case((func.lower(Movie.title) == search_keyword, 100), else_=0)
-        # 내부 공백 제거 - 같은 경우
-        + case((title_normalized == normalized_keyword, 95), else_=0)
-        # 제목이 검색어로 시작하면 
-        + case((Movie.title.ilike(startwith_pattern), 80), else_=0)
-        # 시작 부분이 같은 경우
-        + case((title_normalized.ilike(normalized_startwith_pattern), 75), else_=0)
-        # 제목 안에 검색어가 포함 되면 
-        + case((Movie.title.ilike(contains_pattern), 60), else_=0)
-        + case((title_normalized.ilike(normalized_contains_pattern), 55), else_=0)
-        # 감독
-        + case((Movie.director.ilike(contains_pattern), 40), else_=0)
-        # + case((director_normalized.ilike(normalized_contains_pattern), 35), else_=0)
-        # 배우
-        + case((cast_text.ilike(contains_pattern), 30), else_=0)
-        # + case((cast_text_normalized.ilike(normalized_contains_pattern), 25), else_=0)
-        # 장르
-        + case((Movie.id.in_(genre_movie_ids), 28), else_=0)
-        # 키워드
-        + case((keyword_text.ilike(contains_pattern), 20), else_=0)
-        # + case((keyword_text_normalized.ilike(normalized_contains_pattern), 15), else_=0)
-        # 줄거리
-        + case((Movie.overview.ilike(contains_pattern), 10), else_=0)
-        # + case((overview_normalized.ilike(normalized_contains_pattern), 5), else_=0)
-    ).label("search_score")
+    actor_rows = db.execute(
+        select(Actor.name)
+        .where(normalize_search_expr(Actor.name).ilike(prefix_pattern))
+        .order_by(Actor.name.asc())
+        .limit(per_source_limit)
+    ).scalars().all()
 
-    # 검색 조건
-    search_condition = (
-        select(Movie, search_score)
+    director_rows = db.execute(
+        select(Movie.director)
         .where(
-            or_(
-                # 기존 검색
-                Movie.title.ilike(contains_pattern),
-                Movie.overview.ilike(contains_pattern),
-                Movie.director.ilike(contains_pattern),
-                Movie.language.ilike(contains_pattern),
-                cast_text.ilike(contains_pattern),
-                keyword_text.ilike(contains_pattern),
-                Movie.id.in_(genre_movie_ids),
+            Movie.director.is_not(None),
+            normalize_search_expr(Movie.director).ilike(prefix_pattern),
+        )
+        .distinct()
+        .order_by(Movie.director.asc())
+        .limit(per_source_limit)
+    ).scalars().all()
+    if add_suggestions("감독", director_rows):
+        return {"state": "success", "message": "검색어 자동완성", "data": suggestions}
+    if add_suggestions("배우", actor_rows):
+        return {"state": "success", "message": "검색어 자동완성", "data": suggestions}
 
-                # 공백 제거 검색
-                title_normalized.ilike(normalized_contains_pattern),
-                overview_normalized.ilike(normalized_contains_pattern),
-                director_normalized.ilike(normalized_contains_pattern),
-                cast_text_normalized.ilike(normalized_contains_pattern),
-                keyword_text_normalized.ilike(normalized_contains_pattern),
+    genre_rows = db.execute(
+        select(MovieGenre.genre)
+        .where(normalize_search_expr(MovieGenre.genre).ilike(prefix_pattern))
+        .distinct()
+        .order_by(MovieGenre.genre.asc())
+        .limit(per_source_limit)
+    ).scalars().all()
+    if add_suggestions("장르", genre_rows):
+        return {"state": "success", "message": "검색어 자동완성", "data": suggestions}
+
+    keyword_values = (
+        select(func.unnest(Movie.keywords).label("value"))
+        .where(Movie.keywords.is_not(None))
+        .subquery()
+    )
+    keyword_rows = db.execute(
+        select(keyword_values.c.value)
+        .where(normalize_search_expr(keyword_values.c.value).ilike(prefix_pattern))
+        .distinct()
+        .order_by(keyword_values.c.value.asc())
+        .limit(per_source_limit)
+    ).scalars().all()
+    add_suggestions("키워드", keyword_rows)
+
+    return {
+        "state": "success",
+        "message": "검색어 자동완성",
+        "data": suggestions,
+    }
+
+# 영화 검색 기능 구현
+def _normalized_text(value) -> str:
+    return re.sub(r"\s+", "", str(value or "").strip().casefold())
+
+
+def search_movies_result(
+        db: Session,
+        search_keyword: str,
+        page: int = 1,
+        limit: int = 80,
+        search_type: str | None = None,
+        user_id: int | None = None,
+):
+    raw_keyword = (search_keyword or "").strip()
+    if not raw_keyword:
+        return {"state": "failure", "message": "검색어를 입력해주세요."}
+
+    query = raw_keyword.casefold()
+    normalized_query = _normalized_text(query)
+    type_aliases = {
+        "영화": "movie", "movie": "movie", "장르": "genre", "genre": "genre",
+        "배우": "actor", "actor": "actor", "키워드": "keyword", "keyword": "keyword",
+        "감독": "director", "director": "director",
+    }
+    requested_type = type_aliases.get(str(search_type or "").strip().casefold())
+
+    all_genres = db.scalars(select(MovieGenre.genre).distinct()).all()
+    matched_genres = sorted(
+        {
+            genre for genre in all_genres
+            if genre and _normalized_text(genre) in normalized_query
+        },
+        key=len,
+        reverse=True,
+    )
+    exact_genre = next(
+        (genre for genre in matched_genres if _normalized_text(genre) == normalized_query),
+        None,
+    )
+    exact_actor = db.scalar(
+        select(Actor).where(normalize_search_expr(Actor.name) == normalized_query).limit(1)
+    )
+    exact_director = db.scalar(
+        select(Movie.director)
+        .where(Movie.director.is_not(None), normalize_search_expr(Movie.director) == normalized_query)
+        .limit(1)
+    )
+    keyword_values = (
+        select(func.unnest(Movie.keywords).label("value"))
+        .where(Movie.keywords.is_not(None))
+        .subquery()
+    )
+    meaningful_tokens = [
+        token.casefold() for token in re.findall(r"[0-9a-zA-Z가-힣]+", query)
+        if token.casefold() not in SEARCH_STOP_WORDS
+    ]
+    exact_keyword = db.scalar(
+        select(keyword_values.c.value)
+        .where(
+            normalize_search_expr(keyword_values.c.value).in_(
+                list(dict.fromkeys([normalized_query, *map(_normalized_text, meaningful_tokens)]))
             )
         )
-        # 관련도 높은 순
-        .order_by(search_score.desc())
-        .offset((page -1 ) * limit)
-        .limit(limit)
+        .limit(1)
     )
 
-    result = db.execute(search_condition).all()
+    similar_match = re.match(r"^(.+?)(?:와|과)?\s*(?:같은|비슷한)\s*영화$", raw_keyword)
+    source_movie = None
+    if similar_match:
+        source_text = _normalized_text(similar_match.group(1))
+        source_movie = db.scalar(
+            select(Movie)
+            .where(normalize_search_expr(Movie.title).ilike(f"%{source_text}%"))
+            .order_by(
+                case((normalize_search_expr(Movie.title) == source_text, 0), else_=1),
+                func.coalesce(Movie.vote_count, 0).desc(),
+            )
+            .limit(1)
+        )
 
-    if not result:
-        return {
-            "state" : "failure",
-            "message" : "관련 영화 정보가 없습니다.",
-        }
-    return {
-        "state" : "success",
-        "message" : "검색 성공",
-        "data" : [
-            get_movie_result(movie)
-            for movie, score in result
+    detected_type = "similar" if source_movie else requested_type
+    if detected_type is None:
+        if exact_genre:
+            detected_type = "genre"
+        elif exact_director:
+            detected_type = "director"
+        elif exact_actor:
+            detected_type = "actor"
+        elif exact_keyword:
+            detected_type = "keyword"
+        else:
+            detected_type = "mixed"
+
+    country_codes = list(dict.fromkeys(
+        code for label, code in COUNTRY_ALIASES.items() if label in query
+    ))
+    decade_match = re.search(r"((?:19|20)\d0)년대", query)
+    year_match = re.search(r"((?:19|20)\d{2})년(?!대)", query)
+
+    semantic_terms = [
+        token for token in meaningful_tokens
+        if token not in COUNTRY_ALIASES
+        and not re.fullmatch(r"(?:19|20)\d{2}년?대?", token)
+        and all(_normalized_text(genre) != _normalized_text(token) for genre in matched_genres)
+    ]
+    if "로맨스" in matched_genres:
+        semantic_terms = [*ROMANCE_RELATED_TERMS, *semantic_terms]
+    elif matched_genres:
+        genre_signals = [
+            signal
+            for genre in matched_genres
+            for signal in GENRE_KEYWORD_SIGNALS.get(genre.casefold(), ())
         ]
+        semantic_terms = [*genre_signals, *semantic_terms]
+    elif exact_keyword:
+        semantic_terms = [str(exact_keyword), *semantic_terms]
+    semantic_terms = list(dict.fromkeys(term.casefold() for term in semantic_terms if term))
+
+    title_expr = normalize_search_expr(Movie.title)
+    cast_expr = normalize_search_expr(func.array_to_string(Movie.cast, " "))
+    director_expr = normalize_search_expr(Movie.director)
+    keyword_expr = normalize_search_expr(func.array_to_string(Movie.keywords, " "))
+    overview_expr = normalize_search_expr(Movie.overview)
+    title_condition = Movie.title.ilike(f"%{query}%")
+    semantic_keyword_conditions = []
+    semantic_overview_conditions = []
+    for term in semantic_terms:
+        semantic_keyword_conditions.append(Movie.keywords.any(term))
+        semantic_overview_conditions.append(Movie.overview.ilike(f"%{term}%"))
+    semantic_conditions = [*semantic_keyword_conditions, *semantic_overview_conditions]
+
+    tagged_genre_condition = (
+        Movie.genres.op("&&")(matched_genres)
+        if matched_genres else None
+    )
+    genre_weight = None
+    genre_condition = tagged_genre_condition
+    if matched_genres:
+        genre_weight = (
+            select(func.max(MovieGenreWeight.weight))
+            .where(
+                MovieGenreWeight.movie_id == Movie.id,
+                func.lower(MovieGenreWeight.genre).in_([genre.casefold() for genre in matched_genres]),
+            )
+            .correlate(Movie)
+            .scalar_subquery()
+        )
+        genre_condition = and_(
+            tagged_genre_condition,
+            func.coalesce(genre_weight, 0.0) >= GENRE_RELEVANCE_MINIMUM,
+        )
+    candidate_conditions = [title_condition]
+    if genre_condition is not None:
+        candidate_conditions.append(genre_condition)
+    candidate_conditions.extend(semantic_conditions)
+
+    if detected_type == "genre" and genre_condition is not None:
+        candidate_filter = genre_condition
+    elif detected_type == "actor" and exact_actor:
+        candidate_filter = Movie.id.in_(
+            select(MovieActor.movie_id).where(MovieActor.actor_id == exact_actor.id)
+        )
+    elif detected_type == "director" and exact_director:
+        candidate_filter = Movie.director == exact_director
+    elif detected_type == "keyword" and exact_keyword:
+        candidate_filter = or_(Movie.keywords.any(exact_keyword), *semantic_conditions, title_condition)
+    elif source_movie:
+        similarity_conditions = []
+        source_genres = [
+            genre for genre in (source_movie.genres or [])
+            if genre_relevance_score(source_movie, genre) >= GENRE_RELEVANCE_MINIMUM
+        ]
+        if source_genres:
+            similarity_conditions.append(Movie.id.in_(
+                select(MovieGenreWeight.movie_id).where(
+                    MovieGenreWeight.genre.in_(source_genres),
+                    MovieGenreWeight.weight >= GENRE_RELEVANCE_MINIMUM,
+                )
+            ))
+        if source_movie.keywords:
+            similarity_conditions.append(Movie.keywords.op("&&")(source_movie.keywords))
+        if source_movie.cast:
+            similarity_conditions.append(Movie.cast.op("&&")(source_movie.cast))
+        if source_movie.director:
+            similarity_conditions.append(Movie.director == source_movie.director)
+        candidate_filter = and_(
+            Movie.id != source_movie.id,
+            or_(*similarity_conditions) if similarity_conditions else Movie.id == -1,
+        )
+    else:
+        generic_pattern = f"%{normalized_query}%"
+        candidate_conditions.extend((
+            cast_expr.ilike(generic_pattern),
+            director_expr.ilike(generic_pattern),
+            keyword_expr.ilike(generic_pattern),
+            overview_expr.ilike(generic_pattern),
+        ))
+        candidate_filter = or_(*candidate_conditions)
+
+    structured_filters = []
+    if country_codes:
+        structured_filters.append(Movie.production_countries.op("&&")(country_codes))
+    if decade_match:
+        decade = int(decade_match.group(1))
+        structured_filters.extend((Movie.year >= decade, Movie.year <= decade + 9))
+    elif year_match:
+        structured_filters.append(Movie.year == int(year_match.group(1)))
+    if structured_filters:
+        if genre_condition is not None:
+            structured_filters.append(genre_condition)
+        candidate_filter = and_(*structured_filters)
+
+    title_exact = title_expr == normalized_query
+    keyword_hit_count = sum(
+        (case((condition, 1.0), else_=0.0) for condition in semantic_keyword_conditions),
+        0.0,
+    )
+    overview_hit_count = sum(
+        (case((condition, 1.0), else_=0.0) for condition in semantic_overview_conditions),
+        0.0,
+    )
+    semantic_keyword_match = (
+        or_(*semantic_keyword_conditions) if semantic_keyword_conditions else Movie.keywords.any(query)
+    )
+    semantic_overview_match = (
+        or_(*semantic_overview_conditions) if semantic_overview_conditions else Movie.overview.ilike(f"%{query}%")
+    )
+    actor_match = cast_expr.ilike(f"%{normalized_query}%")
+    director_match = director_expr.ilike(f"%{normalized_query}%")
+
+    primary_genre = (
+        and_(
+            genre_condition,
+            or_(
+                func.cardinality(Movie.genres) == 1,
+                keyword_hit_count >= 2,
+                and_(func.coalesce(genre_weight, 0.0) >= 0.8, func.coalesce(genre_weight, 0.0) < 1.0),
+            ),
+        )
+        if genre_condition is not None
+        else None
+    )
+
+    source_signal = 0.0
+    if source_movie:
+        source_genres = [
+            genre for genre in (source_movie.genres or [])
+            if genre_relevance_score(source_movie, genre) >= GENRE_RELEVANCE_MINIMUM
+        ]
+        if source_genres:
+            source_signal += case((Movie.id.in_(
+                select(MovieGenreWeight.movie_id).where(
+                    MovieGenreWeight.genre.in_(source_genres),
+                    MovieGenreWeight.weight >= GENRE_RELEVANCE_MINIMUM,
+                )
+            ), 7.0), else_=0.0)
+        if source_movie.keywords:
+            source_signal += case((Movie.keywords.op("&&")(source_movie.keywords), 6.0), else_=0.0)
+        if source_movie.cast:
+            source_signal += case((Movie.cast.op("&&")(source_movie.cast), 4.0), else_=0.0)
+        if source_movie.director:
+            source_signal += case((Movie.director == source_movie.director, 3.0), else_=0.0)
+
+    if source_movie:
+        intent_bucket = case((source_signal > 0, 0), else_=9)
+        match_score = func.least(source_signal * 3.5, 70.0)
+        content_score = func.least(source_signal, 20.0)
+    elif detected_type == "actor" and exact_actor:
+        intent_bucket = case((actor_match, 0), else_=9)
+        match_score = case((actor_match, 70.0), else_=0.0)
+        content_score = case((actor_match, 12.0), else_=0.0)
+    elif detected_type == "director" and exact_director:
+        intent_bucket = case((director_match, 0), else_=9)
+        match_score = case((director_match, 70.0), else_=0.0)
+        content_score = case((director_match, 12.0), else_=0.0)
+    elif detected_type == "keyword" and exact_keyword:
+        exact_keyword_match = Movie.keywords.any(exact_keyword)
+        intent_bucket = case((exact_keyword_match, 0), (semantic_overview_match, 1), else_=9)
+        match_score = case((exact_keyword_match, 70.0), (semantic_overview_match, 46.0), else_=0.0)
+        content_score = func.least(keyword_hit_count * 2.0 + func.least(overview_hit_count, 4.0), 20.0)
+    elif matched_genres:
+        intent_bucket = case(
+            (title_exact, 0),
+            (title_condition, 1),
+            (primary_genre, 2),
+            (or_(semantic_keyword_match, semantic_overview_match), 3),
+            (genre_condition, 4),
+            else_=5,
+        )
+        match_score = case(
+            (title_exact, 70.0),
+            (title_condition, 66.0),
+            (primary_genre, 58.0),
+            (or_(semantic_keyword_match, semantic_overview_match), 52.0),
+            (genre_condition, 45.0),
+            else_=36.0,
+        )
+        raw_content_score = (
+            case((genre_condition, 3.0), else_=0.0)
+            + func.least(keyword_hit_count, 8.0)
+            + case((overview_hit_count >= 2, 1.0), else_=0.0)
+        )
+        if "로맨스" in matched_genres:
+            negative_hit_count = sum(
+                (
+                    case(
+                        (Movie.keywords.any(term), 1.0),
+                        else_=0.0,
+                    )
+                    for term in ROMANCE_NEGATIVE_TERMS
+                ),
+                0.0,
+            )
+            raw_content_score -= case((negative_hit_count > keyword_hit_count, 1.0), else_=0.0)
+        content_score = func.least(func.greatest(raw_content_score, 0.0) / 12.0 * 20.0, 20.0)
+    else:
+        intent_bucket = case(
+            (title_exact, 0),
+            (title_condition, 1),
+            (or_(actor_match, director_match), 2),
+            (semantic_keyword_match, 3),
+            else_=4,
+        )
+        match_score = case(
+            (title_exact, 70.0),
+            (title_condition, 64.0),
+            (or_(actor_match, director_match), 56.0),
+            (semantic_keyword_match, 48.0),
+            else_=38.0,
+        )
+        content_score = func.least(keyword_hit_count * 2.0 + func.least(overview_hit_count, 4.0), 20.0)
+
+    vote_confidence = func.least(
+        func.ln(func.coalesce(Movie.vote_count, 0) + 1) / func.ln(10_001),
+        1.0,
+    )
+    rating_quality = func.least(func.coalesce(Movie.vote_average, 0) / 10.0, 1.0)
+    quality_score = vote_confidence * 4.4 + rating_quality * 3.6
+    search_score = (match_score + content_score + quality_score).label("search_score")
+
+    preference_tie = literal(0.0)
+    user = db.get(User, user_id) if user_id else None
+    if user:
+        if user.preferred_genres:
+            preference_tie += case((Movie.id.in_(
+                select(MovieGenreWeight.movie_id).where(
+                    MovieGenreWeight.genre.in_(user.preferred_genres),
+                    MovieGenreWeight.weight >= GENRE_RELEVANCE_MINIMUM,
+                )
+            ), 1.0), else_=0.0)
+        if user.preferred_actors:
+            preference_tie += case((Movie.cast.op("&&")(user.preferred_actors), 1.0), else_=0.0)
+        if user.preferred_keywords:
+            preference_tie += case((Movie.keywords.op("&&")(user.preferred_keywords), 1.0), else_=0.0)
+
+    result = db.execute(
+        select(Movie, search_score)
+        .where(candidate_filter)
+        .order_by(
+            intent_bucket.asc(),
+            search_score.desc(),
+            preference_tie.desc(),
+            func.coalesce(Movie.vote_count, 0).desc(),
+            Movie.title.asc(),
+        )
+        .offset((page - 1) * limit)
+        .limit(limit)
+    ).all()
+    if not result:
+        return {"state": "failure", "message": "관련 영화 정보가 없습니다."}
+    return {
+        "state": "success",
+        "message": "검색 성공",
+        "search_type": detected_type,
+        "data": [get_movie_result(movie) for movie, _score in result],
     }
 
 # 영화 결과 함수
@@ -138,4 +521,6 @@ def get_movie_result(movie):
         "cast" : movie.cast,
         "poster_path": movie.poster_path,
         "vote_average" : movie.vote_average,
+        "year": movie.year,
+        "release_date": movie.release_date,
     }

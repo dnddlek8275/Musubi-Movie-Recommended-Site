@@ -1,5 +1,5 @@
 """
-CineVerse RAG Embedder
+Musubi RAG Embedder
 BGE-M3 Dense + Sparse 임베딩 싱글턴
 """
 

@@ -1,280 +1,358 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import {
   addLikedMovie,
+  fetchDiscoverySections,
   fetchLikedMovies,
   fetchMovies,
-  fetchMoviesByGenre,
-  fetchRecentMovies,
+  getLocalPreferences,
   removeLikedMovie,
 } from '../../api.js';
 import { normalizeMovie } from '../index/RecommendationRow.jsx';
+import CinemaNav from '../HeaderFooter/CinemaNav.jsx';
 import MovieCard from '../movieCard/MovieCard.jsx';
-import MovieModal from '../movieCard/MovieModal.jsx';
+import { getKeywordLabel } from '../../utils/keywordLabels.js';
 import './recomendation.css';
 
-const INITIAL_ROWS = 3;
+function sectionTitle(section, displayName) {
+  if (section.key === 'for-you') {
+    return `${displayName}님을 위한 영화를 추천해드릴게요.`;
+  }
+  if (section.key === 'recent-likes') {
+    return `${displayName}님이 마음을 남긴 영화, 최근 순서로 모았어요`;
+  }
+  if (section.key === 'preferred-genres') {
+    return `${displayName}님의 장르 취향을 조금 더 넓혀볼까요?`;
+  }
+  if (section.key === 'preferred-actors') {
+    return `${displayName}님이 눈여겨본 배우들의 다른 작품이에요`;
+  }
+  if (section.key === 'site-popular') {
+    return 'Musubi 실시간 인기 차트';
+  }
+  if (section.key === 'random-picks') {
+    return `${displayName}님, 우연히 만난 영화가 인생 영화가 될지도 몰라요`;
+  }
+  if (!section.preference_value) return section.title;
 
-function getItemsPerRow() {
-  if (typeof window === 'undefined') return 7;
-
-  if (window.matchMedia('(max-width: 520px)').matches) return 2;
-  if (window.matchMedia('(max-width: 900px)').matches) return 3;
-  if (window.matchMedia('(max-width: 1180px)').matches) return 4;
-
-  return 7;
+  const label = section.preference_type === 'keyword'
+    ? getKeywordLabel(section.preference_value)
+    : section.preference_value;
+  const preferenceIndex = Number(section.key.replace('preference-', ''));
+  if (preferenceIndex === 1) return `${displayName}님이 좋아하는 ${label} 영화를 모았어요`;
+  if (preferenceIndex === 2) return `${label}에도 자주 눈길이 가셨네요`;
+  return `${displayName}님의 ${label} 취향까지 놓치지 않았어요`;
 }
 
-function normalizeSearchValue(value) {
-  return String(value || '').toLowerCase();
-}
+function MovieSection({ section, displayName, likedMovies, onToggleLike }) {
+  const rowRef = useRef(null);
+  const movies = section.movies.map(normalizeMovie);
+  const title = sectionTitle(section, displayName);
+  const [scrollState, setScrollState] = useState({ canGoBack: false, canGoForward: false });
 
-function compactSearchValue(value) {
-  return normalizeSearchValue(value).replace(/\s+/g, '');
-}
-
-function Recommendation({ authUser }) {
-  const queryParams = new URLSearchParams(window.location.search);
-
-  // 최근 본 영화 패널의 "더보기 ›"(?view=recent)로 들어왔을 때만 최근 본 영화 목록을 보여주고,
-  // 그 외(menu3 등)로 들어오면 기존처럼 영화 추천 목록을 보여준다.
-  const isRecentView = queryParams.get('view') === 'recent';
-
-  // 장르별 추천의 "더보기 ›"(?genre=장르명)로 들어오면 장르 API 결과로 시작한다.
-  const initialGenre = queryParams.get('genre') || '';
-  const initialKeyword = queryParams.get('keyword') || initialGenre;
-
-  const [movies, setMovies] = useState([]);
-  const [likedMovies, setLikedMovies] = useState([]);
-  const [selectedMovie, setSelectedMovie] = useState(null);
-  const [searchText, setSearchText] = useState(initialKeyword);
-  const [status, setStatus] = useState('');
-  const [itemsPerRow, setItemsPerRow] = useState(() => getItemsPerRow());
-  const [visibleCount, setVisibleCount] = useState(
-    () => getItemsPerRow() * INITIAL_ROWS
-  );
-  const loadMoreRef = useRef(null);
-  const isInitialGenreSearch = Boolean(initialGenre) && searchText === initialGenre;
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    const request = isRecentView
-      ? fetchRecentMovies(controller.signal, 50).then((rawMovies) =>
-          rawMovies.map(normalizeMovie)
-        )
-      : isInitialGenreSearch
-        ? fetchMoviesByGenre(initialGenre, controller.signal, { limit: 50 }).then((rawMovies) =>
-            rawMovies.map(normalizeMovie)
-          )
-        : fetchMovies(controller.signal, searchText, {
-            limit: searchText.trim() ? 50 : 30,
-          }).then((rawMovies) =>
-            rawMovies.map(normalizeMovie)
-          );
-
-    request
-      .then(setMovies)
-      .catch((error) => {
-        if (error.name === 'AbortError') return;
-        console.error('영화 목록 불러오기 실패:', error);
-      });
-
-    return () => controller.abort();
-  }, [initialGenre, isRecentView, searchText]);
-
-  useEffect(() => {
-    if (!authUser) {
-      setLikedMovies([]);
-      return undefined;
-    }
-
-    const controller = new AbortController();
-
-    fetchLikedMovies(controller.signal)
-      .then((rawMovies) => {
-        setLikedMovies(
-          rawMovies
-            .map((movie) => normalizeMovie(movie).title)
-            .filter(Boolean)
-        );
-      })
-      .catch((error) => {
-        if (error.name === 'AbortError') return;
-        setStatus(error.message);
-      });
-
-    return () => controller.abort();
-  }, [authUser]);
-
-  const filteredMovies = useMemo(() => {
-    if (!isRecentView) return movies;
-
-    const keyword = normalizeSearchValue(searchText).trim();
-    const compactKeyword = compactSearchValue(searchText);
-
-    if (!keyword) return movies;
-
-    return movies.filter((movie) => {
-      const title = normalizeSearchValue(movie.title);
-      const genre = normalizeSearchValue(movie.genre);
-      // 출연진(배우) 이름도 검색 대상에 포함해, 배우명을 치면 그 배우의 필모가 뜨게 한다.
-      const cast = normalizeSearchValue(
-        (Array.isArray(movie.cast) ? movie.cast : []).join(', ')
-      );
-      const compactTitle = compactSearchValue(movie.title);
-      const compactGenre = compactSearchValue(movie.genre);
-      const compactCast = compactSearchValue(cast);
-
-      return (
-        title.includes(keyword) ||
-        genre.includes(keyword) ||
-        cast.includes(keyword) ||
-        compactTitle.includes(compactKeyword) ||
-        compactGenre.includes(compactKeyword) ||
-        compactCast.includes(compactKeyword)
-      );
+  const updateScrollState = () => {
+    const row = rowRef.current;
+    if (!row) return;
+    const maxScrollLeft = Math.max(row.scrollWidth - row.clientWidth, 0);
+    setScrollState({
+      canGoBack: row.scrollLeft > 4,
+      canGoForward: row.scrollLeft < maxScrollLeft - 4,
     });
-  }, [isRecentView, movies, searchText]);
-
-  const visibleMovies = filteredMovies.slice(0, visibleCount);
-  const canLoadMore = visibleMovies.length < filteredMovies.length;
-
-  useEffect(() => {
-    const handleResize = () => {
-      const nextItemsPerRow = getItemsPerRow();
-
-      setItemsPerRow(nextItemsPerRow);
-      setVisibleCount((currentVisibleCount) =>
-        Math.max(currentVisibleCount, nextItemsPerRow * INITIAL_ROWS)
-      );
-    };
-
-    window.addEventListener('resize', handleResize);
-
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  useEffect(() => {
-    setVisibleCount(itemsPerRow * INITIAL_ROWS);
-  }, [itemsPerRow, searchText, movies]);
-
-  useEffect(() => {
-    const loadMoreTarget = loadMoreRef.current;
-
-    if (!loadMoreTarget || !canLoadMore) return undefined;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry.isIntersecting) return;
-
-        setVisibleCount((currentVisibleCount) =>
-          Math.min(currentVisibleCount + itemsPerRow, filteredMovies.length)
-        );
-      },
-      {
-        rootMargin: '240px 0px',
-      }
-    );
-
-    observer.observe(loadMoreTarget);
-
-    return () => observer.disconnect();
-  }, [canLoadMore, filteredMovies.length, itemsPerRow, visibleCount]);
-
-  const handleToggleLike = async (movie) => {
-    // 로그인하지 않은 상태에서는 좋아요를 누를 수 없다.
-    if (!authUser) {
-      setStatus('로그인 해주세요.');
-      return;
-    }
-
-    const wasLiked = likedMovies.includes(movie.title);
-
-    setStatus('');
-    setLikedMovies((current) =>
-      wasLiked
-        ? current.filter((title) => title !== movie.title)
-        : [...current, movie.title]
-    );
-
-    try {
-      if (wasLiked) {
-        await removeLikedMovie(movie);
-      } else {
-        await addLikedMovie(movie);
-      }
-    } catch (error) {
-      setLikedMovies((current) =>
-        wasLiked
-          ? Array.from(new Set([...current, movie.title]))
-          : current.filter((title) => title !== movie.title)
-      );
-      setStatus(error.message);
-    }
   };
 
-  const emptyMessage = searchText.trim()
-    ? '검색어가 포함된 영화가 없습니다.'
-    : isRecentView
-    ? '최근 본 영화가 없습니다.'
-    : '추천 영화가 없습니다.';
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(updateScrollState);
+    window.addEventListener('resize', updateScrollState);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener('resize', updateScrollState);
+    };
+  }, [movies.length]);
+
+  const scroll = (direction) => {
+    const distance = Math.max((rowRef.current?.clientWidth || 1160) * 0.86, 320);
+    rowRef.current?.scrollBy({ left: direction * distance, behavior: 'smooth' });
+  };
 
   return (
-    <main className="recommendation">
-      <div className="recommendation__header">
+    <section className="recommendation-row" aria-label={title}>
+      <header className="recommendation-row__header">
         <div>
-          <h2>{isRecentView ? '최근 본 영화' : '영화 추천'}</h2>
+          <h3>{title}</h3>
         </div>
+      </header>
 
-        <input
-          className="recommendation__search"
-          type="search"
-          value={searchText}
-          onChange={(event) => setSearchText(event.target.value)}
-          placeholder="영화 제목으로 검색"
-          aria-label="영화 검색"
-        />
-      </div>
-
-      {status ? (
-        <p className="recommendation__status" role="status">
-          {status}
-        </p>
-      ) : null}
-
-      <div className="recommendation__result">
-        {filteredMovies.length > 0 ? (
-          <div className="recommendation__grid">
-            {visibleMovies.map((movie, index) => (
+      <div className={`recommendation-row__slider${scrollState.canGoBack ? ' has-prev' : ''}${scrollState.canGoForward ? ' has-more' : ''}`}>
+        <button className="recommendation-row__arrow is-prev" type="button" onClick={() => scroll(-1)} disabled={!scrollState.canGoBack} aria-label="이전 영화 보기">‹</button>
+        <div className="recommendation-row__movies" ref={rowRef} onScroll={updateScrollState}>
+          {movies.map((movie, index) => (
+            <div className="recommendation-row__item" key={movie.id ?? `${movie.title}-${index}`}>
+              {section.key === 'box-office' || section.key === 'site-popular' ? (
+                <b className="recommendation-row__rank">
+                  {section.movies[index]?.rank || index + 1}
+                </b>
+              ) : null}
               <MovieCard
                 index={index}
                 isLiked={likedMovies.includes(movie.title)}
                 movie={movie}
-                onToggleLike={handleToggleLike}
-                onSelect={setSelectedMovie}
-                key={movie.id ?? movie.title}
+                onToggleLike={onToggleLike}
+                onSelect={(selected) => { window.location.href = `/movies/${selected.id}`; }}
               />
-            ))}
-          </div>
-        ) : (
-          <p className="recommendation__empty">{emptyMessage}</p>
-        )}
-
-        {canLoadMore ? (
-          <div
-            className="recommendation__sentinel"
-            ref={loadMoreRef}
-            aria-hidden="true"
-          />
-        ) : null}
+            </div>
+          ))}
+        </div>
+        <button className="recommendation-row__arrow is-next" type="button" onClick={() => scroll(1)} disabled={!scrollState.canGoForward} aria-label="다음 영화 보기">›</button>
       </div>
+    </section>
+  );
+}
 
-      <MovieModal
-        movie={selectedMovie}
-        onClose={() => setSelectedMovie(null)}
-        source={!isRecentView && !isInitialGenreSearch && searchText.trim() ? 'search' : 'direct'}
-      />
+function RecommendationSkeleton() {
+  return Array.from({ length: 3 }, (_, sectionIndex) => (
+    <section className="recommendation-row recommendation-row--skeleton" aria-hidden="true" key={sectionIndex}>
+      <div className="recommendation-skeleton__heading" />
+      <div className="recommendation-skeleton__movies">
+        {Array.from({ length: 8 }, (_, cardIndex) => (
+          <div className="recommendation-skeleton__card" key={cardIndex}>
+            <div className="recommendation-skeleton__poster" />
+            <div className="recommendation-skeleton__line is-title" />
+            <div className="recommendation-skeleton__line" />
+          </div>
+        ))}
+      </div>
+    </section>
+  ));
+}
+
+function SearchResultsSkeleton() {
+  return (
+    <section className="recommendation-search recommendation-search--skeleton" aria-hidden="true">
+      <div className="recommendation-skeleton__heading" />
+      <div className="recommendation-search__grid">
+        {Array.from({ length: 18 }, (_, index) => (
+          <div className="recommendation-skeleton__card" key={index}>
+            <div className="recommendation-skeleton__poster" />
+            <div className="recommendation-skeleton__line is-title" />
+            <div className="recommendation-skeleton__line" />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function SearchResults({ query, movies, likedMovies, onToggleLike, hasMore, loadingMore, onLoadMore }) {
+  const normalizedMovies = movies.map(normalizeMovie);
+  const loadMoreRef = useRef(null);
+
+  useEffect(() => {
+    const target = loadMoreRef.current;
+    if (!target || !hasMore || loadingMore) return undefined;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) onLoadMore();
+      },
+      { rootMargin: '500px 0px' },
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, onLoadMore]);
+
+  return (
+    <section className="recommendation-search" aria-label={`${query} 검색 결과`}>
+      <header className="recommendation-search__header">
+        <h1><span>“{query}”</span> 관련 영화</h1>
+        <p>{movies.length > 0 ? '검색어와 관련된 영화를 관련도순으로 모았어요' : '일치하는 영화를 찾지 못했어요'}</p>
+      </header>
+
+      {normalizedMovies.length > 0 ? (
+        <div className="recommendation-search__grid">
+          {normalizedMovies.map((movie, index) => (
+            <MovieCard
+              index={index}
+              isLiked={likedMovies.includes(movie.title)}
+              key={movie.id ?? `${movie.title}-${index}`}
+              movie={movie}
+              onToggleLike={onToggleLike}
+              onSelect={(selected) => { window.location.href = `/movies/${selected.id}?source=search`; }}
+            />
+          ))}
+        </div>
+      ) : null}
+
+      {hasMore ? (
+        <div className="recommendation-search__loader" ref={loadMoreRef} role="status">
+          {loadingMore ? '검색 결과를 이어서 불러오는 중…' : ''}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function Recommendation({ authUser, onLogout }) {
+  const [sections, setSections] = useState([]);
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchPage, setSearchPage] = useState(1);
+  const [hasMoreSearchResults, setHasMoreSearchResults] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [likedMovies, setLikedMovies] = useState([]);
+  const [status, setStatus] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const query = new URLSearchParams(window.location.search).get('keyword')?.trim() || '';
+  const searchType = new URLSearchParams(window.location.search).get('type')?.trim() || '';
+  const displayName = authUser?.nickname
+    || authUser?.name
+    || authUser?.username
+    || authUser?.email
+    || '게스트';
+  const prioritizePopular = !query && window.location.hash === '#site-popular';
+  const displayedSections = prioritizePopular
+    ? [...sections].sort((first, second) => (
+        Number(second.key === 'site-popular') - Number(first.key === 'site-popular')
+      ))
+    : sections;
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setIsLoading(true);
+    setStatus('');
+    setSearchPage(1);
+
+    const request = query
+      ? fetchMovies(controller.signal, query, { page: 1, limit: 80, searchType }).then((movies) => {
+          setSections([]);
+          setSearchResults(movies);
+          setHasMoreSearchResults(movies.length === 80);
+        })
+      : fetchDiscoverySections(
+          controller.signal,
+          authUser ? null : getLocalPreferences(),
+          25,
+        ).then((sectionData) => {
+          setSearchResults([]);
+          setHasMoreSearchResults(false);
+          setSections(sectionData.filter((section) => Array.isArray(section.movies) && section.movies.length > 0));
+        });
+
+    request
+      .catch((error) => {
+        if (error.name === 'AbortError') return;
+        setStatus(error.message);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [authUser, query, searchType]);
+
+  const loadMoreSearchResults = async () => {
+    if (!query || loadingMore || !hasMoreSearchResults) return;
+    const nextPage = searchPage + 1;
+    setLoadingMore(true);
+    setStatus('');
+    try {
+      const movies = await fetchMovies(undefined, query, {
+        page: nextPage,
+        limit: 80,
+        searchType,
+      });
+      setSearchResults((current) => {
+        const knownIds = new Set(current.map((movie) => movie.movie_id ?? movie.id));
+        return [...current, ...movies.filter((movie) => !knownIds.has(movie.movie_id ?? movie.id))];
+      });
+      setSearchPage(nextPage);
+      setHasMoreSearchResults(movies.length === 80);
+    } catch (error) {
+      setStatus(error.message);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!authUser) return undefined;
+    const controller = new AbortController();
+    fetchLikedMovies(controller.signal)
+      .then((movies) => setLikedMovies(movies.map((movie) => normalizeMovie(movie).title).filter(Boolean)))
+      .catch((error) => {
+        if (error.name !== 'AbortError') setStatus(error.message);
+      });
+    return () => controller.abort();
+  }, [authUser]);
+
+  const handleToggleLike = async (movie) => {
+    if (!authUser) {
+      setStatus('좋아요는 로그인 후 이용할 수 있어요.');
+      return;
+    }
+    const wasLiked = likedMovies.includes(movie.title);
+    setLikedMovies((current) => wasLiked
+      ? current.filter((title) => title !== movie.title)
+      : [...current, movie.title]);
+    try {
+      if (wasLiked) {
+        await removeLikedMovie(movie);
+        setSections((current) => current.map((section) => section.key === 'recent-likes'
+          ? {
+              ...section,
+              movies: section.movies.filter((item) => (
+                (item.movie_id ?? item.id) !== movie.id && item.title !== movie.title
+              )),
+            }
+          : section));
+      } else {
+        await addLikedMovie(movie);
+        setSections((current) => current.map((section) => section.key === 'recent-likes'
+          ? {
+              ...section,
+              movies: [
+                movie,
+                ...section.movies.filter((item) => (
+                  (item.movie_id ?? item.id) !== movie.id && item.title !== movie.title
+                )),
+              ].slice(0, 25),
+            }
+          : section));
+      }
+    } catch (error) {
+      setLikedMovies((current) => wasLiked
+        ? Array.from(new Set([...current, movie.title]))
+        : current.filter((title) => title !== movie.title));
+      setStatus(error.message);
+    }
+  };
+
+  return (
+    <main className="recommendation cinema-nav-page">
+      <CinemaNav authUser={authUser} onLogout={onLogout} />
+      {status ? <p className="recommendation__status" role="status">{status}</p> : null}
+
+      <div className="recommendation__sections">
+        {isLoading ? (
+          query ? <SearchResultsSkeleton /> : <RecommendationSkeleton />
+        ) : query ? (
+          <SearchResults
+            query={query}
+            movies={searchResults}
+            likedMovies={likedMovies}
+            onToggleLike={handleToggleLike}
+            hasMore={hasMoreSearchResults}
+            loadingMore={loadingMore}
+            onLoadMore={loadMoreSearchResults}
+          />
+        ) : displayedSections.map((section) => (
+            <MovieSection
+              key={section.key}
+              section={section}
+              displayName={displayName}
+              likedMovies={likedMovies}
+              onToggleLike={handleToggleLike}
+            />
+          ))}
+      </div>
     </main>
   );
 }

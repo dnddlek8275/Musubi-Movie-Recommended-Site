@@ -1,4 +1,7 @@
 # 영화 좋아요 결과를 처리하는 함수
+from datetime import datetime, time
+from zoneinfo import ZoneInfo
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -6,7 +9,7 @@ from app.models.interactions import UserMovieInteraction
 from app.models.movies import Movie, MovieStats
 from app.models.users import User
 from app.services.movies.ranking_service import add_movie_ranking_score
-from app.services.preference_service import add_movie_preference_scores, decrease_movie_preference_scores, movie_genre_add_preferences_user
+from app.services.preference_service import add_movie_preference_scores, rebuild_user_preference_scores
 
 def user_interaction_result(user_id: int, movie_id:int, action_type:str, source:str, score_delta:int):
     return UserMovieInteraction(
@@ -51,7 +54,7 @@ def like_movie_result(db: Session, user_id: int, movie_id: int) -> dict:
                 "message" : "영화 정보를 찾을 수 없습니다."
             }
 
-        # 사용자만의 DB에 키워드, 배우, 장르 추가
+        # 직접 선택한 취향 배열은 건드리지 않고 행동 기반 점수에만 반영한다.
         user = db.get(User, user_id)
         if user is None:
             db.rollback()
@@ -59,8 +62,6 @@ def like_movie_result(db: Session, user_id: int, movie_id: int) -> dict:
                 "state" : "failure",
                 "message" : "사용자 정보를 찾을 수 없습니다."
             }
-        # user.preferred_keywords = check_unique_values(user.preferred_keywords, movie.keywords)
-        movie_genre_add_preferences_user(user,movie)
         add_movie_preference_scores(
             db = db,
             user_id = user_id,
@@ -133,113 +134,13 @@ def delete_liked_movie_result(
                 "message" : "사용자 정보를 찾을 수 없습니다."
             }
         
-        # 취소하는 영화 제외하고 남아있는 좋아요 영화 조회
-        remaining_liked_movies = db.scalars(
-            select(Movie)
-            .join(
-                UserMovieInteraction,
-                UserMovieInteraction.movie_id == Movie.id,
-            )
-            .where(
-                UserMovieInteraction.user_id == user_id,
-                UserMovieInteraction.action_type == "like",
-                UserMovieInteraction.movie_id != movie_id,
-            )
-        ).unique().all()
-
-        # 남은 좋아요 영화들이 사용하는 키워드
-        remaining_keywords = {
-            keyword.strip()
-            for liked_movie in remaining_liked_movies
-            for keyword in (liked_movie.keywords or [])
-            if isinstance(keyword, str) and keyword.strip() # 공백만 있는 문자열이 아닌지 확인하는 조건
-        }
-
-        # 취소한 영화의 키워드
-        canceled_keywords ={
-            keyword.strip()
-            for keyword in (movie.keywords or [])
-            if isinstance (keyword, str) and keyword.strip()
-        }
-
-        # 다른 좋아요 영화에서 사용하지 않는 키워드만 삭제
-        keywords_to_remove = canceled_keywords - remaining_keywords
-
-        user.preferred_keywords =[
-            keyword
-            for keyword in (user.preferred_keywords or [])
-            if keyword.strip() not in keywords_to_remove
-        ]
-
-        # 남은 좋아요 영화들이 사용하는 장르
-        remaining_genres = {
-            genre.strip()
-            for liked_movie in remaining_liked_movies
-            for genre in (liked_movie.genres or [])
-            if isinstance(genre, str) and genre.strip()
-        }
-
-        # 취소한 영화의 장르
-        canceled_genres = {
-            genre.strip()
-            for genre in (movie.genres or [])
-            if isinstance(genre, str) and genre.strip()
-        }
-
-        genres_to_remove = canceled_genres - remaining_genres
-
-        user.preferred_genres = [
-            genre
-            for genre in (user.preferred_genres or [])
-            if genre.strip() not in genres_to_remove
-        ]
-
-
-        # 남은 좋아요 영화들이 사용하는 배우
-        remaining_actors = {
-            actor.strip()
-            for liked_movie in remaining_liked_movies
-            for actor in (liked_movie.cast or [])
-            if isinstance(actor, str) and actor.strip()
-        }
-
-        # 취소한 영화의 배우
-        canceled_actors = {
-            actor.strip()
-            for actor in (movie.cast or [])
-            if isinstance(actor, str) and actor.strip()
-        }
-
-        actors_to_remove = canceled_actors - remaining_actors
-
-        user.preferred_actors = [
-            actor
-            for actor in (user.preferred_actors or [])
-            if actor.strip() not in actors_to_remove
-        ]
-
         delete_count = len(like_interactions)
-
-        # 취향 점수 차감하기 위해 영화 정보 조회
-        movie = db.get(Movie, movie_id)
-        if movie is None:
-            return {
-                "state" : "failure",
-                "message" : "영화 정보를 찾을 수 없습니다.",
-            }
-        
-        # 좋아요로 올라간 장르, 배우, 키워드, 감독, 언어 점수 차감
-        decreased_count = decrease_movie_preference_scores(
-            db = db,
-            user_id = user_id,
-            movie = movie,
-            action_type = "like",
-            action_count =delete_count,
-        )
 
         # 좋아요 행동 삭제
         for like in like_interactions:
             db.delete(like)
+        db.flush()
+        rebuild_user_preference_scores(db, user_id)
 
         movie_stats = db.get(MovieStats, movie_id)
         if movie_stats:
@@ -265,6 +166,32 @@ def delete_liked_movie_result(
 # 회원이 영화 상세 조회 결과 함수 - 점수 반영 +1
 def detail_movie_result(db: Session, user_id: int, movie_id: int, action_type: str) ->dict:
     try:
+        # 같은 영화의 같은 행동은 하루에 한 번만 학습한다. 새로고침이나
+        # 상세 API 재호출이 취향과 랭킹을 과도하게 키우는 것을 막는다.
+        korea_tz = ZoneInfo("Asia/Seoul")
+        now_kst = datetime.now(korea_tz)
+        today_start = datetime.combine(now_kst.date(), time.min, tzinfo=korea_tz)
+        already_recorded = db.scalar(
+            select(UserMovieInteraction).where(
+                UserMovieInteraction.user_id == user_id,
+                UserMovieInteraction.movie_id == movie_id,
+                UserMovieInteraction.action_type == action_type,
+                UserMovieInteraction.created_at >= today_start,
+            )
+            .order_by(UserMovieInteraction.created_at.desc(), UserMovieInteraction.id.desc())
+            .limit(1)
+        )
+        if already_recorded is not None:
+            # 취향·랭킹 점수는 다시 올리지 않지만 최근 본 순서는 현재 조회로
+            # 갱신한다. 별도 이벤트를 추가하지 않아 같은 영화가 중첩되지 않는다.
+            already_recorded.created_at = now_kst
+            already_recorded.source = "search" if action_type == "search_click" else "direct"
+            db.commit()
+            return {
+                "state": "success",
+                "message": "최근 본 순서만 갱신했습니다.",
+            }
+
         # 점수
         score_delta = 1
         # 사용자 영화 행동 저장

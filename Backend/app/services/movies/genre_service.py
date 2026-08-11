@@ -3,7 +3,8 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.movies import Movie, MovieGenre
+from app.models.movies import Movie, MovieGenre, MovieGenreWeight
+from app.services.movies.genre_relevance import GENRE_RELEVANCE_MINIMUM
 
 def genre_movies (
         db: Session, 
@@ -15,9 +16,18 @@ def genre_movies (
     genre_movies = db.scalars(
         select(Movie)
         .join(MovieGenre, Movie.id == MovieGenre.movie_id)
+        .join(
+            MovieGenreWeight,
+            (MovieGenreWeight.movie_id == Movie.id)
+            & (MovieGenreWeight.genre == MovieGenre.genre),
+        )
         .where(MovieGenre.genre == genre)
-        # 평점 높은 순으로 정렬 - 임시
-        .order_by(Movie.vote_average.desc().nulls_last())
+        .where(MovieGenreWeight.weight >= GENRE_RELEVANCE_MINIMUM)
+        .order_by(
+            MovieGenreWeight.weight.desc(),
+            Movie.vote_count.desc().nulls_last(),
+            Movie.vote_average.desc().nulls_last(),
+        )
         .offset((page -1) * limit)
         .limit(limit)
     ).all()

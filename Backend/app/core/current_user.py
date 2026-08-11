@@ -49,7 +49,26 @@ def decode_access_token(access_token : str)->dict :
     }
 
 # 회원 전용 기능에서 사용하는 함수
-def get_current_user(credentials : HTTPAuthorizationCredentials | None = Depends(bearer_scheme)) -> dict:
+def _ensure_active_account(current_user: dict, db: Session) -> dict:
+    user = db.get(User, current_user["user_id"])
+    if user is None:
+        auth_error("사용자를 찾을 수 없습니다.", "USER_NOT_FOUND")
+    if user.is_suspended:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "state": "failure",
+                "message": "사용이 정지된 계정입니다. 문의하기를 통해 관리자에게 확인해 주세요.",
+                "code": "ACCOUNT_SUSPENDED",
+            },
+        )
+    return current_user
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> dict:
     # 토큰이 없으면 로그인 필요하다고 반환
     if not credentials:
         return auth_error("로그인이 필요합니다.", "LOGIN_REQUIRED")
@@ -58,10 +77,13 @@ def get_current_user(credentials : HTTPAuthorizationCredentials | None = Depends
     if credentials.scheme.lower() != "bearer":
         return auth_error("Authorization 헤더 방식이 올바르지 않습니다.", "INVALID_AUTH_SCHEME")
     
-    return decode_access_token(credentials.credentials)
+    return _ensure_active_account(decode_access_token(credentials.credentials), db)
 
 # 회원·비회원 가능한 기능에 사용하는 함수
-def get_optional_current_user(credentials : HTTPAuthorizationCredentials | None = Depends(bearer_scheme)) -> dict:
+def get_optional_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> dict:
     # 토큰 자체가 없으면 비회원(None)으로 반환
     if not credentials:
         return None
@@ -70,7 +92,7 @@ def get_optional_current_user(credentials : HTTPAuthorizationCredentials | None 
     if credentials.scheme.lower() != "bearer":
         return auth_error("Authorization 헤더 방식이 올바르지 않습니다.", "INVALID_AUTH_SCHEME")
     
-    return decode_access_token(credentials.credentials)
+    return _ensure_active_account(decode_access_token(credentials.credentials), db)
 
 def get_current_admin(
         current_user : dict = Depends(get_current_user),

@@ -1,0 +1,45 @@
+[
+  {
+    "id": "lighter_action_followup",
+    "message": "너무 무거워. 좀 더 가벼운 걸로",
+    "history": [
+      {"role": "user", "content": "긴장감 있는 액션 영화 추천해줘"},
+      {
+        "role": "assistant",
+        "content": "12 솔져스와 긴급 명령을 추천해요.",
+        "recommended_movies": [{"title": "12 솔져스"}, {"title": "긴급 명령"}]
+      }
+    ],
+    "required_genres_any": ["액션"],
+    "excluded_titles": ["12 솔져스", "긴급 명령"]
+  },
+  {
+    "id": "exclude_romance_followup",
+    "message": "로맨스는 싫어. 다른 걸로",
+    "history": [
+      {"role": "user", "content": "데이트할 때 볼 영화 추천해줘"},
+      {
+        "role": "assistant",
+        "content": "어쩌다 로맨스와 너의 결혼식을 추천해요.",
+        "recommended_movies": [{"title": "어쩌다 로맨스"}, {"title": "너의 결혼식"}]
+      }
+    ],
+    "blocked_genres": ["로맨스"],
+    "excluded_titles": ["어쩌다 로맨스", "너의 결혼식"]
+  },
+  {
+    "id": "latest_comedy_followup",
+    "message": "좀 더 최신 걸로",
+    "history": [
+      {"role": "user", "content": "유쾌한 코미디 영화 추천해줘"},
+      {
+        "role": "assistant",
+        "content": "로미와 미셀을 추천해요.",
+        "recommended_movies": [{"title": "로미와 미셀"}]
+      }
+    ],
+    "required_genres_any": ["코미디"],
+    "excluded_titles": ["로미와 미셀"],
+    "release_date_desc": true
+  }
+]

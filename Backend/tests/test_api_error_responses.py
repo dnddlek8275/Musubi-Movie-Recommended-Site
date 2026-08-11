@@ -87,7 +87,7 @@ class APIErrorResponseTests(unittest.TestCase):
         session = FakeSession()
         request = RegisterRequest(
             email="user@example.com",
-            password="password",
+            password="Password1!",
             nickname="user",
             verification_code="123456",
         )

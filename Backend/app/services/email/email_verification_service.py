@@ -96,7 +96,9 @@ def validate_email_verification_code(
           raise ValueError("인증번호 먼저 요청해주세요.")
     #  이미 사용된 코드
      if verification.verified_at is not None:
-          raise ValueError("이미 사용된 인증번호 입니다.")
+          if verify_email_verification_code(plain_code, verification.code_hash):
+               return verification
+          raise ValueError("이미 인증이 완료되었습니다.")
     #  인증번호가 만료된 경우
      if verification.expires_at <= now:
           raise ValueError("인증번호가 만료 되었습니다.")

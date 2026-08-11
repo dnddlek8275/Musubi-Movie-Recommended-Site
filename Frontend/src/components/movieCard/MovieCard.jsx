@@ -87,7 +87,9 @@ function MovieCard({
             src={posterUrl}
             alt={`${movie.title} 포스터`}
           />
-        ) : null}
+        ) : (
+          <span className="movie-card__poster-empty">NO POSTER</span>
+        )}
 
         <button
           className={isLiked ? 'movie-card__heart movie-card__heart--active' : 'movie-card__heart'}

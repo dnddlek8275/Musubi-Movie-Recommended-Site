@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { fetchMovies } from '../../api.js';
+import { fetchMovies, getLocalPreferences } from '../../api.js';
 import { HOME_MOVIE_COUNT } from './constants.js';
 import MovieCard from '../movieCard/MovieCard.jsx';
-import MovieModal from '../movieCard/MovieModal.jsx';
+import { PosterRowSkeleton } from '../common/LoadingSkeleton.jsx';
 import SectionHeader from './SectionHeader.jsx';
 
 const POSTER_BASE_URL =
@@ -74,10 +74,18 @@ export function normalizeMovie(rawMovie) {
   };
 }
 
-function RecommendationRow({ authUser, likedMovies, onToggleLike }) {
+function movieLikeKey(movie) {
+  const id = movie?.id ?? movie?.movie_id;
+  if (id !== undefined && id !== null) return `id:${id}`;
+
+  const title = String(movie?.title || '').trim().toLocaleLowerCase('ko-KR');
+  return title ? `title:${title}` : '';
+}
+
+function RecommendationRow({ authUser, likedMovieKeys = [], onToggleLike }) {
   const [movies, setMovies] = useState([]);
   const [error, setError] = useState('');
-  const [selectedMovie, setSelectedMovie] = useState(null);
+  const [loading, setLoading] = useState(true);
   const rowRef = useRef(null);
 
   const displayName =
@@ -93,8 +101,11 @@ function RecommendationRow({ authUser, likedMovies, onToggleLike }) {
 
   useEffect(() => {
     const controller = new AbortController();
+    setLoading(true);
 
-    fetchMovies(controller.signal)
+    const guestPreferences = authUser ? null : getLocalPreferences();
+
+    fetchMovies(controller.signal, '', { preferences: guestPreferences, limit: HOME_MOVIE_COUNT })
       .then((rawMovies) => {
         setMovies(rawMovies.map(normalizeMovie).slice(0, HOME_MOVIE_COUNT));
       })
@@ -102,10 +113,13 @@ function RecommendationRow({ authUser, likedMovies, onToggleLike }) {
         if (fetchError.name === 'AbortError') return;
         console.error('영화 목록 불러오기 실패:', fetchError);
         setError(fetchError.message);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
       });
 
     return () => controller.abort();
-  }, []);
+  }, [authUser]);
 
   return (
     <section className="index-recommendations" aria-label="개인 영화 추천">
@@ -122,13 +136,13 @@ function RecommendationRow({ authUser, likedMovies, onToggleLike }) {
         </button>
 
         <div className="index-movie-row" ref={rowRef}>
-          {movies.map((movie, index) => (
+          {loading ? <PosterRowSkeleton count={7} /> : movies.map((movie, index) => (
             <MovieCard
               index={index}
-              isLiked={likedMovies.includes(movie.title)}
+              isLiked={likedMovieKeys.includes(movieLikeKey(movie))}
               movie={movie}
               onToggleLike={onToggleLike}
-              onSelect={setSelectedMovie}
+              onSelect={(movie) => { window.location.href = `/movies/${movie.id}`; }}
               key={movie.id}
             />
           ))}
@@ -150,7 +164,6 @@ function RecommendationRow({ authUser, likedMovies, onToggleLike }) {
         </p>
       ) : null}
 
-      <MovieModal movie={selectedMovie} onClose={() => setSelectedMovie(null)} />
     </section>
   );
 }

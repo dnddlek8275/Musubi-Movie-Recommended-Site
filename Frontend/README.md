@@ -1,4 +1,4 @@
-# CineVerse
+# Musubi
 
 ## 관리자 영화 API 화면
 

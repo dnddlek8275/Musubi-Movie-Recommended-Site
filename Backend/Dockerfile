@@ -15,8 +15,7 @@ COPY alembic.ini ./
 COPY alembic ./alembic
 COPY scripts ./scripts
 
-RUN mkdir -p /app/app/uploads/images/user_profiles \
-    && addgroup --system cineverse \
+RUN addgroup --system cineverse \
     && adduser --system --ingroup cineverse cineverse \
     && chown -R cineverse:cineverse /app
 

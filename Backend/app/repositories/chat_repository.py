@@ -37,12 +37,21 @@ def create_group_room(db:Session, user_id:int, characters: list[str]) -> ChatRoo
 
 
 # 메시지 한줄 저장
-def create_message(db:Session, room_id:int, role:str, content:str, character_name: str | None = None,recommended_movies: list[dict] | None = None) ->ChatMessage:
+def create_message(
+    db: Session,
+    room_id: int,
+    role: str,
+    content: str,
+    character_name: str | None = None,
+    recommended_movies: list[dict] | None = None,
+    emotion: str | None = None,
+) -> ChatMessage:
     message = ChatMessage(
         room_id = room_id,
         role = role,
         content = content,
         character_name = character_name,
+        emotion = emotion,
         recommended_movies = recommended_movies,
     )
     db.add(message)
@@ -58,6 +67,11 @@ def make_ai_history(messages) -> list[dict]:
             "role" : message.role,
             "content" : message.content
         }
+
+        # 후속 추천에서 직전 추천작을 다시 노출하지 않도록 AI 서버에도
+        # 구조화된 영화 목록을 함께 전달합니다.
+        if message.recommended_movies:
+            item["recommended_movies"] = message.recommended_movies
 
         # 캐릭터가 있는 경우
         # if message.character_name:

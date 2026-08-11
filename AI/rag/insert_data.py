@@ -126,6 +126,9 @@ def build_chunk(row) -> dict:
     audience  = int(row.get('audience_count', 0) or 0)
     tmdb_id   = str(row.get('tmdb_id', '') or '')
     poster    = str(row.get('poster_path', '') or '')
+    release_date = str(row.get('release_date', '') or '').strip()
+    if release_date.lower() == 'nan':
+        release_date = ''
 
     try:
         year = str(int(float(row.get('개봉연도', 0) or 0)))
@@ -172,7 +175,7 @@ def build_chunk(row) -> dict:
 장르: {genre_with_en}
 감독: {director}
 출연: {cast}
-개봉연도: {year}년 | 상영시간: {runtime}분 | 언어: {lang_label}
+개봉일: {release_date or year} | 상영시간: {runtime}분 | 언어: {lang_label}
 평점: {vote_avg:.1f} (투표수: {vote_cnt:,}) | 관객수: {audience_fmt}
 줄거리: {overview}
 분위기: {mood_tags}
@@ -194,6 +197,7 @@ def build_chunk(row) -> dict:
         'director'       : director,
         'cast'           : cast,
         'year'           : year_int,
+        'release_date'   : release_date,
         'language'       : language,
         'runtime'        : int(float(runtime)) if runtime else 0,
         'vote_average'   : round(vote_avg, 2),
@@ -228,6 +232,7 @@ fields = [
     FieldSchema('director',       DataType.VARCHAR,            max_length=500),
     FieldSchema('cast',           DataType.VARCHAR,            max_length=1000),
     FieldSchema('year',           DataType.INT32),
+    FieldSchema('release_date',   DataType.VARCHAR,            max_length=10),
     FieldSchema('language',       DataType.VARCHAR,            max_length=10),
     FieldSchema('runtime',        DataType.INT32),
     FieldSchema('vote_average',   DataType.FLOAT),
@@ -272,6 +277,7 @@ for i in tqdm(range(0, len(docs), INSERT_BATCH), desc="Milvus 삽입"):
             'director'       : doc['director'][:500],
             'cast'           : doc['cast'][:1000],
             'year'           : doc['year'],
+            'release_date'   : doc['release_date'][:10],
             'language'       : doc['language'][:10],
             'runtime'        : doc['runtime'],
             'vote_average'   : doc['vote_average'],

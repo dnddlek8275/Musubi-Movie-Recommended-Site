@@ -1,25 +1,35 @@
 """
-CineVerse Movie Retriever
+Musubi Movie Retriever
 Milvus movies 컬렉션 하이브리드 검색
 스키마: title / text / overview / genres / director / cast /
         year / language / vote_average / audience_count / poster_path / tmdb_id
 """
 
 from __future__ import annotations
+import os
 from dataclasses import dataclass, field
+from datetime import date
 from functools import lru_cache
 
 from pymilvus import MilvusClient, AnnSearchRequest, RRFRanker
 
 from rag.embedder import embed_query
 from rag.reranker import rerank
+from rag.movie_quality import (
+    apply_query_preferences,
+    blend_semantic_and_quality,
+    expand_mood_query,
+    prefer_evidenced_candidates,
+    prefer_well_received_candidates,
+)
 
 MILVUS_URI      = "http://localhost:19530"
-COLLECTION_NAME = "movies"
+COLLECTION_NAME = os.getenv("MOVIE_COLLECTION_NAME", "movies_active")
 
 OUTPUT_FIELDS = [
     "title", "text", "overview", "genres", "genres_list",
-    "director", "cast", "year", "language",
+    "director", "cast", "year", "release_date", "language",
+    "certification", "certification_country",
     "vote_average", "vote_count", "audience_count",
     "poster_path", "tmdb_id",
 ]
@@ -35,6 +45,7 @@ class MovieFilter:
     year_from:  int | None   = None
     year_to:    int | None   = None
     min_rating: float | None = None
+    exclude_genres: list[str] = field(default_factory=list)
 
     def to_expr(self) -> str | None:
         filters = []
@@ -52,6 +63,9 @@ class MovieFilter:
             filters.append(f'year <= {self.year_to}')
         if self.min_rating:
             filters.append(f'vote_average >= {self.min_rating}')
+        for genre in self.exclude_genres:
+            safe_genre = str(genre).replace('"', '\\"')
+            filters.append(f'not (genres like "%{safe_genre}%")')
         return " and ".join(filters) if filters else None
 
 
@@ -64,6 +78,10 @@ def retrieve(
     query: str,
     top_k: int = 5,
     movie_filter: MovieFilter | None = None,
+    sort_latest: bool = False,
+    exclude_titles: set[str] | None = None,
+    required_count: int | None = None,
+    quality_weight: float = 0.30,
 ) -> list[dict]:
     """
     영화를 하이브리드 검색 후 CrossEncoder로 재순위.
@@ -79,9 +97,10 @@ def retrieve(
     Returns:
         재순위된 영화 dict 리스트
     """
-    client      = get_client()
-    dense, sparse = embed_query(query)
-    fetch_limit = top_k * 3
+    client = get_client()
+    effective_query = expand_mood_query(query)
+    dense, sparse = embed_query(effective_query)
+    fetch_limit = max(top_k * (20 if sort_latest else 10), top_k)
     filter_expr = movie_filter.to_expr() if movie_filter else None
 
     dense_req = AnnSearchRequest(
@@ -115,13 +134,31 @@ def retrieve(
     if not hits:
         return []
 
-    candidates = [h["entity"] for h in hits]
+    excluded = {str(title).strip() for title in (exclude_titles or set()) if str(title).strip()}
+    candidates = [h["entity"] for h in hits if str(h["entity"].get("title") or "").strip() not in excluded]
+    required = required_count or top_k
+    if not sort_latest:
+        candidates = apply_query_preferences(query, candidates, required=required)
+        candidates = prefer_evidenced_candidates(candidates, required=required)
+        candidates = prefer_well_received_candidates(query, candidates, required=required)
 
     # CrossEncoder 리랭킹
-    ranked = rerank(query, candidates, text_key="text", top_k=top_k)
+    ranked = rerank(effective_query, candidates, text_key="text", top_k=fetch_limit)
 
-    # _score 필드 제거 후 반환
-    return [{k: v for k, v in m.items() if k != "_score"} for m in ranked]
+    if sort_latest:
+        today = date.today().isoformat()
+        ranked = [m for m in ranked if not m.get("release_date") or m["release_date"] <= today]
+        ranked.sort(key=lambda m: m.get("release_date") or "", reverse=True)
+        ranked = ranked[:top_k]
+    else:
+        ranked = blend_semantic_and_quality(
+            ranked,
+            top_k=top_k,
+            quality_weight=max(0.0, min(float(quality_weight), 1.0)),
+        )
+
+    # 내부 점수 필드 제거 후 반환
+    return [{k: v for k, v in m.items() if k not in {"_score", "_final_score"}} for m in ranked]
 
 
 def format_for_prompt(movies: list[dict], max_overview: int = 200) -> str:
@@ -131,11 +168,12 @@ def format_for_prompt(movies: list[dict], max_overview: int = 200) -> str:
     lines = []
     for i, m in enumerate(movies, 1):
         lines.append(
-            f"{i}. {m.get('title', '')} ({m.get('year', '')})\n"
+            f"{i}. {m.get('title', '')} ({m.get('release_date') or m.get('year', '')})\n"
             f"   장르: {m.get('genres', '')}\n"
             f"   감독: {m.get('director', '')}\n"
             f"   출연: {str(m.get('cast', ''))[:100]}\n"
             f"   평점: {round(float(m['vote_average']), 1) if m.get('vote_average') is not None else '-'}\n"
+            f"   관람등급: {m.get('certification_country', '')} {m.get('certification', '')}\n"
             f"   줄거리: {str(m.get('overview', ''))[:max_overview]}"
         )
     return "\n\n".join(lines)
@@ -144,16 +182,30 @@ def format_for_prompt(movies: list[dict], max_overview: int = 200) -> str:
 def to_response(movies: list[dict]) -> list[dict]:
     """프론트엔드 응답용 영화 dict로 변환 (필요한 필드만, poster_url 풀 URL)"""
     TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500"
+
+    def poster_url(value: str | None) -> str:
+        path = str(value or "").strip()
+        if not path:
+            return ""
+        if path.startswith(("http://", "https://")):
+            return path
+        return f"{TMDB_IMAGE_BASE}{path}"
+
     return [
         {
             "title":        m.get("title", ""),
             "year":         m.get("year", ""),
+            "release_date": m.get("release_date", ""),
             "genres":       m.get("genres", ""),
             "director":     m.get("director", ""),
             "cast":         m.get("cast", ""),
             "vote_average": round(float(m["vote_average"]), 1) if m.get("vote_average") is not None else None,
+            "certification": m.get("certification", ""),
+            "certification_country": m.get("certification_country", ""),
             "overview":     m.get("overview", ""),
-            "poster_url":   f"{TMDB_IMAGE_BASE}{m['poster_path']}" if m.get("poster_path") else "",
+            "recommendation_role": m.get("recommendation_role", ""),
+            "recommendation_reason": m.get("recommendation_reason", ""),
+            "poster_url":   poster_url(m.get("poster_path")),
             "tmdb_id":      m.get("tmdb_id", ""),
         }
         for m in movies

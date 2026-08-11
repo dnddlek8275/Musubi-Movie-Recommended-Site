@@ -114,6 +114,10 @@ async def search_admin_tmdb_movies(
         if not isinstance(raw_movie, dict):
             continue
 
+        # include_adult=false 요청과 별개로 응답 자체도 false인 결과만 노출한다.
+        if raw_movie.get("adult") is not False:
+            continue
+
         tmdb_id = raw_movie.get("id")
 
         # 이후 등록에 사용할 수 있는 정상적인 TMDB ID가 있는 결과만 포함한다.

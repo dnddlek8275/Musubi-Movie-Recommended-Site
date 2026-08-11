@@ -24,7 +24,7 @@ function PosterArt({ movie, compact = false }) {
   return (
     <div className={className}>
       {posterUrl ? (
-        <img src={posterUrl} alt={`${movie.title} 포스터`} />
+        <img src={posterUrl} alt={`${movie.title} 포스터`} decoding="async" loading="lazy" />
       ) : null}
     </div>
   );

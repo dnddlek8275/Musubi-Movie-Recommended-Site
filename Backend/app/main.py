@@ -1,7 +1,9 @@
-from pathlib import Path
+import asyncio
+from contextlib import suppress
+from datetime import datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Depends, HTTPException
-from fastapi.staticfiles import StaticFiles
 import httpx
 from sqlalchemy import text
 import uvicorn
@@ -11,13 +13,89 @@ from app.api.chat import router as chat_router
 from app.api.users import router as users_router
 from app.api.admin import router as admin_router
 from app.api.audio import router as audio_router
+from app.api.contact import router as contact_router
 from sqlalchemy.orm import Session
-from app.core.dependencies import get_db
+from app.core.dependencies import SessionLocal, get_db
 from app.core.config import settings
 from app.core.api_responses import error_response
 from fastapi.middleware.cors import CORSMiddleware
+from app.services.movies.ranking_service import ensure_daily_ranking_snapshot
+from app.services.movies.box_office_service import refresh_daily_box_office
+from app.services.ai_usage_service import AiUsageMiddleware
 
 app = FastAPI()
+app.add_middleware(AiUsageMiddleware)
+
+KST = ZoneInfo("Asia/Seoul")
+_ranking_snapshot_task = None
+_box_office_task = None
+
+
+def _seconds_until_next_kst_midnight() -> float:
+    now = datetime.now(KST)
+    next_midnight = datetime.combine(now.date() + timedelta(days=1), time.min, tzinfo=KST)
+    return max(1.0, (next_midnight - now).total_seconds())
+
+
+def _seconds_until_next_box_office_refresh() -> float:
+    now = datetime.now(KST)
+    next_run = datetime.combine(now.date(), time(hour=6), tzinfo=KST)
+    if next_run <= now:
+        next_run += timedelta(days=1)
+    return max(1.0, (next_run - now).total_seconds())
+
+
+def _create_today_ranking_snapshot() -> None:
+    db = SessionLocal()
+    try:
+        ensure_daily_ranking_snapshot(db)
+    finally:
+        db.close()
+
+
+async def _daily_ranking_snapshot_loop() -> None:
+    while True:
+        await asyncio.sleep(_seconds_until_next_kst_midnight())
+        _create_today_ranking_snapshot()
+
+
+async def _refresh_yesterday_box_office() -> None:
+    db = SessionLocal()
+    try:
+        await refresh_daily_box_office(db)
+    except Exception as error:
+        db.rollback()
+        print(f"[KOBIS] 일일 박스오피스 갱신 실패: {error}")
+    finally:
+        db.close()
+
+
+async def _daily_box_office_loop() -> None:
+    while True:
+        await asyncio.sleep(_seconds_until_next_box_office_refresh())
+        await _refresh_yesterday_box_office()
+
+
+@app.on_event("startup")
+async def start_daily_ranking_snapshot_task():
+    global _ranking_snapshot_task, _box_office_task
+    _create_today_ranking_snapshot()
+    await _refresh_yesterday_box_office()
+    _ranking_snapshot_task = asyncio.create_task(_daily_ranking_snapshot_loop())
+    _box_office_task = asyncio.create_task(_daily_box_office_loop())
+
+
+@app.on_event("shutdown")
+async def stop_daily_ranking_snapshot_task():
+    global _ranking_snapshot_task, _box_office_task
+    tasks = [task for task in (_ranking_snapshot_task, _box_office_task) if task]
+    for task in tasks:
+        task.cancel()
+    for task in tasks:
+        with suppress(asyncio.CancelledError):
+            await task
+    _ranking_snapshot_task = None
+    _box_office_task = None
 
 # 개인 정보 캐시 방지 목적
 @app.middleware("http")
@@ -27,31 +105,12 @@ async def no_store_private_api_cache(request, call_next):
     # 인증·개인정보 응답뿐 아니라 관리자 검색·권한·데이터 변경 응답에도
     # 민감한 정보가 포함될 수 있으므로 브라우저와 중간 캐시 서버가
     # 해당 API 응답을 저장하거나 재사용하지 못하도록 설정한다.
-    if request.url.path.startswith(("/auth", "/chat", "/user", "/admin", "/audio")):
+    if request.url.path.startswith(("/auth", "/chat", "/user", "/admin", "/audio", "/contact")):
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
 
     return response
-
-# 사용자 프로필, 영화 포스터, 배우 프로필처럼 서비스에서 업로드하는 파일을
-# 한 경로에서 관리할 수 있도록 app/uploads 폴더 전체를 정적 파일 경로로 사용한다.
-# Path(__file__).resolve().parent는 현재 main.py가 위치한 app 폴더를 의미한다.
-UPLOAD_DIR = Path(__file__).resolve().parent / "uploads"
-
-# 실행 환경에 uploads 폴더가 없으면 StaticFiles 연결 과정에서 오류가 발생할 수 있다.
-# 필요한 상위 폴더까지 생성하되, 이미 폴더가 있는 경우에는 그대로 사용한다.
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-
-# 브라우저에서 /uploads로 시작하는 URL을 요청하면 app/uploads 내부 파일을 반환한다.
-# 예: /uploads/images/user_profiles/profile.jpg
-#     -> app/uploads/images/user_profiles/profile.jpg
-app.mount(
-    "/uploads",
-    StaticFiles(directory=UPLOAD_DIR),
-    name="uploads",
-)
-
 
 # 프론트 서버
 app.add_middleware(
@@ -80,9 +139,12 @@ app.include_router(admin_router)
 # /audio router 등록
 app.include_router(audio_router)
 
+# 공통 푸터 문의 접수
+app.include_router(contact_router)
+
 @app.get("/")
 def index():
-    return {"state": "success", "message": "CineVerse API is running"}
+    return {"state": "success", "message": "Musubi API is running"}
 
 #실행 확인 여부
 @app.get("/health")
@@ -90,7 +152,7 @@ def root():
     try:
         return {
             "state" : "success",
-            "message": "CineVerse"
+            "message": "Musubi"
             }
     except Exception:
         return error_response("BE1 Health Check API 호출 실패")
@@ -103,7 +165,7 @@ def readiness_check(db: Session = Depends(get_db)):
         db.execute(text("SELECT 1"))
         return {
             "state": "success",
-            "message": "CineVerse Backend is ready",
+            "message": "Musubi Backend is ready",
         }
     except Exception:
         db.rollback()

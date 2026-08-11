@@ -1,69 +1,103 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { fetchUserPreferences } from '../../api.js';
+import { fetchUserPreferences, getLocalPreferences } from '../../api.js';
 import Tag from './Tag.jsx';
+import { SkeletonBlock } from '../common/LoadingSkeleton.jsx';
+import { getKeywordLabel } from '../../utils/keywordLabels.js';
+
+const EMPTY_PREFERENCES = {
+  genres: [],
+  actors: [],
+  keywords: [],
+};
+
+function PreferenceRow({ label, values, loading, formatValue = (value) => value }) {
+  const valuesRef = useRef(null);
+  const visibleValues = values.slice(0, 6);
+  const [isTruncated, setIsTruncated] = useState(values.length > 6);
+
+  useEffect(() => {
+    const container = valuesRef.current;
+    if (!container) return undefined;
+
+    const updateTruncation = () => {
+      setIsTruncated(values.length > 6 || container.scrollWidth > container.clientWidth + 1);
+    };
+
+    updateTruncation();
+    const resizeObserver = new ResizeObserver(updateTruncation);
+    resizeObserver.observe(container);
+
+    return () => resizeObserver.disconnect();
+  }, [values]);
+
+  return (
+    <div className="keyword-preference-row">
+      <strong>{label}</strong>
+      <div
+        className={`keyword-preference-values${isTruncated ? ' keyword-preference-values--truncated' : ''}`}
+        ref={valuesRef}
+      >
+        {loading ? (
+          <>
+            <SkeletonBlock className="index-keyword-skeleton" />
+            <SkeletonBlock className="index-keyword-skeleton" />
+          </>
+        ) : visibleValues.length ? visibleValues.map((value, index) => (
+          <Tag key={`${value}-${index}`}>{formatValue(value)}</Tag>
+        )) : (
+          <span className="keyword-preference-empty">분석 전</span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function KeywordPanel({ authUser }) {
-  const [keywords, setKeywords] = useState([]);
-  const [isTruncated, setIsTruncated] = useState(false);
-  const keywordsRef = useRef(null);
+  const [preferences, setPreferences] = useState(EMPTY_PREFERENCES);
+  const [loading, setLoading] = useState(Boolean(authUser));
 
   useEffect(() => {
     if (!authUser) {
-      setKeywords([]);
+      const localPreferences = getLocalPreferences();
+      setPreferences({
+        genres: localPreferences.genres || [],
+        actors: localPreferences.actors || [],
+        keywords: localPreferences.keywords || [],
+      });
+      setLoading(false);
       return undefined;
     }
 
     const controller = new AbortController();
+    setLoading(true);
 
     fetchUserPreferences(controller.signal)
       .then((data) => {
-        const preferences = data.preferences || data || {};
-
-        setKeywords([
-          ...(preferences.genres || []),
-          ...(preferences.actors || []),
-          ...(preferences.keywords || []),
-        ]);
+        const nextPreferences = data.preferences || data || {};
+        setPreferences({
+          genres: nextPreferences.genres || [],
+          actors: nextPreferences.actors || [],
+          keywords: nextPreferences.keywords || [],
+        });
       })
       .catch((error) => {
         if (error.name === 'AbortError') return;
         console.error('관심 키워드 불러오기 실패:', error);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
       });
 
     return () => controller.abort();
   }, [authUser]);
 
-  useEffect(() => {
-    const container = keywordsRef.current;
-    if (!container) return undefined;
-
-    const updateTruncation = () => {
-      setIsTruncated(container.scrollHeight > container.clientHeight + 1);
-    };
-
-    updateTruncation();
-
-    const resizeObserver = new ResizeObserver(updateTruncation);
-    resizeObserver.observe(container);
-
-    return () => resizeObserver.disconnect();
-  }, [keywords]);
-
   return (
     <article className="index-info-card keyword-card">
-      <div className="index-card-header">
-        <h3>나의 관심 키워드</h3>
-        <a href="/recommendations">더보기 ›</a>
-      </div>
-
-      <div
-        className={`index-keywords${isTruncated ? ' index-keywords--truncated' : ''}`}
-        ref={keywordsRef}
-      >
-        {keywords.map((keyword, index) => (
-          <Tag key={`${keyword}-${index}`}>{keyword}</Tag>
-        ))}
+      <div className="keyword-preferences">
+        <PreferenceRow label="선호 장르" values={preferences.genres} loading={loading} />
+        <PreferenceRow label="선호 배우" values={preferences.actors} loading={loading} />
+        <PreferenceRow label="관심 키워드" values={preferences.keywords} loading={loading} formatValue={getKeywordLabel} />
       </div>
     </article>
   );

@@ -6,6 +6,16 @@ from app.ai_client.chat import request_ai_chat, request_character_chat, request_
 from app.repositories.chat_repository import create_group_room, create_message, create_room, get_room_messages, get_room_user, make_ai_history
 from app.schemas.chat import AutoChatRequest, CharacterChatRequest, GroupChatRequest, SendChatMessageRequest
 from app.services.character_service import get_active_character
+from app.services.chat_input_recovery import get_general_chat_recovery, wait_for_recovery_ui
+from app.services.chat_context_service import build_chat_user_context
+
+
+_MUMU_EMOTIONS = {"default", "joy", "thinking", "searching", "sorry"}
+
+
+def _normalize_mumu_emotion(value) -> str:
+    emotion = str(value or "default").strip().lower()
+    return emotion if emotion in _MUMU_EMOTIONS else "default"
 
 
 # AI 대화 처리 함수
@@ -26,21 +36,62 @@ async def process_chat_message(db : Session, room, message:str, character : str 
                 "message" : "지원하지 않는 캐릭터입니다.",
             }
 
+    recovery = (
+        get_general_chat_recovery(message)
+        if room.room_type == "general" and not character
+        else None
+    )
+    if recovery:
+        create_message(
+            db=db,
+            room_id=room.id,
+            role="user",
+            content=message,
+        )
+        create_message(
+            db=db,
+            room_id=room.id,
+            role="assistant",
+            content=recovery.answer,
+            character_name="무무",
+            emotion=recovery.emotion,
+        )
+        db.commit()
+        await wait_for_recovery_ui()
+        return {
+            "state": "success",
+            "message": "입력 복구 응답에 성공했습니다.",
+            "data": {
+                "room_id": room.id,
+                "answer": recovery.answer,
+                "character": "무무",
+                "intent": "input_recovery",
+                "emotion": recovery.emotion,
+                "movies": [],
+                "sources": [],
+                "web_search_quota": {},
+                "input_recovery": recovery.kind,
+            },
+        }
+
     # AI 요청에 넣을 history
     history = make_ai_history(previous_messages)
+    user_context = build_chat_user_context(db, room.user_id)
 
     if character :
         ai_result = await request_character_chat(
             message=message,
             history=history,
-            character= character
+            character=character,
+            user_context=user_context,
         )
     else :
         # AI 서버에 요청 - 캐릭터가 없으면 기본 채팅으로 요청
         ai_result = await request_ai_chat(
             message=message,
             history=history,
-            character= character
+            character=character,
+            user_context=user_context,
         )
 
     # AI 서버에서 답변 반환
@@ -61,6 +112,7 @@ async def process_chat_message(db : Session, room, message:str, character : str 
     
     # 추천한 영화 리스트
     movies = ai_result.get("movies", [])
+    emotion = _normalize_mumu_emotion(ai_result.get("emotion"))
     
     # 사용자 메시지 저장
     create_message(
@@ -77,6 +129,7 @@ async def process_chat_message(db : Session, room, message:str, character : str 
         content=answer,
         character_name=ai_auto_character,
         recommended_movies=movies or None,
+        emotion=emotion,
     )
 
     # 방, user_message, assistant_answer 한번에 저장 확정
@@ -89,7 +142,10 @@ async def process_chat_message(db : Session, room, message:str, character : str 
             "answer" : answer,
             "character" : ai_auto_character,
             "intent" : ai_result.get("intent"),
-            "movies" : ai_result.get("movies", [])
+            "emotion" : emotion,
+            "movies" : ai_result.get("movies", []),
+            "sources" : ai_result.get("sources", []),
+            "web_search_quota" : ai_result.get("web_search_quota", {}),
         }
     }
 
@@ -100,12 +156,14 @@ async def process_group_chat_message(db: Session, room, message: str):
 
     # DB 메세지 목록을 history 형태로 변환
     history = make_ai_history(privious_messages)
+    user_context = build_chat_user_context(db, room.user_id)
 
     # 그룹 채팅 API 요청
     ai_result = await request_group_chat(
         characters= room.characters,
         message=message,
         history=history,
+        user_context=user_context,
     )
     # AI 응답, 의도, 추천 영화, 라운드
     intent = ai_result.get("intent")
@@ -131,7 +189,9 @@ async def process_group_chat_message(db: Session, room, message: str):
     for round in rounds:
         responses = round.get("responses", [])
         for response in responses:
-            recommend_movies = movies if movies and movies_saved else None
+            # 같은 그룹 추천 목록은 첫 AI 메시지에 한 번만 저장한다.
+            # 이후 make_ai_history가 이 구조화 목록을 후속 추천 조건으로 전달한다.
+            recommend_movies = movies if movies and not movies_saved else None
             create_message(
                 db=db,
                 room_id=room.id,
@@ -140,6 +200,8 @@ async def process_group_chat_message(db: Session, room, message: str):
                 character_name=response.get("character"),
                 recommended_movies= recommend_movies or None,
             )
+            if recommend_movies:
+                movies_saved = True
 
     # 사용자 메시지 + 캐릭터별 답변 저장
     db.commit()
@@ -218,10 +280,10 @@ async def start_group_chat(db: Session, user_id: int, request: GroupChatRequest)
     # 사용자가 보낸 메시지 공백 제거
     message = request.message.strip()
 
-    if not 2 <= len(request.characters) <= 5:
+    if not 2 <= len(request.characters) <= 3:
         return {
             "state": "failure",
-            "message": "그룹 채팅은 2~5명의 캐릭터가 필요합니다.",
+            "message": "그룹 채팅은 2~3명의 캐릭터가 필요합니다.",
         }
     characters = []
     for character in request.characters:

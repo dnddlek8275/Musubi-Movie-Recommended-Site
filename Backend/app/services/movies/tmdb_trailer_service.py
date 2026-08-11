@@ -90,6 +90,73 @@ def select_youtube_trailer(
     )
 
 
+def select_youtube_videos(videos: list[dict[str, Any]], limit: int = 6) -> list[dict[str, Any]]:
+    allowed_types = {"Trailer", "Teaser", "Clip", "Featurette"}
+    valid = [
+        video
+        for video in videos
+        if video.get("site") == "YouTube"
+        and video.get("type") in allowed_types
+        and isinstance(video.get("key"), str)
+        and YOUTUBE_KEY_PATTERN.fullmatch(video["key"])
+    ]
+    valid.sort(
+        key=lambda video: (
+            video.get("type") == "Trailer",
+            video.get("official") is True,
+            video.get("published_at") or "",
+        ),
+        reverse=True,
+    )
+    return valid[:limit]
+
+
+async def get_movie_trailer_videos(tmdb_id: int | None, limit: int = 6) -> list[dict[str, Any]]:
+    if tmdb_id is None or tmdb_id <= 0:
+        return []
+
+    auth = get_tmdb_auth()
+    if auth is None:
+        return []
+
+    headers, auth_params = auth
+    collected: dict[str, dict[str, Any]] = {}
+    async with httpx.AsyncClient(base_url=TMDB_BASE_URL, headers=headers, timeout=5.0) as client:
+        for language in ("ko-KR", "en-US"):
+            try:
+                response = await client.get(
+                    f"/movie/{tmdb_id}/videos",
+                    params={**auth_params, "language": language},
+                )
+                response.raise_for_status()
+                payload = response.json()
+            except (httpx.HTTPError, ValueError) as exc:
+                logger.warning(
+                    "TMDB 영상 목록 조회 실패: tmdb_id=%s language=%s error=%s",
+                    tmdb_id,
+                    language,
+                    exc,
+                )
+                continue
+
+            results = payload.get("results", []) if isinstance(payload, dict) else []
+            if not isinstance(results, list):
+                continue
+            for video in results:
+                if isinstance(video, dict) and isinstance(video.get("key"), str):
+                    collected.setdefault(video["key"], video)
+
+    return [
+        {
+            "url": f"{YOUTUBE_EMBED_BASE_URL}/{video['key']}",
+            "name": str(video.get("name") or "추가 영상"),
+            "type": str(video.get("type") or "Video"),
+            "official": video.get("official") is True,
+        }
+        for video in select_youtube_videos(list(collected.values()), limit=limit)
+    ]
+
+
 async def get_movie_trailer_url(
     tmdb_id: int | None,
 ) -> str | None:
@@ -100,83 +167,5 @@ async def get_movie_trailer_url(
     예고편이 없거나 TMDB 요청이 실패하면 None을 반환한다.
     """
 
-    # DB 영화에 tmdb_id가 없으면 조회할 수 없다.
-    if tmdb_id is None or tmdb_id <= 0:
-        return None
-
-    auth = get_tmdb_auth()
-
-    # TMDB 인증 정보가 없더라도 영화 상세 API가
-    # 실패하지 않도록 None만 반환한다.
-    if auth is None:
-        return None
-
-    headers, auth_params = auth
-
-    # 동기 httpx.Client가 아닌 AsyncClient를 사용한다.
-    # 현재 영화 상세 엔드포인트가 async 함수이기 때문이다.
-    async with httpx.AsyncClient(
-        base_url=TMDB_BASE_URL,
-        headers=headers,
-        timeout=5.0,
-    ) as client:
-
-        # 한국어 예고편을 먼저 찾는다.
-        # 한국어 결과가 없으면 영어 결과로 다시 조회한다.
-        for language in ("ko-KR", "en-US"):
-            try:
-                response = await client.get(
-                    f"/movie/{tmdb_id}/videos",
-                    params={
-                        **auth_params,
-                        "language": language,
-                    },
-                )
-
-                # 400, 401, 404, 500 등의 응답을 예외로 처리한다.
-                response.raise_for_status()
-
-                # TMDB JSON 응답을 파이썬 객체로 변환한다.
-                payload = response.json()
-
-            except (httpx.HTTPError, ValueError) as exc:
-                # TMDB 오류 때문에 영화 상세 조회 전체가 실패하면 안 된다.
-                # 현재 언어 조회가 실패하면 다음 언어를 시도한다.
-                logger.warning(
-                    "TMDB 예고편 조회 실패: "
-                    "tmdb_id=%s language=%s error=%s",
-                    tmdb_id,
-                    language,
-                    exc,
-                )
-                continue
-
-            # 예상하지 못한 응답 형식 방어
-            if not isinstance(payload, dict):
-                continue
-
-            results = payload.get("results", [])
-
-            if not isinstance(results, list):
-                continue
-
-            # results 안에 잘못된 자료형이 들어올 가능성을 방어한다.
-            valid_results = [
-                video
-                for video in results
-                if isinstance(video, dict)
-            ]
-
-            # YouTube Trailer 선택
-            trailer = select_youtube_trailer(valid_results)
-
-            if trailer is not None:
-                video_key = trailer["key"]
-
-                # 프론트 iframe의 src에 바로 사용할 수 있는 주소 반환
-                return (
-                    f"{YOUTUBE_EMBED_BASE_URL}/{video_key}"
-                )
-
-    # 한국어와 영어 응답 모두 예고편이 없는 경우
-    return None
+    videos = await get_movie_trailer_videos(tmdb_id, limit=1)
+    return videos[0]["url"] if videos else None
