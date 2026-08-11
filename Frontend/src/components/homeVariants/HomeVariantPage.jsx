@@ -573,11 +573,13 @@ function HomePage({ authUser, onLogout }) {
   };
 
   const toggleHistoryPin = (conversation) => {
+    if (conversation.linked) return;
     chat.toggleConversationPin(conversation.id);
     setHistoryMenuId('');
   };
 
   const renameHistory = (conversation) => {
+    if (conversation.linked) return;
     const title = window.prompt('대화 이름을 입력해 주세요.', conversation.title || '');
     if (!String(title || '').trim()) return;
     chat.renameConversation(conversation.id, title);
@@ -585,16 +587,21 @@ function HomePage({ authUser, onLogout }) {
   };
 
   const deleteHistory = async (conversation) => {
+    if (conversation.linked) return;
     setHistoryMenuId('');
     await chat.removeConversation(conversation.id);
   };
 
   const selectHistory = (conversation) => {
+    if (conversation.href) {
+      window.location.href = conversation.href;
+      return;
+    }
     chat.selectConversation(conversation.id);
     setHistoryOpen(false);
   };
 
-  const historyConversations = chat.conversations
+  const historyConversations = [...chat.conversations, ...chat.linkedConversations]
     .filter((conversation) => (
       Boolean(conversation.roomId)
       || (Array.isArray(conversation.messages) && conversation.messages.length > 0)
@@ -720,7 +727,7 @@ function HomePage({ authUser, onLogout }) {
                       {formatChatHistoryDate(conversation.updatedAt || conversation.createdAt)}
                     </time>
                   </button>
-                  <div className="home3-chat-history__actions">
+                  {!conversation.linked ? <div className="home3-chat-history__actions">
                     <button
                       className={`home3-chat-history__pin${conversation.pinned ? ' is-pinned' : ''}`}
                       type="button"
@@ -756,7 +763,7 @@ function HomePage({ authUser, onLogout }) {
                         <button className="is-danger" type="button" onClick={() => deleteHistory(conversation)}>삭제하기</button>
                       </div>
                     ) : null}
-                  </div>
+                  </div> : null}
                 </div>
               ))}
               {historyConversations.length === 0 ? (

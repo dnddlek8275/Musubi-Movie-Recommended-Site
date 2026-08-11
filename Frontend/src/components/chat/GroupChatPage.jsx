@@ -310,6 +310,7 @@ function GroupChatPage({ authUser, onLogout }) {
   const [conversations, setConversations] = useState(() =>
     authUser ? readSessionConversations() : []
   );
+  const [linkedConversations, setLinkedConversations] = useState([]);
   const [activeId, setActiveId] = useState('');
 
   const [isPickerOpen, setPickerOpen] = useState(false);
@@ -455,6 +456,25 @@ function GroupChatPage({ authUser, onLogout }) {
     const controller = new AbortController();
     fetchChatRooms(controller.signal)
       .then((rooms) => {
+        const generalRooms = (rooms || [])
+          .filter((room) => String(room?.room_type || room?.roomType || 'general') === 'general')
+          .map((room) => {
+            const roomId = String(room.room_id ?? room.roomId ?? '');
+            return {
+              id: `linked-general-${roomId}`,
+              roomId,
+              roomType: 'general',
+              title: String(room.title || '').trim()
+                || String(room.title_seed || room.titleSeed || '').trim().slice(0, 30)
+                || '무무와 영화 이야기',
+              createdAt: room.created_at || room.createdAt || new Date().toISOString(),
+              updatedAt: room.updated_at || room.updatedAt || room.created_at || room.createdAt || new Date().toISOString(),
+              href: `/home?room=${encodeURIComponent(roomId)}`,
+              linked: true,
+            };
+          });
+        setLinkedConversations(generalRooms);
+
         const characterRooms = (rooms || []).filter((room) => {
           const type = String(room?.room_type || room?.roomType || '');
           return type === 'character' || type === 'group';
@@ -492,7 +512,10 @@ function GroupChatPage({ authUser, onLogout }) {
         });
       })
       .catch((loadError) => {
-        if (loadError.name !== 'AbortError') setCharacterLoadError(loadError.message);
+        if (loadError.name !== 'AbortError') {
+          setLinkedConversations([]);
+          setCharacterLoadError(loadError.message);
+        }
       });
 
     return () => controller.abort();
@@ -547,13 +570,13 @@ function GroupChatPage({ authUser, onLogout }) {
   }, [authUser]);
 
   const activeConversation = conversations.find((c) => c.id === activeId) || null;
-  const historyConversations = useMemo(() => conversations
+  const historyConversations = useMemo(() => [...conversations, ...linkedConversations]
     .map((conversation, index) => ({ conversation, index }))
     .sort((left, right) => (
       Number(Boolean(right.conversation.pinned)) - Number(Boolean(left.conversation.pinned))
       || left.index - right.index
     ))
-    .map(({ conversation }) => conversation), [conversations]);
+    .map(({ conversation }) => conversation), [conversations, linkedConversations]);
   const messages = activeConversation?.messages || [];
   const members = activeConversation?.members || [];
   const canChat = Boolean(activeConversation);
@@ -1506,6 +1529,10 @@ function GroupChatPage({ authUser, onLogout }) {
               {historyConversations.map((conversation) => (
                 <div className="home3-chat-history__row" key={conversation.id}>
                   <button type="button" onClick={() => {
+                    if (conversation.href) {
+                      window.location.href = conversation.href;
+                      return;
+                    }
                     prepareChatActivation();
                     setActiveId(conversation.id);
                     setHistoryOpen(false);
@@ -1516,7 +1543,7 @@ function GroupChatPage({ authUser, onLogout }) {
                       {formatConversationStartedAt(conversation)}
                     </time>
                   </button>
-                  <div className="home3-chat-history__actions">
+                  {!conversation.linked ? <div className="home3-chat-history__actions">
                     <button
                       className={`home3-chat-history__pin${conversation.pinned ? ' is-pinned' : ''}`}
                       type="button"
@@ -1552,10 +1579,10 @@ function GroupChatPage({ authUser, onLogout }) {
                         <button className="is-danger" type="button" onClick={() => handleDeleteConversation(conversation)}>삭제하기</button>
                       </div>
                     ) : null}
-                  </div>
+                  </div> : null}
                 </div>
               ))}
-              {conversations.length === 0 ? <p className="home3-chat-history__empty">저장된 대화가 없습니다.</p> : null}
+              {historyConversations.length === 0 ? <p className="home3-chat-history__empty">저장된 대화가 없습니다.</p> : null}
             </div>
           </aside>
         ) : null}
