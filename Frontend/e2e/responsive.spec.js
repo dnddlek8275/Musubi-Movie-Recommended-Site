@@ -32,3 +32,13 @@ for (const path of ['/home', '/chat/group', '/recommendations']) {
     expect(overflow).toBeLessThanOrEqual(1);
   });
 }
+
+test('추천 페이지에서도 공통 상단 메뉴 레이아웃이 유지된다', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.goto('/recommendations');
+
+  const navigation = page.locator('.home3-cinema-nav');
+  await expect(navigation).toBeVisible();
+  await expect(navigation).toHaveCSS('display', 'grid');
+  await expect(navigation.getByRole('navigation', { name: '주요 이동 메뉴' })).toBeVisible();
+});
