@@ -34,7 +34,7 @@ temporary_manifest=$(mktemp)
 trap 'rm -f "${temporary_manifest}"' EXIT
 sed \
   -e "s/^  name: backend-migration$/  name: ${migration_job}/" \
-  -e "s#^          image: .*$#          image: ${backend_image}#" \
+  -e "s|^          image: .*$|          image: ${backend_image}|" \
   Infra/k8s/base/migration-job.yaml >"${temporary_manifest}"
 
 grep -Fq "name: ${migration_job}" "${temporary_manifest}"
