@@ -1,4 +1,5 @@
 import { VISIBLE_CHARACTER_COUNT } from './constants.js';
+import { SkeletonBlock } from '../common/LoadingSkeleton.jsx';
 
 function CharacterAvatar({ character, index }) {
   const spriteClass = `index-character__sprite character-sprite--${
@@ -9,8 +10,8 @@ function CharacterAvatar({ character, index }) {
   if (!character) {
     return (
       <article className="index-character">
-        <div className={spriteClass} aria-hidden="true" />
-        <span>&nbsp;</span>
+        <SkeletonBlock className="index-character-skeleton" aria-hidden="true" />
+        <SkeletonBlock className="index-character-label-skeleton" aria-hidden="true" />
       </article>
     );
   }
@@ -22,12 +23,12 @@ function CharacterAvatar({ character, index }) {
     character.image ||
     '';
 
-  // 캐릭터를 클릭하면 1:1 대화창(/chat)으로 이동하면서, 어떤 캐릭터와
+  // 캐릭터를 클릭하면 캐릭터 대화창(/chat/group)으로 이동하면서, 어떤 캐릭터와
   // 바로 대화를 시작할지 쿼리로 넘겨준다.
   const params = new URLSearchParams();
   if (character.id) params.set('characterId', String(character.id));
-  if (character.name) params.set('characterName', character.name);
-  const chatHref = `/chat?${params.toString()}`;
+  else if (character.name) params.set('characterName', character.name);
+  const chatHref = `/chat/group?${params.toString()}`;
 
   return (
     <a

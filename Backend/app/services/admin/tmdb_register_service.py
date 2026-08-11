@@ -1,4 +1,5 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+import re
 
 import httpx
 
@@ -7,6 +8,43 @@ from app.services.admin.tmdb_search_service import (
     tmdb_image_url,
 )
 from app.services.movies.tmdb_trailer_service import get_tmdb_auth
+
+HIGH_CONFIDENCE_ADULT_KEYWORDS = {
+    "adult video", "erotic movie", "hardcore", "porn film", "softcore",
+}
+EXPLOITATION_KEYWORDS = {"nudistploitation", "sexploitation"}
+ADULT_INDUSTRY_KEYWORDS = {
+    "adult filmmaking", "adult video", "porn", "porn actress", "porn film",
+    "porn industry", "porn star", "porno", "pornography",
+}
+SAFE_CERTIFICATIONS = {
+    "KR": {
+        "ALL", "전체관람가", "전체 관람가", "12", "12세 이상 관람가",
+        "12세이상관람가", "12세 관람가", "15", "15세 이상 관람가",
+        "15세이상관람가", "15세 관람가", "15세관람가",
+    },
+    "US": {"G", "PG", "PG-13"},
+}
+HIGH_CONFIDENCE_ADULT_OVERVIEW_PATTERN = re.compile(
+    r"\b(?:adult films?|adult film stars?|adult performers?|softcore|"
+    r"porn(?:ography|ographic)?|erotic(?:a| film)?|nudists?|nudism|"
+    r"nude models?|sex workers?|sex club|sex party|sexual fantasy|sexual adventure|"
+    r"prostitut(?:e|es|ion)|strip club|swingers?)\b"
+    r"|노골적으로.{0,30}정사를 나누|(?:몸|육체)을 탐닉|새엄마와의 금지된 사랑",
+    re.IGNORECASE,
+)
+HIGH_CONFIDENCE_ADULT_TITLE_PATTERN = re.compile(
+    r"\b(?:porn|porno)\b|포르노|x-rated.*adult|sexipede",
+    re.IGNORECASE,
+)
+
+
+class TmdbUnsafeMovieError(ValueError):
+    pass
+
+
+class TmdbMovieNotFoundError(ValueError):
+    pass
 
 
 def _truncate(value: str | None, max_length: int) -> str | None:
@@ -21,6 +59,113 @@ def _truncate(value: str | None, max_length: int) -> str | None:
         return None
 
     return normalized_value[:max_length]
+
+
+def require_tmdb_adult_false(detail: object) -> None:
+    """TMDB가 비성인 영화라고 명시한 상세 응답만 등록 대상으로 허용한다."""
+    if not isinstance(detail, dict) or detail.get("adult") is not False:
+        raise TmdbUnsafeMovieError("TMDB adult=false가 확인된 영화만 등록할 수 있습니다.")
+
+
+def require_non_explicit_metadata(
+    keywords: list[str],
+    certification: str | None,
+    certification_country: str | None,
+    overview: str | None = None,
+    title: str | None = None,
+    genres: list[str] | None = None,
+) -> None:
+    """adult=false로 잘못 분류된 명시적 성인물을 한 번 더 차단한다."""
+    normalized_keywords = {
+        keyword.strip().casefold() for keyword in keywords if keyword.strip()
+    }
+    normalized_genres = {
+        genre.strip().casefold() for genre in (genres or []) if genre.strip()
+    }
+    is_documentary = bool(normalized_genres & {"documentary", "다큐멘터리"})
+    has_explicit_signal = bool(
+        normalized_keywords & (HIGH_CONFIDENCE_ADULT_KEYWORDS | EXPLOITATION_KEYWORDS)
+        or (is_documentary and normalized_keywords & ADULT_INDUSTRY_KEYWORDS)
+        or HIGH_CONFIDENCE_ADULT_OVERVIEW_PATTERN.search(overview or "")
+        or HIGH_CONFIDENCE_ADULT_TITLE_PATTERN.search(title or "")
+    )
+    if not has_explicit_signal:
+        return
+    country = (certification_country or "").strip().upper()
+    normalized_certification = (certification or "").strip().upper()
+    if normalized_certification in SAFE_CERTIFICATIONS.get(country, set()):
+        return
+    raise TmdbUnsafeMovieError("TMDB 메타데이터에서 명시적 성인물 키워드가 확인되었습니다.")
+
+
+def extract_certification(release_dates_payload: object) -> tuple[str | None, str | None]:
+    """TMDB 국가별 개봉정보에서 KR, 다음 US의 대표 관람등급을 선택한다."""
+    if not isinstance(release_dates_payload, dict):
+        return None, None
+    results = release_dates_payload.get("results")
+    if not isinstance(results, list):
+        return None, None
+
+    by_country = {
+        item.get("iso_3166_1"): item.get("release_dates")
+        for item in results
+        if isinstance(item, dict) and isinstance(item.get("iso_3166_1"), str)
+    }
+    release_type_priority = {3: 0, 2: 1, 1: 2, 4: 3, 5: 4, 6: 5}
+    for country_code in ("KR", "US"):
+        releases = by_country.get(country_code)
+        if not isinstance(releases, list):
+            continue
+        valid = [
+            release
+            for release in releases
+            if isinstance(release, dict)
+            and isinstance(release.get("certification"), str)
+            and release["certification"].strip()
+        ]
+        if valid:
+            selected = min(
+                valid,
+                key=lambda release: release_type_priority.get(release.get("type"), 99),
+            )
+            return selected["certification"].strip()[:20], country_code
+    return None, None
+
+
+def extract_display_title(detail: object) -> str | None:
+    """TMDB 번역에서 한국어, 영어, 마지막으로 원제 순으로 표시 제목을 고른다."""
+    if not isinstance(detail, dict):
+        return None
+    translations_payload = detail.get("translations")
+    translations = (
+        translations_payload.get("translations")
+        if isinstance(translations_payload, dict)
+        else []
+    )
+    if not isinstance(translations, list):
+        translations = []
+
+    for language in ("ko", "en"):
+        for translation in translations:
+            if not isinstance(translation, dict) or translation.get("iso_639_1") != language:
+                continue
+            data = translation.get("data")
+            title = data.get("title") if isinstance(data, dict) else None
+            normalized = _truncate(title, 300)
+            if normalized:
+                return normalized
+
+    # 영어 원작은 original_title 자체가 영어이므로 번역 행이 없어도 사용한다.
+    if detail.get("original_language") == "en":
+        original_title = _truncate(detail.get("original_title"), 300)
+        if original_title:
+            return original_title
+
+    # 한국어 요청의 title이 존재하면 TMDB가 제공한 최선의 표시 제목으로 사용한다.
+    return (
+        _truncate(detail.get("title"), 300)
+        or _truncate(detail.get("original_title"), 300)
+    )
 
 
 async def fetch_admin_tmdb_movie_detail(tmdb_id: int) -> dict:
@@ -64,12 +209,12 @@ async def fetch_admin_tmdb_movie_detail(tmdb_id: int) -> dict:
             params={
                 **auth_params,
                 "language": "ko-KR",
-                "append_to_response": "credits,keywords",
+                "append_to_response": "credits,keywords,release_dates,translations",
             },
         )
 
         if response.status_code == 404:
-            raise ValueError("TMDB에서 해당 영화를 찾을 수 없습니다.")
+            raise TmdbMovieNotFoundError("TMDB에서 해당 영화를 찾을 수 없습니다.")
 
         # 401 인증 실패, 429 요청 제한, 5xx 서버 오류 등을 예외로 처리한다.
         response.raise_for_status()
@@ -77,6 +222,10 @@ async def fetch_admin_tmdb_movie_detail(tmdb_id: int) -> dict:
 
     if not isinstance(detail, dict):
         raise ValueError("TMDB 영화 상세정보 형식이 올바르지 않습니다.")
+
+    # 검색 옵션만 신뢰하지 않고 ID 직접 등록과 모든 수집 스크립트가 공유하는
+    # 상세 응답에서 adult가 정확히 false인지 다시 검증한다.
+    require_tmdb_adult_false(detail)
 
     returned_tmdb_id = detail.get("id")
 
@@ -190,26 +339,45 @@ async def fetch_admin_tmdb_movie_detail(tmdb_id: int) -> dict:
         )
     ]
 
+    raw_runtime = detail.get("runtime")
+    runtime = raw_runtime if isinstance(raw_runtime, int) and raw_runtime > 0 else None
+
+    raw_production_countries = detail.get("production_countries") or []
+    if not isinstance(raw_production_countries, list):
+        raw_production_countries = []
+    production_countries = list(dict.fromkeys(
+        country["iso_3166_1"].strip().upper()
+        for country in raw_production_countries
+        if isinstance(country, dict)
+        and isinstance(country.get("iso_3166_1"), str)
+        and len(country["iso_3166_1"].strip()) == 2
+    ))
+    certification, certification_country = extract_certification(detail.get("release_dates"))
+    require_non_explicit_metadata(
+        keyword_names,
+        certification,
+        certification_country,
+        detail.get("overview"),
+        detail.get("title") or detail.get("original_title"),
+        genre_names,
+    )
+
     # release_date는 YYYY-MM-DD 형식이므로 앞의 네 자리가 숫자인 경우에만
     # 개봉 연도로 변환하고, 날짜가 없거나 잘못된 경우에는 None을 저장한다.
-    release_date = detail.get("release_date") or ""
+    release_date_raw = detail.get("release_date") or ""
+    try:
+        release_date = date.fromisoformat(release_date_raw) if release_date_raw else None
+    except ValueError:
+        release_date = None
     year = (
-        int(release_date[:4])
+        release_date.year
         if (
-            isinstance(release_date, str)
-            and len(release_date) >= 4
-            and release_date[:4].isdigit()
+            release_date is not None
         )
         else None
     )
 
-    # 기존 TMDB 일괄 가져오기 스크립트가 original_title을 저장하므로
-    # 관리자 등록 영화도 같은 제목 기준을 사용해 기존 DB의 일관성을 유지한다.
-    title = (
-        _truncate(detail.get("original_title"), 300)
-        or _truncate(detail.get("title"), 300)
-        or f"TMDB {returned_tmdb_id}"
-    )
+    title = extract_display_title(detail) or f"TMDB {returned_tmdb_id}"
 
     # Movie 모델의 컬럼 이름과 동일한 키로 변환해 공통 영화 등록 서비스가
     # TMDB 등록과 수동 등록을 같은 방식으로 처리할 수 있게 한다.
@@ -228,6 +396,11 @@ async def fetch_admin_tmdb_movie_detail(tmdb_id: int) -> dict:
         "cast_credits": cast_credits,
         "keywords": list(dict.fromkeys(keyword_names)),
         "year": year,
+        "release_date": release_date,
+        "runtime": runtime,
+        "production_countries": production_countries,
+        "certification": certification,
+        "certification_country": certification_country,
         "language": _truncate(detail.get("original_language"), 10),
         "vote_average": detail.get("vote_average"),
         "vote_count": detail.get("vote_count"),

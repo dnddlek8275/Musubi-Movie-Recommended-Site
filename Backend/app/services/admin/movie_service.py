@@ -8,6 +8,9 @@ from app.models.actors import Actor, MovieActor
 from app.models.admin import AdminAuditLog
 from app.models.movies import Movie, MovieGenre, MovieStats
 from app.models.users import User
+from app.services.movies.genre_relevance import sync_movie_genre_weights
+from app.services.admin.tmdb_register_service import require_non_explicit_metadata
+from app.services.movies.vector_sync_service import enqueue_movie_vector_sync
 
 
 def normalize_string_list(values: list[str] | None) -> list[str]:
@@ -78,6 +81,11 @@ def admin_movie_to_dict(movie: Movie) -> dict:
         "cast": movie.cast or [],
         "keywords": movie.keywords or [],
         "year": movie.year,
+        "release_date": movie.release_date.isoformat() if movie.release_date else None,
+        "runtime": movie.runtime,
+        "production_countries": movie.production_countries or [],
+        "certification": movie.certification,
+        "certification_country": movie.certification_country,
         "language": movie.language,
         "vote_average": movie.vote_average,
         "vote_count": movie.vote_count,
@@ -324,6 +332,15 @@ def create_admin_movie(
     data["cast"] = normalize_string_list(data.get("cast"))
     data["keywords"] = normalize_string_list(data.get("keywords"))
 
+    require_non_explicit_metadata(
+        data["keywords"],
+        data.get("certification"),
+        data.get("certification_country"),
+        data.get("overview"),
+        data.get("title"),
+        genres,
+    )
+
     title = str(data.get("title") or "").strip()
 
     if not title:
@@ -341,6 +358,11 @@ def create_admin_movie(
         "cast",
         "keywords",
         "year",
+        "release_date",
+        "runtime",
+        "production_countries",
+        "certification",
+        "certification_country",
         "language",
         "vote_average",
         "vote_count",
@@ -373,6 +395,7 @@ def create_admin_movie(
         movie=movie,
         genres=genres,
     )
+    sync_movie_genre_weights(db, movie)
 
     # 새 영화의 조회, 검색 클릭, 좋아요와 랭킹 통계는 모두 0에서 시작한다.
     db.add(
@@ -392,6 +415,14 @@ def create_admin_movie(
         movie=movie,
         cast_credits=cast_credits,
     )
+
+    if movie.tmdb_id is not None:
+        enqueue_movie_vector_sync(
+            db,
+            tmdb_id=movie.tmdb_id,
+            movie_id=movie.id,
+            operation="upsert",
+        )
 
     # 누가 어떤 영화를 등록했는지 추적할 수 있도록 같은 트랜잭션에
     # 관리자 감사 로그를 추가한다. 영화 등록이 rollback되면 로그도 함께

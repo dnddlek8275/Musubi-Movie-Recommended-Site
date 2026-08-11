@@ -4,6 +4,8 @@ import {
   addLikedMovie,
   fetchCharacters,
   fetchLikedMovies,
+  fetchUserPreferences,
+  getLocalPreferences,
   likeMovie,
   removeLikedMovie,
 } from '../../api.js';
@@ -14,6 +16,16 @@ import RecommendationRow from './RecommendationRow.jsx';
 import { VISIBLE_CHARACTER_COUNT } from './constants.js';
 import './index.css';
 
+// 좋아요 여부는 번역/원문 제목이 달라져도 같은 값을 유지하는 DB movie_id로
+// 판별한다. id가 없는 임시 영화 데이터만 정규화한 제목을 보조 키로 사용한다.
+function movieLikeKey(movie) {
+  const id = movie?.id ?? movie?.movie_id;
+  if (id !== undefined && id !== null) return `id:${id}`;
+
+  const title = String(movie?.title || '').trim().toLocaleLowerCase('ko-KR');
+  return title ? `title:${title}` : '';
+}
+
 // DB/API에서 받아온 캐릭터 데이터를 프론트에서 쓰기 좋은 형태로 정리하는 함수
 function normalizeCharacter(rawCharacter, index) {
   const name = String(rawCharacter?.name || rawCharacter?.character || '').trim();
@@ -23,6 +35,10 @@ function normalizeCharacter(rawCharacter, index) {
   return {
     id: String(rawCharacter?.id ?? rawCharacter?.character_id ?? name ?? index),
     name,
+    actor: String(rawCharacter?.actor || '').trim(),
+    genres: Array.isArray(rawCharacter?.genres) ? rawCharacter.genres : [],
+    keywords: Array.isArray(rawCharacter?.keywords) ? rawCharacter.keywords : [],
+    movieTitle: String(rawCharacter?.movie_title || '').trim(),
     image:
       rawCharacter?.image ||
       rawCharacter?.image_url ||
@@ -31,16 +47,40 @@ function normalizeCharacter(rawCharacter, index) {
   };
 }
 
+function characterPreferenceScore(character, preferences) {
+  const normalize = (value) => String(value || '').trim().toLocaleLowerCase('ko-KR');
+  const preferredActors = new Set((preferences?.actors || []).map(normalize));
+  const preferredGenres = new Set((preferences?.genres || []).map(normalize));
+  const preferredKeywords = new Set((preferences?.keywords || []).map(normalize));
+
+  let score = preferredActors.has(normalize(character.actor)) ? 8 : 0;
+  score += character.genres.some((genre) => preferredGenres.has(normalize(genre))) ? 4 : 0;
+  score += character.keywords.some((keyword) => preferredKeywords.has(normalize(keyword))) ? 6 : 0;
+  return score;
+}
+
 function IndexPage({ authUser }) {
-  const [likedMovies, setLikedMovies] = useState([]);
+  const [likedMovieKeys, setLikedMovieKeys] = useState([]);
   const [status, setStatus] = useState('');
   const [characters, setCharacters] = useState([]);
   const [visibleCharacters, setVisibleCharacters] = useState([]);
+  const [activePreferences, setActivePreferences] = useState({ genres: [], actors: [], keywords: [] });
 
   // 캐릭터 랜덤으로 뽑음
-  const pickRandomCharacters = (source) => {
+  const pickRandomCharacters = (source, preferences = activePreferences) => {
     const pool = source ?? characters;
-    const shuffledCharacters = [...pool].sort(() => Math.random() - 0.5);
+    const shuffledCharacters = [...pool]
+      .map((character) => ({
+        character,
+        preferenceScore: characterPreferenceScore(character, preferences),
+        randomOrder: Math.random(),
+      }))
+      .sort(
+        (left, right) =>
+          right.preferenceScore - left.preferenceScore ||
+          left.randomOrder - right.randomOrder
+      )
+      .map(({ character }) => character);
 
     setVisibleCharacters(
       shuffledCharacters.slice(0, VISIBLE_CHARACTER_COUNT)
@@ -51,12 +91,22 @@ function IndexPage({ authUser }) {
   useEffect(() => {
     const controller = new AbortController();
 
-    fetchCharacters(controller.signal)
-      .then((rawCharacters) => {
+    const preferencesRequest = authUser
+      ? fetchUserPreferences(controller.signal)
+          .then((data) => data.preferences || {})
+          .catch((error) => {
+            if (error.name === 'AbortError') throw error;
+            return { genres: [], actors: [], keywords: [] };
+          })
+      : Promise.resolve(getLocalPreferences());
+
+    Promise.all([fetchCharacters(controller.signal), preferencesRequest])
+      .then(([rawCharacters, preferences]) => {
         const normalized = rawCharacters.map(normalizeCharacter).filter(Boolean);
 
         setCharacters(normalized);
-        pickRandomCharacters(normalized);
+        setActivePreferences(preferences);
+        pickRandomCharacters(normalized, preferences);
       })
       .catch((error) => {
         if (error.name === 'AbortError') return;
@@ -64,18 +114,20 @@ function IndexPage({ authUser }) {
       });
 
     return () => controller.abort();
-  }, []);
+  }, [authUser]);
 
   useEffect(() => {
     if (!authUser) {
-      setLikedMovies([]);
+      setLikedMovieKeys([]);
       return undefined;
     }
 
     const controller = new AbortController();
     fetchLikedMovies(controller.signal)
       .then((movies) => {
-        setLikedMovies(movies.map((movie) => movie.title).filter(Boolean));
+        setLikedMovieKeys(
+          Array.from(new Set(movies.map(movieLikeKey).filter(Boolean)))
+        );
       })
       .catch((error) => {
         if (error.name !== 'AbortError') setStatus(error.message);
@@ -97,13 +149,19 @@ function IndexPage({ authUser }) {
       return;
     }
 
-    const wasLiked = likedMovies.includes(movie.title);
+    const likeKey = movieLikeKey(movie);
+    if (!likeKey) {
+      setStatus('영화 식별 정보가 없어 좋아요를 변경할 수 없습니다.');
+      return;
+    }
+
+    const wasLiked = likedMovieKeys.includes(likeKey);
 
     setStatus('');
-    setLikedMovies((current) =>
+    setLikedMovieKeys((current) =>
       wasLiked
-        ? current.filter((title) => title !== movie.title)
-        : [...current, movie.title]
+        ? current.filter((key) => key !== likeKey)
+        : Array.from(new Set([...current, likeKey]))
     );
 
     try {
@@ -115,10 +173,10 @@ function IndexPage({ authUser }) {
         await addLikedMovie(movie);
       }
     } catch (error) {
-      setLikedMovies((current) =>
+      setLikedMovieKeys((current) =>
         wasLiked
-          ? Array.from(new Set([...current, movie.title]))
-          : current.filter((title) => title !== movie.title)
+          ? Array.from(new Set([...current, likeKey]))
+          : current.filter((key) => key !== likeKey)
       );
       setStatus(error.message);
     }
@@ -134,7 +192,7 @@ function IndexPage({ authUser }) {
 
       <RecommendationRow
         authUser={authUser}
-        likedMovies={likedMovies}
+        likedMovieKeys={likedMovieKeys}
         onToggleLike={handleToggleLike}
       />
 

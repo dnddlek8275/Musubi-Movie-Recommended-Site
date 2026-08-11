@@ -1,5 +1,7 @@
 .index-page {
   display: block;
+  /* 비동기 추천/캐릭터 로딩 때 브라우저가 현재 스크롤 위치를 밀지 않게 한다. */
+  overflow-anchor: none;
 }
 
 .index-hero-grid {
@@ -26,7 +28,7 @@
   width: 100%;
   height: 100%;
   display: flex;
-  animation: indexHeroSlide 16s infinite;
+  animation: indexHeroSlide 24s infinite;
 }
 
 .index-hero-slider:hover {
@@ -47,24 +49,37 @@
 
 @keyframes indexHeroSlide {
   0%,
-  20%,
-  100% {
+  14% {
     transform: translateX(0);
   }
 
-  25%,
-  45% {
+  16.666%,
+  30.666% {
     transform: translateX(-100%);
   }
 
-  50%,
-  70% {
+  33.333%,
+  47.333% {
     transform: translateX(-200%);
   }
 
-  75%,
-  95% {
+  50%,
+  64% {
     transform: translateX(-300%);
+  }
+
+  66.666%,
+  80.666% {
+    transform: translateX(-400%);
+  }
+
+  83.333%,
+  97.333% {
+    transform: translateX(-500%);
+  }
+
+  100% {
+    transform: translateX(-600%);
   }
 }
 
@@ -162,6 +177,20 @@
   line-height: 1.15;
 }
 
+.index-character-skeleton {
+  width: 96px;
+  height: 96px;
+  margin: 0 auto;
+  border-radius: 50%;
+}
+
+.index-character-label-skeleton {
+  width: 58px;
+  height: 10px;
+  margin: 9px auto 0;
+  border-radius: 999px;
+}
+
 .character-sprite--1 { background-position: -190px -655px; }
 .character-sprite--2 { background-position: -330px -655px; }
 .character-sprite--3 { background-position: -477px -655px; }
@@ -233,33 +262,92 @@
   scroll-snap-align: start;
 }
 
+.index-movie-row > .loading-poster-row {
+  flex: 0 0 100%;
+}
+
+.index-movie-row .loading-poster-card {
+  flex-basis: 212px;
+}
+
+.index-recent-skeleton {
+  flex: 0 0 92px;
+  min-height: 132px;
+  border-radius: 8px;
+}
+
+.ai-copy-skeleton {
+  width: 72%;
+  height: 13px;
+  margin: 16px 0;
+  border-radius: 999px;
+}
+
+.ai-pick-box--skeleton > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.ai-poster-skeleton {
+  flex: 0 0 92px;
+  width: 92px;
+  aspect-ratio: 2 / 3;
+  border-radius: 8px;
+}
+
+.index-keyword-skeleton {
+  width: 84px;
+  height: 28px;
+  border-radius: 999px;
+}
+
+.index-rank-number-skeleton {
+  width: 22px;
+  height: 30px;
+  border-radius: 5px;
+}
+
+.index-rank-poster-skeleton {
+  width: 58px;
+  height: 58px;
+  border-radius: 8px;
+}
+
+.index-rank-item--skeleton > div {
+  min-width: 0;
+}
+
 .index-movie-slider-btn {
-  width: 44px;
-  height: 44px;
+  width: 46px;
+  height: 72px;
   padding: 0;
   border: 0;
   position: absolute;
-  top: 40%;
+  top: 117px;
   transform: translateY(-50%);
-  background: rgba(12, 16, 18, 0.55);
-  border-radius: 50%;
-  color: #e0e4e6;
+  background: transparent;
+  color: color-mix(in srgb, var(--text) 72%, transparent);
   cursor: pointer;
-  font-size: 26px;
+  font-size: 42px;
   line-height: 1;
+  opacity: 0.72;
+  text-shadow: 0 2px 12px color-mix(in srgb, var(--page-bg) 80%, transparent);
+  transition: opacity 160ms ease, color 160ms ease, transform 160ms ease;
   z-index: 2;
 }
 
 .index-movie-slider-btn:hover {
-  background: rgba(12, 16, 18, 0.8);
+  color: var(--accent);
+  opacity: 1;
+  transform: translateY(-50%) scale(1.06);
 }
 
 .index-movie-slider-btn--prev {
-  left: -18px;
+  left: 2px;
 }
 
 .index-movie-slider-btn--next {
-  right: -18px;
+  right: 2px;
 }
 
 .index-heart {
@@ -366,12 +454,14 @@
 .index-middle-grid {
   margin-top: 80px;
   display: grid;
-  grid-template-columns: 580px 450px 530px;
+  /* 보조 정보는 조금 더 조밀하게, AI 추천은 메인 카드처럼 보이도록 폭을 재배분한다. */
+  grid-template-columns: 535px 550px 475px;
   gap: 30px;
 }
 
 .index-stack {
   display: grid;
+  grid-template-rows: 1.14fr 1fr;
   gap: 20px;
 }
 
@@ -403,7 +493,7 @@
 }
 
 .index-keywords {
-  max-height: 97px;
+  max-height: 140px;
   position: relative;
   display: flex;
   flex-wrap: wrap;
@@ -428,10 +518,72 @@
   font-weight: 700;
 }
 
+.keyword-preferences {
+  height: 100%;
+  display: grid;
+  align-content: center;
+  gap: 15px;
+}
+
+.keyword-preference-row {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.keyword-preference-row > strong {
+  font-size: 17px;
+  line-height: 1.15;
+}
+
+.keyword-preference-values {
+  min-width: 0;
+  min-height: 27px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.keyword-preference-values--truncated::after {
+  content: '...';
+  width: 42px;
+  height: 100%;
+  padding-left: 12px;
+  position: absolute;
+  right: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  background: linear-gradient(90deg, transparent, var(--panel) 35%);
+  color: var(--muted);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.keyword-preference-empty {
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .index-recent-row {
   display: grid;
-  grid-template-columns: repeat(5, 88px);
-  gap: 17px;
+  grid-template-columns: repeat(5, 79px);
+  gap: 16px;
+  align-items: center;
+  justify-content: center;
+}
+
+.recent-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.recent-card .index-recent-row {
+  margin-block: auto;
 }
 
 .index-recent-poster {
@@ -443,6 +595,22 @@
   overflow: hidden;
   background: transparent;
   cursor: pointer;
+}
+
+.index-recent-poster .index-mini-poster {
+  min-height: 0;
+  padding: 0;
+  display: block;
+  background: transparent;
+}
+
+.index-recent-poster .index-mini-poster img {
+  position: relative;
+  inset: auto;
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: initial;
 }
 
 .index-mini-poster {
@@ -472,37 +640,28 @@
 
 .ai-card,
 .rank-card {
-  min-height: 406px;
+  min-height: 512px;
 }
 
 /* 실시간 top10 카드가 너무 좁아 보여서 안쪽 여백을 넉넉하게 준다. */
 .rank-card {
-  padding: 32px 48px;
-}
-
-.ai-pick-dots {
-  margin-top: 16px;
+  padding: 32px 42px;
   display: flex;
-  justify-content: center;
-  gap: 8px;
+  flex-direction: column;
 }
 
-.ai-pick-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--line);
-  transition: background 0.2s ease, transform 0.2s ease;
-}
-
-.ai-pick-dot--active {
-  background: var(--accent);
-  transform: scale(1.25);
+.rank-card .index-card-header {
+  margin-bottom: 22px;
 }
 
 .ai-copy {
   margin: 0 0 31px;
-  white-space: pre-line;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: normal;
+  line-break: strict;
+  text-wrap: balance;
+  text-align: center;
   font-size: 23px;
   font-weight: 700;
   line-height: 1.25;
@@ -548,17 +707,173 @@
   color: var(--text);
 }
 
+.ai-carousel {
+  min-height: 296px;
+  position: relative;
+}
+
+.ai-carousel__stage {
+  width: 100%;
+  height: 296px;
+  position: relative;
+  perspective: 1100px;
+  overflow: hidden;
+}
+
+.ai-carousel__card {
+  width: 176px;
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  overflow: hidden;
+  background: #06090d;
+  box-shadow: 0 16px 34px rgb(0 0 0 / 36%);
+  color: #fff;
+  cursor: pointer;
+  transform-style: preserve-3d;
+  transition: transform 420ms ease, opacity 420ms ease, filter 420ms ease;
+}
+
+.ai-carousel__card .index-mini-poster {
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  display: block;
+  background: transparent;
+}
+
+.ai-carousel__card .index-mini-poster img {
+  position: relative;
+  inset: auto;
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: initial;
+}
+
+.ai-carousel__card--active {
+  z-index: 3;
+  filter: brightness(1);
+  box-shadow: 0 18px 38px rgb(0 0 0 / 48%), 0 0 0 1px rgb(255 184 77 / 18%);
+  transform: translate(-50%, -50%) rotateY(0deg) scale(1.08);
+}
+
+.ai-carousel__card--previous {
+  z-index: 1;
+  opacity: 0.84;
+  filter: brightness(0.7);
+  transform: translate(-130%, -50%) rotateY(24deg) scale(0.95);
+  transform-origin: right center;
+}
+
+.ai-carousel__card--next {
+  z-index: 1;
+  opacity: 0.84;
+  filter: brightness(0.7);
+  transform: translate(30%, -50%) rotateY(-24deg) scale(0.95);
+  transform-origin: left center;
+}
+
+.ai-carousel__shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 42%, rgb(0 0 0 / 90%) 100%);
+  pointer-events: none;
+}
+
+.ai-carousel__caption {
+  padding: 12px 10px;
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: grid;
+  gap: 4px;
+  text-align: center;
+}
+
+.ai-carousel__caption strong {
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-carousel__caption small {
+  display: -webkit-box;
+  overflow: hidden;
+  color: rgb(255 255 255 / 72%);
+  font-size: 9px;
+  line-height: 1.25;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 .index-rank-list {
   display: grid;
-  gap: 28px;
+  gap: 7px;
+}
+
+.index-rank-more {
+  margin-top: auto;
+  padding-top: 15px;
+  align-self: flex-end;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: color 180ms ease;
+}
+
+.index-rank-more:hover,
+.index-rank-more:focus-visible {
+  color: var(--accent);
 }
 
 .index-rank-item {
+  min-width: 0;
+  min-height: 92px;
+  padding: 8px 12px 8px 8px;
   display: grid;
-  grid-template-columns: 32px 58px 1fr 70px 28px;
-  gap: 16px;
+  grid-template-columns: 42px 60px minmax(0, 1fr) 52px;
+  gap: 14px;
   align-items: center;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  color: inherit;
+  text-decoration: none;
   animation: rank-swap-in 0.4s ease;
+  transition: border-color 180ms ease, background 180ms ease, transform 180ms ease;
+}
+
+.index-rank-item:hover {
+  border-color: var(--panel-border);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  transform: translateX(4px);
+}
+
+.index-rank-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.index-rank-number {
+  color: color-mix(in srgb, var(--muted) 76%, transparent);
+  font-size: 29px;
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+  letter-spacing: -0.06em;
+}
+
+.index-rank-item--top .index-rank-number {
+  color: var(--accent);
 }
 
 @keyframes rank-swap-in {
@@ -572,50 +887,80 @@
   }
 }
 
-.index-rank-item .index-mini-poster {
-  min-height: 75px;
-  border-radius: 8px;
-}
-
-.index-rank-poster-link {
+.index-rank-poster {
+  width: 60px;
+  height: 76px;
   display: block;
-  border-radius: 8px;
+  border-radius: 9px;
   overflow: hidden;
-  outline-offset: 3px;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  background: var(--panel-deep);
 }
 
-.index-rank-poster-link:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.35);
+.index-rank-poster .index-mini-poster {
+  width: 100%;
+  min-height: 100%;
+  padding: 0;
+  border-radius: inherit;
 }
 
-.index-rank-poster-link:focus-visible {
-  outline: 2px solid var(--accent);
+.index-rank-poster .index-mini-poster img {
+  object-fit: cover;
 }
 
-.index-rank-item div:nth-child(3) {
+.index-rank-copy {
   min-width: 0;
+  display: block;
 }
 
-.index-rank-item b {
+.index-rank-copy b {
   display: block;
-  margin-bottom: 4px;
+  margin-bottom: 7px;
   overflow: hidden;
   font-size: 16px;
+  line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.index-rank-item div span,
-.rank-change {
-  color: var(--muted);
-  font-size: 12px;
+.index-rank-trend {
+  min-width: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1px;
+  color: color-mix(in srgb, var(--muted) 76%, transparent);
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 1;
 }
 
-.rank-change {
-  text-align: center;
-  color: #f45f5f;
+.index-rank-trend i,
+.index-rank-trend b {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+}
+
+.index-rank-trend i {
+  font-size: 17px;
+  font-style: normal;
+}
+
+.index-rank-trend b {
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.index-rank-trend.is-up { color: #ff6171; }
+.index-rank-trend.is-down { color: #28b9ed; }
+.index-rank-trend.is-new { color: var(--accent); }
+
+.index-rank-trend b.index-rank-trend__new {
+  width: auto;
+  font-size: 11px;
+  letter-spacing: 0.06em;
 }
 
 .index-genre-section {
@@ -757,11 +1102,24 @@
     display: none;
   }
 
+  .index-movie-slider::before,
+  .index-movie-slider::after {
+    display: none;
+  }
+
   /* 중간 3열 패널 → 1열 */
   .index-middle-grid {
     grid-template-columns: 1fr;
     gap: 16px;
     margin-top: 44px;
+  }
+
+  .index-stack {
+    grid-template-rows: none;
+  }
+
+  .index-keywords {
+    max-height: 97px;
   }
 
   .index-info-card {

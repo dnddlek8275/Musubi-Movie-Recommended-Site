@@ -1,1107 +1,663 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import {
-  fetchActors,
-  fetchCharacters,
+  checkAccountNicknameAvailability,
+  confirmAccountEmailVerification,
+  deleteChatRoom,
+  deleteMyAccount,
+  deletePreference,
+  fetchChatRecommendedMovies,
+  fetchChatRoomMessages,
   fetchChatRooms,
   fetchLikedMovies,
-  fetchMovies,
+  fetchPreferenceInsights,
   fetchRecentMovies,
   fetchUserPreferences,
   fetchUserProfile,
-  fetchChatRecommendedMovies,
-  getRecommendedMovies,
-  deletePreference,
-  deletePreferenceType,
-  deleteProfileImage,
   removeLikedMovie,
-  savePreferredActor,
-  updateProfileImage,
+  requestAccountEmailVerification,
+  resetLearnedPreferences,
+  resolveMovieImage,
+  updateAccountProfile,
+  updateChatRoomTitle,
   updateUserPreferences,
-  updateUserProfile,
 } from '../../api.js';
+import CinemaNav from '../HeaderFooter/CinemaNav.jsx';
 import { normalizeMovie } from '../index/RecommendationRow.jsx';
+import { PanelSkeleton, PosterRowSkeleton, SkeletonBlock } from '../common/LoadingSkeleton.jsx';
+import { getKeywordLabel } from '../../utils/keywordLabels.js';
 import './mypage.css';
 
-const GENRE_SLOT_COUNT = 7;
-const CHAT_PREVIEW_COUNT = 4;
-const RECOMMENDATION_SLOT_COUNT = 6;
-const PICKED_MOVIE_SLOT_COUNT = 9;
+const TABS = [
+  ['overview', '한눈에 보기'],
+  ['taste', '취향 관리'],
+  ['chat', '대화 기록'],
+  ['activity', '영화 활동'],
+  ['account', '계정 설정'],
+];
 
-function toTagText(items) {
-  return Array.isArray(items) ? items.join(', ') : '';
+const TASTE_TYPES = [
+  ['genres', 'genre', '장르'],
+  ['actors', 'actor', '배우'],
+  ['keywords', 'keyword', '키워드'],
+];
+
+const DEFAULT_AVATAR = '/images/character/mu/upper-body/mu-upper-default-v1.png';
+const CHAT_STORAGE_KEYS = ['cineverse.autochat.conversations', 'cineverse.groupchat.conversations'];
+
+function uniqueText(values) {
+  return Array.from(new Set((Array.isArray(values) ? values : [])
+    .map((value) => String(value?.value ?? value?.name ?? value ?? '').trim())
+    .filter(Boolean)));
 }
 
-function parseTags(value) {
-  return value
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
+function learnedValues(data, key) {
+  return uniqueText(data?.[key] || data?.[key.replace(/s$/, '')] || []).slice(0, 12);
 }
 
-const POSTER_BASE_URL =
-  import.meta.env.VITE_TMDB_IMAGE_BASE_URL || 'https://image.tmdb.org/t/p/w500';
-
-// 포스터 URL을 여러 필드에서 찾고, 상대경로면 TMDB 베이스를 붙인다.
-// 하드코딩 fallback(picsum) 없이, 없으면 빈 문자열을 반환한다(→ 검은 placeholder).
-function getPoster(movie) {
-  const raw =
-    movie?.poster ||
-    movie?.poster_path ||
-    movie?.poster_url ||
-    movie?.posterUrl ||
-    movie?.image_url ||
-    movie?.image ||
-    '';
-  const path = String(raw).trim();
-
-  if (!path) return '';
-  if (/^(https?:|data:|blob:)/i.test(path)) return path;
-  return `${POSTER_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
+function movieId(movie) {
+  return movie?.id ?? movie?.movie_id ?? movie?.tmdb_id ?? movie?.tmdbId ?? '';
 }
 
-function getMovieGenre(movie) {
-  if (movie?.genre) return movie.genre;
-  if (Array.isArray(movie?.genres)) return movie.genres.join(', ');
-  return movie?.genres || '';
+function moviePoster(movie) {
+  return resolveMovieImage(movie?.posterUrl || movie?.poster_url || movie?.poster_path || movie?.poster || '');
 }
 
-function formatRating(movie) {
-  return movie?.rating || movie?.vote_average || '0.0';
+function formatDate(value) {
+  const parsed = value ? new Date(value) : null;
+  if (!parsed || Number.isNaN(parsed.getTime())) return '';
+  return new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(parsed);
 }
 
-function MoviePosterCard({ isRemovable = false, movie, index, onRemove }) {
-  const poster = getPoster(movie);
-
-  return (
-    <article className="mypage-poster-card">
-      <div className="mypage-poster-card__image">
-        {poster ? (
-          <img src={poster} alt="" />
-        ) : (
-          <div className="mypage-poster-card__placeholder" aria-hidden="true" />
-        )}
-        <button
-          className="mypage-heart"
-          type="button"
-          onClick={isRemovable && onRemove ? () => onRemove(movie) : undefined}
-          aria-label={`${movie.title} 찜 해제`}
-          title={isRemovable ? '찜 해제' : '찜한 영화'}
-        >
-          ♡
-        </button>
-      </div>
-      <div className="mypage-poster-card__info">
-        <strong>
-          {movie.title}
-          {movie.year ? ` (${movie.year})` : ''}
-        </strong>
-        <span>{getMovieGenre(movie) || '영화'}</span>
-        <em>★ {formatRating(movie)}</em>
-      </div>
-    </article>
-  );
-}
-
-// 데이터가 없을 때도 카드 자리는 그대로 비워서 보여주는 빈 포스터 박스
-function EmptyPosterCard() {
-  return <article className="mypage-poster-card mypage-poster-card--empty" aria-hidden="true" />;
-}
-
-function EditInput({ disabled, label, onChange, value }) {
-  return (
-    <label className="mypage-edit-field">
-      <span>{label}</span>
-      <input value={value} disabled={disabled} onChange={onChange} />
-    </label>
-  );
-}
-
-function MyPage({ authUser, onUserUpdate }) {
-  const [profile, setProfile] = useState({
-    email: authUser?.email || '',
-    nickname: authUser?.nickname || '',
-    profile_image: authUser?.profile_image || '',
-  });
-  // 프로필 이미지 업로드 직후 즉시 미리보기용(서버가 내부 경로를 줄 수 있어 로컬 URL 사용)
-  const [avatarPreview, setAvatarPreview] = useState('');
-  const [preferenceText, setPreferenceText] = useState({
-    genres: '',
-    actors: '',
-    keywords: '',
-  });
-  const [movies, setMovies] = useState([]);
-  const [likedMovies, setLikedMovies] = useState([]);
-  const [recentMovies, setRecentMovies] = useState([]);
-  // AI/캐릭터 채팅에서 추천받은 영화를 마이페이지 추천에 연결한다.
-  // 초기값은 로컬 캐시(즉시 표시), 이후 서버(/user/chatai-recommended-movies)로 갱신.
-  const [chatRecommended, setChatRecommended] = useState(() => getRecommendedMovies());
-  const [characters, setCharacters] = useState([]);
-  const [actors, setActors] = useState([]);
-  const [actorsError, setActorsError] = useState('');
-  const [actorSearch, setActorSearch] = useState('');
-  const [isActorsLoading, setIsActorsLoading] = useState(false);
-  const [chatRooms, setChatRooms] = useState([]);
-  const [isActorPickerOpen, setIsActorPickerOpen] = useState(false);
-  const [isProfileEditing, setIsProfileEditing] = useState(false);
-  const [isPreferenceEditing, setIsPreferenceEditing] = useState(false);
-  const [statusMessage, setStatusMessage] = useState('');
-  const [addingGenreIndex, setAddingGenreIndex] = useState(null);
-  const [newGenreInput, setNewGenreInput] = useState('');
-  const [isChatHistoryModalOpen, setIsChatHistoryModalOpen] = useState(false);
-  const [isPreferenceDeleteModalOpen, setIsPreferenceDeleteModalOpen] = useState(false);
-  const [deletingPreferenceType, setDeletingPreferenceType] = useState('');
-  const [areKeywordsTruncated, setAreKeywordsTruncated] = useState(false);
-  const keywordListRef = useRef(null);
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    Promise.allSettled([
-      fetchUserProfile(controller.signal),
-      fetchUserPreferences(controller.signal),
-      fetchMovies(controller.signal),
-      fetchLikedMovies(controller.signal),
-      fetchRecentMovies(controller.signal),
-      fetchCharacters(controller.signal),
-      fetchChatRooms(controller.signal),
-      fetchActors(controller.signal),
-      fetchChatRecommendedMovies(controller.signal),
-    ]).then((results) => {
-      if (controller.signal.aborted) return;
-
-      const [
-        profileResult,
-        preferencesResult,
-        moviesResult,
-        likedResult,
-        recentResult,
-        characterResult,
-        chatRoomsResult,
-        actorsResult,
-        chatRecommendedResult,
-      ] = results;
-
-      // 서버 응답이 빈 배열이어도 로컬의 오래된 추천 이력을 남기지 않는다.
-      if (
-        chatRecommendedResult.status === 'fulfilled' &&
-        Array.isArray(chatRecommendedResult.value)
-      ) {
-        setChatRecommended(chatRecommendedResult.value);
-      }
-
-      if (profileResult.status === 'fulfilled') {
-        setProfile({
-          email: profileResult.value.email || authUser?.email || '',
-          nickname: profileResult.value.nickname || authUser?.nickname || '',
-          profile_image:
-            profileResult.value.profile_image || authUser?.profile_image || '',
-        });
-      }
-
-      if (preferencesResult.status === 'fulfilled') {
-        const preferences =
-          preferencesResult.value.preferences || preferencesResult.value || {};
-
-        setPreferenceText({
-          genres: toTagText(preferences.genres),
-          actors: toTagText(preferences.actors),
-          keywords: toTagText(preferences.keywords),
-        });
-      }
-
-      if (moviesResult.status === 'fulfilled') {
-        setMovies(moviesResult.value.map(normalizeMovie));
-      }
-
-      if (likedResult.status === 'fulfilled') {
-        setLikedMovies(likedResult.value.map((movie) => normalizeMovie(movie)));
-      }
-
-      if (recentResult.status === 'fulfilled') {
-        setRecentMovies(recentResult.value.map((movie) => normalizeMovie(movie)));
-      }
-
-      if (characterResult.status === 'fulfilled') {
-        setCharacters(characterResult.value);
-      }
-
-      if (chatRoomsResult.status === 'fulfilled') {
-        setChatRooms(chatRoomsResult.value);
-      }
-
-      if (actorsResult.status === 'fulfilled') {
-        setActors(actorsResult.value);
-      } else {
-        // 서버 에러(state: 'error') 등으로 실패한 경우만 에러 안내를 남긴다.
-        setActorsError(actorsResult.reason?.message || '배우 목록을 불러오지 못했습니다.');
-      }
-
-      if (results.some((result) => result.status === 'rejected')) {
-        setStatusMessage('일부 정보를 불러오지 못했습니다.');
-      }
-    });
-
-    return () => controller.abort();
-  }, [authUser]);
-
-  useEffect(() => {
-    if (!isActorPickerOpen) return undefined;
-
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => {
-      setIsActorsLoading(true);
-      setActorsError('');
-      fetchActors(controller.signal, { query: actorSearch, limit: 50 })
-        .then(setActors)
-        .catch((error) => {
-          if (!controller.signal.aborted) {
-            setActorsError(error?.message || '배우 목록을 불러오지 못했습니다.');
-          }
-        })
-        .finally(() => {
-          if (!controller.signal.aborted) setIsActorsLoading(false);
-        });
-    }, 250);
-
-    return () => {
-      window.clearTimeout(timer);
-      controller.abort();
-    };
-  }, [actorSearch, isActorPickerOpen]);
-
-  const preferences = useMemo(
-    () => ({
-      genres: parseTags(preferenceText.genres),
-      actors: parseTags(preferenceText.actors),
-      keywords: parseTags(preferenceText.keywords),
-    }),
-    [preferenceText]
-  );
-
-  // index/KeywordPanel.jsx와 동일하게 DB의 genres, actors, keywords를 자르지 않고 그대로 표시한다.
-  // 각 태그에 어떤 분류(장르/배우/키워드)에서 왔는지 함께 담아, X 버튼으로 개별 삭제할 때 사용한다.
-  const keywordTags = [
-    ...(preferences.genres || []).map((text) => ({ text, category: 'genres' })),
-    ...(preferences.actors || []).map((text) => ({ text, category: 'actors' })),
-    ...(preferences.keywords || []).map((text) => ({ text, category: 'keywords' })),
-  ];
-
-  useEffect(() => {
-    const keywordList = keywordListRef.current;
-
-    if (!keywordList || isPreferenceEditing) {
-      setAreKeywordsTruncated(false);
-      return undefined;
-    }
-
-    const updateTruncation = () => {
-      setAreKeywordsTruncated(keywordList.scrollHeight > keywordList.clientHeight + 1);
-    };
-
-    updateTruncation();
-    const resizeObserver = new ResizeObserver(updateTruncation);
-    resizeObserver.observe(keywordList);
-
-    return () => resizeObserver.disconnect();
-  }, [isPreferenceEditing, preferenceText]);
-
-  const displayName = profile.nickname || authUser?.nickname || '게스트';
-  // "채팅 이력" 추천은 AI/캐릭터 채팅에서 실제로 추천받은 영화만 보여준다.
-  // 채팅 기록이 없으면 비워 둔다(일반 추천으로 폴백하지 않음).
-  const recommendationMovies = chatRecommended
-    .map((movie) => normalizeMovie(movie))
-    .filter((movie) => movie.title)
-    .filter((movie, index, list) => {
-      const key = String(movie.id ?? movie.title);
-      return list.findIndex((item) => String(item.id ?? item.title) === key) === index;
-    })
-    .slice(0, RECOMMENDATION_SLOT_COUNT);
-  const pickedMovies = likedMovies.slice(0, PICKED_MOVIE_SLOT_COUNT);
-  // user_preferences의 actors를 기준으로 표시하고, 사진은 /actors 응답(없으면 같은 이름의 캐릭터)에서 가져온다.
-  const preferredActors = preferences.actors.map((actorName) => {
-    const matchedActor = actors.find((actor) => actor.name === actorName);
-    const matchedCharacter = characters.find(
-      (character) => character.name === actorName
-    );
-
-    return {
-      id: matchedActor?.id || actorName,
-      name: actorName,
-      image_url:
-        matchedActor?.image_url ||
-        matchedCharacter?.image_url ||
-        matchedCharacter?.imageUrl ||
-        matchedCharacter?.img ||
-        '',
-    };
-  });
-
-  // + 버튼으로 추가할 수 있는 배우(이미 선호에 있는 배우는 제외)
-  const availableActors = actors.filter(
-    (actor) => actor.name && !preferences.actors.includes(actor.name)
-  );
-
-  // 선호 배우 + "배우 추가" 슬롯 1칸을 빼고 남는 칸은 빈 자리로 채운다.
-  const emptyActorSlotCount = Math.max(
-    0,
-    GENRE_SLOT_COUNT - preferredActors.length - 1
-  );
-
-  const genreButtons = preferences.genres;
-
-  // /chat/rooms 응답을 대화 이력 행으로 정리한다.
-  // - 제목: 이야기한 캐릭터 이름들(characters). 없으면 일반(CineBuddy) 방으로 본다.
-  // - 링크: 방 종류에 맞는 페이지로 room_id를 넘겨, 눌렀을 때 그 대화가 이어지게 한다.
-  const allChatRows = chatRooms.map((room, index) => {
-    const roomId = room.room_id ?? room.roomId ?? room.id ?? '';
-    const roomType = room.room_type || room.roomType || 'general';
-    const names = (Array.isArray(room.characters) ? room.characters : [])
-      .map((character) => (typeof character === 'string' ? character : character?.name))
-      .filter(Boolean);
-
-    const title =
-      names.length > 0
-        ? names.join(', ')
-        : roomType === 'group'
-          ? '그룹 대화'
-          : 'CineBuddy';
-
-    let href;
-    if (roomType === 'group') {
-      href = `/chat/group?room=${roomId}&members=${encodeURIComponent(names.join(','))}`;
-    } else if (roomType === 'character') {
-      href = `/chat?room=${roomId}&characterName=${encodeURIComponent(names[0] || '')}`;
-    } else {
-      href = `/chat/auto?room=${roomId}`;
-    }
-
-    return { key: String(roomId) || `room-${index}`, title, href };
-  });
-  const hasMoreChatHistory = allChatRows.length > CHAT_PREVIEW_COUNT;
-  const chatRows = allChatRows.slice(0, hasMoreChatHistory ? CHAT_PREVIEW_COUNT - 1 : CHAT_PREVIEW_COUNT);
-
-  const avatarUrl =
-    avatarPreview ||
-    profile.profile_image ||
-    '/images/cinebuddy.png';
-
-  const hasProfileImage = Boolean(avatarPreview || profile.profile_image);
-
-  // 프로필 이미지 변경: 파일 선택 즉시 PATCH /user/profile_image 업로드.
-  const handleProfileImageChange = async (event) => {
-    const file = event.target.files?.[0];
-    event.target.value = ''; // 같은 파일 다시 선택 가능하도록 초기화
-    if (!file) return;
-
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
-    if (!allowedTypes.includes(file.type)) {
-      setStatusMessage('jpg, png, webp 이미지만 업로드할 수 있어요.');
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setStatusMessage('이미지는 최대 5MB까지 업로드할 수 있어요.');
-      return;
-    }
-
+function readStoredChatMetadata() {
+  const metadata = new Map();
+  CHAT_STORAGE_KEYS.forEach((key) => {
     try {
-      const result = await updateProfileImage(file);
-      const uploadedImage = result?.user_profile || '';
-      // 이전 미리보기 URL 정리 후 서버 URL(없으면 로컬 미리보기)로 갱신
-      setAvatarPreview((current) => {
-        if (current) URL.revokeObjectURL(current);
-        return uploadedImage || URL.createObjectURL(file);
-      });
-      if (uploadedImage) {
-        setProfile((current) => ({ ...current, profile_image: uploadedImage }));
-      }
-      setStatusMessage('프로필 이미지를 변경했습니다.');
-    } catch (error) {
-      setStatusMessage(error.message);
-    }
-  };
-
-  // 프로필 이미지 삭제: DELETE /user/delete/profile_image
-  const handleProfileImageDelete = async () => {
-    try {
-      await deleteProfileImage();
-      setAvatarPreview((current) => {
-        if (current) URL.revokeObjectURL(current);
-        return '';
-      });
-      setProfile((current) => ({ ...current, profile_image: '' }));
-      setStatusMessage('프로필 이미지를 삭제했습니다.');
-    } catch (error) {
-      setStatusMessage(error.message);
-    }
-  };
-
-  const handleSaveProfile = async () => {
-    try {
-      const savedProfile = await updateUserProfile(profile);
-      const nextUser = {
-        ...(authUser || {}),
-        email: savedProfile.email || profile.email,
-        nickname: savedProfile.nickname || profile.nickname,
-      };
-
-      localStorage.setItem('auth_user', JSON.stringify(nextUser));
-      onUserUpdate?.(nextUser);
-      setIsProfileEditing(false);
-      setStatusMessage('내 정보가 저장되었습니다.');
-    } catch (error) {
-      setStatusMessage(error.message);
-    }
-  };
-
-  const handleSavePreferences = async () => {
-    try {
-      await updateUserPreferences(preferences);
-      setIsPreferenceEditing(false);
-      setStatusMessage('관심 키워드가 저장되었습니다.');
-    } catch (error) {
-      setStatusMessage(error.message);
-    }
-  };
-
-  // 장르별 추천의 빈 "+" 슬롯을 누르면 그 자리에서 바로 장르를 추가할 수 있게 함
-  const handleAddGenre = async () => {
-    const nextGenre = newGenreInput.trim();
-
-    setAddingGenreIndex(null);
-    setNewGenreInput('');
-
-    if (!nextGenre || preferences.genres.includes(nextGenre)) return;
-
-    const nextGenres = [...preferences.genres, nextGenre];
-    setPreferenceText((current) => ({ ...current, genres: nextGenres.join(', ') }));
-
-    try {
-      await updateUserPreferences({ ...preferences, genres: nextGenres });
-      setStatusMessage(`'${nextGenre}' 장르를 추가했습니다.`);
-    } catch (error) {
-      setStatusMessage(error.message);
-    }
-  };
-
-  // "배우 추가" 슬롯의 + 를 누른 뒤 목록에서 배우를 고르면 선호 배우에 추가하고 저장한다.
-  const handleAddActor = async (actor) => {
-    setIsActorPickerOpen(false);
-
-    if (!actor?.name || preferences.actors.includes(actor.name)) return;
-
-    const nextActors = [...preferences.actors, actor.name];
-    const nextPreferences = {
-      genres: preferences.genres,
-      actors: nextActors,
-      keywords: preferences.keywords,
-    };
-
-    setPreferenceText({
-      genres: nextPreferences.genres.join(', '),
-      actors: nextActors.join(', '),
-      keywords: nextPreferences.keywords.join(', '),
-    });
-
-    try {
-      // 서버에 선호 배우 저장 (POST /movies/actor/{actor_id})
-      if (actor.id) {
-        const saved = await savePreferredActor(actor.id);
-
-        // 서버가 최종 선호 배우 목록을 주면 그 값으로 동기화한다.
-        if (Array.isArray(saved?.user_preferred_actors)) {
-          setPreferenceText((current) => ({
-            ...current,
-            actors: saved.user_preferred_actors.join(', '),
-          }));
-        }
-      }
-
-      await updateUserPreferences(nextPreferences);
-      setStatusMessage(`'${actor.name}' 배우를 추가했습니다.`);
-    } catch (error) {
-      setStatusMessage(error.message);
-    }
-  };
-
-  // 배우/장르/키워드 태그의 X 버튼: 해당 항목을 선호 목록에서 개별 삭제하고 저장한다.
-  const handleRemovePreference = async (category, value) => {
-    const nextPreferences = {
-      genres: preferences.genres,
-      actors: preferences.actors,
-      keywords: preferences.keywords,
-      [category]: (preferences[category] || []).filter((item) => item !== value),
-    };
-
-    setPreferenceText({
-      genres: nextPreferences.genres.join(', '),
-      actors: nextPreferences.actors.join(', '),
-      keywords: nextPreferences.keywords.join(', '),
-    });
-
-    // 앱 카테고리(genres/actors/keywords) → 서버 preference_type(genre/actor/keyword) 매핑.
-    const typeMap = { genres: 'genre', actors: 'actor', keywords: 'keyword' };
-    const preferenceType = typeMap[category];
-
-    try {
-      if (preferenceType) {
-        // 서버에서 선호값 삭제 (DELETE /user/preference/delete)
-        const saved = await deletePreference(preferenceType, value);
-
-        // 서버가 최종 선호 배열을 주면 그 값으로 화면을 갱신한다.
-        setPreferenceText((current) => ({
+      const stored = JSON.parse(window.localStorage.getItem(key) || (key.includes('groupchat') ? '{}' : '[]'));
+      const conversations = Array.isArray(stored) ? stored : stored?.conversations;
+      (Array.isArray(conversations) ? conversations : []).forEach((conversation) => {
+        const roomId = conversation?.roomId ?? conversation?.room_id;
+        const title = String(conversation?.title || '').trim();
+        if (!roomId) return;
+        const current = metadata.get(String(roomId)) || {};
+        metadata.set(String(roomId), {
           ...current,
-          genres: saved.genres.join(', '),
-          actors: saved.actors.join(', '),
+          ...(title && !['새 대화', '제목 생성 중…'].includes(title) ? { title } : {}),
+          pinned: Boolean(conversation?.pinned),
+        });
+      });
+    } catch (error) {
+      // 손상된 로컬 기록 하나가 전체 마이페이지를 막지 않도록 건너뛴다.
+    }
+  });
+  return metadata;
+}
+
+function updateStoredChatRoom(roomId, updater, room = null) {
+  CHAT_STORAGE_KEYS.forEach((key) => {
+    try {
+      const fallback = key.includes('groupchat') ? '{}' : '[]';
+      const stored = JSON.parse(window.localStorage.getItem(key) || fallback);
+      const conversations = Array.isArray(stored) ? stored : stored?.conversations;
+      if (!Array.isArray(conversations)) return;
+      let matched = false;
+      const next = conversations.map((conversation) => {
+        if (String(conversation?.roomId ?? conversation?.room_id ?? '') !== String(roomId)) return conversation;
+        matched = true;
+        return updater(conversation);
+      });
+      const targetKey = room?.type === 'general'
+        ? 'cineverse.autochat.conversations'
+        : 'cineverse.groupchat.conversations';
+      if (!matched && room && key === targetKey) {
+        next.unshift(updater({
+          id: `room-${roomId}`,
+          roomId: String(roomId),
+          title: room.title,
+          members: room.members || [],
+          messages: [],
         }));
       }
-
-      await updateUserPreferences(nextPreferences);
-      setStatusMessage(`'${value}'을(를) 삭제했습니다.`);
+      window.localStorage.setItem(key, JSON.stringify(Array.isArray(stored) ? next : { ...stored, conversations: next }));
     } catch (error) {
-      setStatusMessage(error.message);
+      // 손상된 로컬 기록은 서버 기록 조작을 막지 않도록 건너뛴다.
     }
-  };
+  });
+}
 
-  const handleDeletePreferenceType = async (preferenceType) => {
-    if (deletingPreferenceType) return;
-
-    setDeletingPreferenceType(preferenceType);
-    setStatusMessage('');
-
+function removeStoredChatRoom(roomId) {
+  CHAT_STORAGE_KEYS.forEach((key) => {
     try {
-      const result = await deletePreferenceType(preferenceType);
-      const refreshed = await fetchUserPreferences();
-      const nextPreferences = refreshed.preferences || refreshed || {};
-
-      setPreferenceText({
-        genres: toTagText(nextPreferences.genres),
-        actors: toTagText(nextPreferences.actors),
-        keywords: toTagText(nextPreferences.keywords),
-      });
-      setIsPreferenceDeleteModalOpen(false);
-      setStatusMessage(result.message || '선택한 취향을 모두 삭제했습니다.');
+      const fallback = key.includes('groupchat') ? '{}' : '[]';
+      const stored = JSON.parse(window.localStorage.getItem(key) || fallback);
+      const conversations = Array.isArray(stored) ? stored : stored?.conversations;
+      if (!Array.isArray(conversations)) return;
+      const next = conversations.filter((conversation) => (
+        String(conversation?.roomId ?? conversation?.room_id ?? '') !== String(roomId)
+      ));
+      window.localStorage.setItem(key, JSON.stringify(Array.isArray(stored) ? next : { ...stored, conversations: next }));
     } catch (error) {
-      setStatusMessage(error.message);
-    } finally {
-      setDeletingPreferenceType('');
+      // 손상된 로컬 기록은 서버 기록 삭제를 막지 않도록 건너뛴다.
     }
+  });
+}
+
+function roomInfo(room, index, storedMetadata) {
+  const id = room?.room_id ?? room?.roomId ?? room?.id ?? '';
+  const type = room?.room_type || room?.roomType || 'general';
+  const members = uniqueText(room?.characters);
+  const stored = storedMetadata.get(String(id)) || {};
+  const storedTitle = stored.title;
+  const fallbackMessage = String(room?.fallbackTitle || '').replace(/\s+/g, ' ').trim();
+  const title = storedTitle
+    || room?.title
+    || (fallbackMessage ? `${fallbackMessage.slice(0, 28)}${fallbackMessage.length > 28 ? '…' : ''}` : '')
+    || (members.length ? members.join(' · ') : type === 'general' ? '무무와 영화 이야기' : '캐릭터 대화');
+  const href = type === 'general'
+    ? `/home?room=${id}`
+    : `/chat/group?room=${id}${members.length ? `&members=${encodeURIComponent(members.join(','))}` : ''}`;
+  return {
+    id: String(id || `room-${index}`),
+    title,
+    href,
+    members,
+    type,
+    pinned: room?.pinned ?? stored.pinned ?? false,
+    date: formatDate(room?.updated_at || room?.updatedAt || room?.created_at || room?.createdAt),
   };
+}
 
-  const handleRemoveLikedMovie = async (movie) => {
-    setLikedMovies((current) => current.filter((item) => item.title !== movie.title));
+function EmptyState({ children }) {
+  return <p className="mypage-empty">{children}</p>;
+}
 
-    try {
-      await removeLikedMovie(movie);
-    } catch (error) {
-      setLikedMovies((current) => [movie, ...current]);
-      setStatusMessage(error.message);
-    }
-  };
-
+function TasteRow({ label, values, category }) {
+  const formatValue = (value) => category === 'keywords' ? getKeywordLabel(value) : value;
   return (
-    <main className="mypage">
-      {statusMessage ? <p className="mypage-status">{statusMessage}</p> : null}
+    <div className="mypage-taste-row">
+      <strong>{label}</strong>
+      <div>{values.length ? values.slice(0, 6).map((value) => <span key={value}>{formatValue(value)}</span>) : <small>아직 분석 전</small>}</div>
+    </div>
+  );
+}
 
-      <section className="mypage-top">
-        <article className="mypage-welcome-card">
-          <button
-            className="mypage-text-link"
-            type="button"
-            onClick={isProfileEditing ? handleSaveProfile : () => setIsProfileEditing(true)}
-          >
-            {isProfileEditing ? '저장하기' : '내정보 수정하기'} ›
-          </button>
+function EditableTasteRow({ category, preferenceType, label, values, mode, editable = false, insight = '', insightLoading = false, onAdd, onRemove, busy }) {
+  const [draft, setDraft] = useState('');
+  const displayedValues = mode === 'learned' ? values.slice(0, 8) : values;
+  const submit = (event) => {
+    event.preventDefault();
+    const value = draft.trim();
+    if (!value) return;
+    onAdd(category, value);
+    setDraft('');
+  };
+  const insightReason = typeof insight === 'object' ? String(insight?.reason || '').trim() : String(insight || '').trim();
+  const formatValue = (value) => category === 'keywords' ? getKeywordLabel(value) : value;
+  const learnedSummary = insightLoading
+    ? '무무가 취향을 분석하고 있어요…'
+    : insightReason;
+  return (
+    <div className="mypage-taste-editor-row">
+      <div className="mypage-taste-editor-row__heading">
+        <strong>{label}</strong>
+        {mode === 'learned' && learnedSummary ? <span>{learnedSummary}</span> : null}
+      </div>
+      <div className="mypage-taste-editor-row__rail">
+        {displayedValues.length ? displayedValues.map((value) => (
+          <span key={value}>{formatValue(value)}{editable ? <button disabled={busy} type="button" onClick={() => onRemove(category, preferenceType, value)} aria-label={`${formatValue(value)} 삭제`}>×</button> : null}</span>
+        )) : <small>{mode === 'direct' ? '아직 입력한 취향이 없어요.' : '아직 분석 전'}</small>}
+      </div>
+      {mode === 'direct' && editable ? (
+        <form onSubmit={submit}><input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={`${label} 추가`} /><button disabled={busy} type="submit">추가</button></form>
+      ) : null}
+    </div>
+  );
+}
 
-          <div className="mypage-avatar-wrap">
-            <div className="mypage-avatar-media">
-              <img
-                className="mypage-avatar"
-                src={avatarUrl}
-                alt=""
-                onError={(event) => {
-                  // 프로필 이미지 URL이 깨졌을 때(내부 경로/도달 불가) 기본 이미지로 대체.
-                  if (event.currentTarget.src.endsWith('/images/cinebuddy.png')) return;
-                  event.currentTarget.src = '/images/cinebuddy.png';
-                }}
-              />
-
-              <label className="mypage-avatar-edit" title="프로필 사진 변경">
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={handleProfileImageChange}
-                  hidden
-                />
-                <span aria-hidden="true">📷</span>
-                <span className="sr-only">프로필 사진 변경</span>
-              </label>
-            </div>
-
-            {hasProfileImage ? (
-              <button
-                type="button"
-                className="mypage-avatar-delete"
-                onClick={handleProfileImageDelete}
-              >
-                사진 삭제
-              </button>
-            ) : null}
-          </div>
-
-          <div className="mypage-welcome-card__copy">
-            {isProfileEditing ? (
-              <div className="mypage-edit-stack">
-                <EditInput
-                  label="닉네임"
-                  value={profile.nickname}
-                  disabled={false}
-                  onChange={(event) =>
-                    setProfile((current) => ({ ...current, nickname: event.target.value }))
-                  }
-                />
-                <EditInput
-                  label="이메일"
-                  value={profile.email}
-                  disabled={false}
-                  onChange={(event) =>
-                    setProfile((current) => ({ ...current, email: event.target.value }))
-                  }
-                />
-              </div>
-            ) : (
-              <h1>{displayName}님! 환영합니다!</h1>
-            )}
-          </div>
-        </article>
-
-        <article className="mypage-keyword-card">
-          <div className="mypage-card-title">
-            <h2>나의 관심 키워드</h2>
-            <div className="mypage-card-actions">
-              <button
-                className="mypage-delete-all"
-                type="button"
-                onClick={() => setIsPreferenceDeleteModalOpen(true)}
-              >
-                전체 삭제
-              </button>
-              <button
-                className="mypage-text-link"
-                type="button"
-                onClick={isPreferenceEditing ? handleSavePreferences : () => setIsPreferenceEditing(true)}
-              >
-                {isPreferenceEditing ? '저장하기' : '수정하기'} ›
-              </button>
-            </div>
-          </div>
-
-          {isPreferenceEditing ? (
-            <div className="mypage-edit-stack mypage-edit-stack--keywords">
-              <EditInput
-                label="장르"
-                value={preferenceText.genres}
-                disabled={false}
-                onChange={(event) =>
-                  setPreferenceText((current) => ({ ...current, genres: event.target.value }))
-                }
-              />
-              <EditInput
-                label="배우"
-                value={preferenceText.actors}
-                disabled={false}
-                onChange={(event) =>
-                  setPreferenceText((current) => ({ ...current, actors: event.target.value }))
-                }
-              />
-              <EditInput
-                label="키워드"
-                value={preferenceText.keywords}
-                disabled={false}
-                onChange={(event) =>
-                  setPreferenceText((current) => ({ ...current, keywords: event.target.value }))
-                }
-              />
-            </div>
-          ) : (
-            <div
-              ref={keywordListRef}
-              className={`mypage-keywords${areKeywordsTruncated ? ' mypage-keywords--truncated' : ''}`}
-            >
-              {keywordTags.map((tag, index) => (
-                <span className="mypage-keyword-chip" key={`${tag.category}-${tag.text}-${index}`}>
-                  {tag.text}
-                  <button
-                    className="mypage-remove-x"
-                    type="button"
-                    onClick={() => handleRemovePreference(tag.category, tag.text)}
-                    aria-label={`${tag.text} 삭제`}
-                    title="삭제"
-                  >
-                    ×
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
-        </article>
-      </section>
-
-      <section className="mypage-recommend-chat">
-        <div className="mypage-recommend">
-          <h2>{displayName} 님을 위한 영화 추천, 채팅 이력</h2>
-          <div className="mypage-poster-row mypage-poster-row--compact">
-            {recommendationMovies.map((movie, index) => (
-              <MoviePosterCard movie={movie} index={index} key={movie.id || movie.title} />
-            ))}
-            {Array.from({
-              length: Math.max(0, RECOMMENDATION_SLOT_COUNT - recommendationMovies.length),
-            }).map((_, index) => (
-              <EmptyPosterCard key={`empty-recommend-${index}`} />
-            ))}
-          </div>
-        </div>
-
-        <aside className="mypage-chat-list" aria-label="채팅 이력">
-          {chatRows.map((row) => (
-            <a className="mypage-chat-item" href={row.href} key={row.key}>
-              <strong>{row.title}와 대화중 ....</strong>
-              <span>대화하기 ›</span>
-            </a>
-          ))}
-
-          {hasMoreChatHistory ? (
-            <button
-              type="button"
-              className="mypage-chat-item mypage-chat-item--more"
-              onClick={() => setIsChatHistoryModalOpen(true)}
-              aria-label="이전 대화 내역 모두 보기"
-            >
-              ...
-            </button>
-          ) : (
-            Array.from({ length: Math.max(0, CHAT_PREVIEW_COUNT - chatRows.length) }).map(
-              (_, index) => (
-                <div
-                  className="mypage-chat-item mypage-chat-item--empty"
-                  key={`empty-${index}`}
-                  aria-hidden="true"
-                />
-              )
-            )
-          )}
-        </aside>
-      </section>
-
-      <section className="mypage-actors">
-        <h2>선호 배우</h2>
-        <div className="mypage-actor-panel">
-          {preferredActors.map((actor, index) => (
-            <article className="mypage-actor" key={actor.id || index}>
-              <div className="mypage-actor__media">
-                {/* 사진을 누르면 해당 배우 이름으로 검색 페이지로 이동 */}
-                <a
-                  className="mypage-actor__circle"
-                  href={`/recommendations?keyword=${encodeURIComponent(actor.name)}`}
-                  title={`${actor.name} 검색`}
-                  aria-label={`${actor.name} 검색`}
-                >
-                  {actor.image_url ? (
-                    <img src={actor.image_url} alt="" />
-                  ) : (
-                    <span>{actor.name ? actor.name.slice(0, 1) : ''}</span>
-                  )}
-                </a>
-                <button
-                  className="mypage-remove-x mypage-remove-x--actor"
-                  type="button"
-                  onClick={() => handleRemovePreference('actors', actor.name)}
-                  aria-label={`${actor.name} 삭제`}
-                  title="삭제"
-                >
-                  ×
-                </button>
-              </div>
-              <strong>{actor.name}</strong>
-            </article>
-          ))}
-
-          {/* 배우 추가 슬롯 */}
-          <article className="mypage-actor">
-            <div className="mypage-actor__media">
-              <button
-                className="mypage-actor__circle mypage-actor__circle--add"
-                type="button"
-                onClick={() => setIsActorPickerOpen(true)}
-                aria-label="배우 추가"
-                title="배우 추가"
-              >
-                +
-              </button>
-            </div>
-            <strong>배우 추가</strong>
-          </article>
-
-          {Array.from({ length: emptyActorSlotCount }).map((_, index) => (
-            <article
-              className="mypage-actor mypage-actor--empty"
-              key={`empty-actor-${index}`}
-              aria-hidden="true"
-            >
-              <div className="mypage-actor__media">
-                <div className="mypage-actor__circle" />
-              </div>
-              <strong />
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="mypage-genres">
-        <h2>장르별 추천</h2>
-        <div className="mypage-genre-row">
-          {Array.from({ length: GENRE_SLOT_COUNT }).map((_, index) => {
-            const genre = genreButtons[index];
-
-            if (genre) {
-              return (
-                <div className="mypage-genre-slot" key={index}>
-                  <a
-                    className="mypage-genre-button"
-                    href={`/recommendations?keyword=${encodeURIComponent(genre)}`}
-                  >
-                    {genre}
-                  </a>
-                  <button
-                    className="mypage-remove-x mypage-remove-x--genre"
-                    type="button"
-                    onClick={() => handleRemovePreference('genres', genre)}
-                    aria-label={`${genre} 삭제`}
-                    title="삭제"
-                  >
-                    ×
-                  </button>
-                </div>
-              );
-            }
-
-            if (addingGenreIndex === index) {
-              return (
-                <input
-                  autoFocus
-                  className="mypage-genre-input"
-                  key={index}
-                  value={newGenreInput}
-                  onChange={(event) => setNewGenreInput(event.target.value)}
-                  onBlur={handleAddGenre}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      handleAddGenre();
-                    }
-                    if (event.key === 'Escape') {
-                      setAddingGenreIndex(null);
-                      setNewGenreInput('');
-                    }
-                  }}
-                  placeholder="장르 입력"
-                />
-              );
-            }
-
+function MovieStrip({ title, description, movies, liked = false, onUnlike, unlikeBusy }) {
+  return (
+    <section className="mypage-movie-section">
+      <header className="mypage-section-heading"><div><h2>{title}</h2>{description ? <p>{description}</p> : null}</div></header>
+      {movies.length ? (
+        <div className="mypage-movie-strip">
+          {movies.slice(0, 8).map((movie, index) => {
+            const id = movieId(movie);
+            const poster = moviePoster(movie);
             return (
-              <button
-                className="mypage-genre-button mypage-genre-button--add"
-                type="button"
-                key={index}
-                onClick={() => setAddingGenreIndex(index)}
-                aria-label="장르 추가"
-              >
-                +
-              </button>
+              <article className="mypage-movie-card" key={`${id || 'movie'}-${index}`}>
+                <div className="mypage-movie-card__poster">
+                  {id ? <a href={`/movies/${id}`} aria-label={`${movie.title || movie.name} 상세 보기`} /> : null}
+                  {poster ? <img src={poster} alt="" /> : <span>포스터 준비 중</span>}
+                  {liked ? (
+                    <button className="mypage-movie-like is-liked" disabled={unlikeBusy === String(id)} type="button" onClick={() => onUnlike(movie)} aria-label={`${movie.title || movie.name} 좋아요 취소`}>♥</button>
+                  ) : null}
+                </div>
+                {id ? <a className="mypage-movie-card__title" href={`/movies/${id}`}>{movie.title || movie.name || '제목 정보 없음'}</a> : <strong>{movie.title || movie.name || '제목 정보 없음'}</strong>}
+                <small>{movie.genre || (Array.isArray(movie.genres) ? movie.genres.slice(0, 2).join(', ') : '영화')}</small>
+              </article>
             );
           })}
         </div>
+      ) : <EmptyState>아직 이곳에 표시할 영화가 없습니다.</EmptyState>}
+    </section>
+  );
+}
+
+function ChatColumn({ title, rooms, side, onPin, onRename, onDelete }) {
+  const [menuId, setMenuId] = useState('');
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+
+  useEffect(() => {
+    if (!menuId) return undefined;
+    const closeMenu = (event) => {
+      if (!(event.target instanceof Element) || !event.target.closest('.mypage-chat-record__actions')) setMenuId('');
+    };
+    document.addEventListener('pointerdown', closeMenu);
+    return () => document.removeEventListener('pointerdown', closeMenu);
+  }, [menuId]);
+
+  return (
+    <section className={`mypage-chat-column is-${side}`}>
+      <header><h3>{title}</h3><span>{rooms.length}개의 대화방</span></header>
+      <div>
+        {rooms.length ? rooms.map((room) => (
+          <article className="mypage-chat-record" key={room.id}>
+            <a href={room.href}><strong>{room.title}</strong><time>{room.date || '날짜 정보 없음'}</time></a>
+            <div className="mypage-chat-record__actions">
+              <button className={`mypage-chat-record__pin${room.pinned ? ' is-pinned' : ''}`} type="button" onClick={() => onPin(room)} aria-label={room.pinned ? `${room.title} 고정 해제` : `${room.title} 상단 고정`} title={room.pinned ? '고정 해제' : '상단 고정'}>
+                <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m14.8 4.2 5 5-2.4 1.1-3.3 3.3-.4 4-1.2 1.2-3.6-3.6-4.1 4.1-1.1-1.1 4.1-4.1-3.6-3.6 1.2-1.2 4-.4 3.3-3.3 1.1-2.4Z" /></svg>
+              </button>
+              <button className="mypage-chat-record__more" type="button" onClick={(event) => {
+                const rect = event.currentTarget.getBoundingClientRect();
+                setMenuPosition({ top: rect.bottom + 6, left: Math.min(rect.left - 92, window.innerWidth - 142) });
+                setMenuId((current) => current === room.id ? '' : room.id);
+              }} aria-label={`${room.title} 메뉴`} aria-expanded={menuId === room.id}>⋮</button>
+              {menuId === room.id ? <div className="mypage-chat-record__menu" style={{ top: menuPosition.top, left: menuPosition.left }}>
+                <button type="button" onClick={() => { onPin(room); setMenuId(''); }}>{room.pinned ? '고정 해제' : '채팅 고정'}</button>
+                <button type="button" onClick={() => { onRename(room); setMenuId(''); }}>이름 수정</button>
+                <button className="is-danger" type="button" onClick={() => { onDelete(room); setMenuId(''); }}>삭제하기</button>
+              </div> : null}
+            </div>
+          </article>
+        )) : <EmptyState>저장된 대화가 없습니다.</EmptyState>}
+      </div>
+    </section>
+  );
+}
+
+function AccountEditor({ profile, authUser, onCancel, onSaved, onDeleteRequest }) {
+  const initialEmail = profile.email || authUser?.email || '';
+  const initialNickname = profile.nickname || authUser?.nickname || '';
+  const [nickname, setNickname] = useState(initialNickname);
+  const [email, setEmail] = useState(initialEmail);
+  const [personalContext, setPersonalContext] = useState(profile.personal_context || authUser?.personal_context || '');
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const [seconds, setSeconds] = useState(0);
+  const [nicknameCheck, setNicknameCheck] = useState({ checkedNickname: '', available: false });
+  const [emailVerificationSent, setEmailVerificationSent] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(false);
+  const normalizedNickname = nickname.trim();
+  const nicknameChanged = normalizedNickname.toLocaleLowerCase('ko-KR') !== initialNickname.trim().toLocaleLowerCase('ko-KR');
+  const nicknameWasChecked = !nicknameChanged || (
+    nicknameCheck.available
+    && nicknameCheck.checkedNickname.toLocaleLowerCase('ko-KR') === normalizedNickname.toLocaleLowerCase('ko-KR')
+  );
+  const emailChanged = email.trim().toLowerCase() !== initialEmail.trim().toLowerCase();
+
+  useEffect(() => {
+    if (seconds <= 0) return undefined;
+    const timer = window.setInterval(() => setSeconds((current) => Math.max(0, current - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, [seconds]);
+
+  useEffect(() => {
+    const onKeyDown = (event) => { if (event.key === 'Escape') onCancel(); };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onCancel]);
+
+  const checkNickname = async () => {
+    if (!nicknameChanged) { setMessage('현재 사용 중인 닉네임입니다.'); return; }
+    if (normalizedNickname.length < 2) { setMessage('닉네임은 2자 이상 입력해 주세요.'); return; }
+    setBusy(true); setMessage('');
+    try {
+      const result = await checkAccountNicknameAvailability(normalizedNickname);
+      setNicknameCheck({ checkedNickname: normalizedNickname, available: result.available });
+      setMessage(result.message || (result.available ? '사용 가능한 닉네임입니다.' : '이미 사용 중인 닉네임입니다.'));
+    } catch (error) { setMessage(error.message); }
+    finally { setBusy(false); }
+  };
+
+  const sendCode = async () => {
+    if (!emailChanged) { setMessage('새 이메일을 입력해 주세요.'); return; }
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) { setMessage('올바른 이메일 형식으로 입력해 주세요.'); return; }
+    setBusy(true); setMessage('');
+    try {
+      const result = await requestAccountEmailVerification(email.trim());
+      setSeconds(Number(result.expires_in_seconds) || 300);
+      setEmailVerificationSent(true);
+      setEmailVerified(false);
+      setCode('');
+      setMessage('인증번호를 전송했습니다. 받은 번호를 입력해 주세요.');
+    } catch (error) { setMessage(error.message); }
+    finally { setBusy(false); }
+  };
+
+  const confirmEmail = async () => {
+    const nextEmail = email.trim().toLowerCase();
+    if (!emailVerificationSent) { setMessage('먼저 인증번호를 전송해 주세요.'); return; }
+    if (!/^\d{6}$/.test(code)) { setMessage('이메일 인증번호 6자리를 입력해 주세요.'); return; }
+    setBusy(true); setMessage('');
+    try {
+      await confirmAccountEmailVerification(nextEmail, code);
+      setEmailVerified(true);
+      setMessage('이메일 인증이 완료되었습니다.');
+    } catch (error) {
+      setEmailVerified(false);
+      setMessage(error.message);
+    } finally { setBusy(false); }
+  };
+
+  const submit = async (event) => {
+    event.preventDefault();
+    const nextNickname = nickname.trim();
+    const nextEmail = email.trim().toLowerCase();
+    if (nextNickname.length < 2) { setMessage('닉네임은 2자 이상 입력해 주세요.'); return; }
+    if (!nicknameWasChecked) { setMessage('변경할 닉네임의 중복확인을 완료해 주세요.'); return; }
+    if (emailChanged && !/^\S+@\S+\.\S+$/.test(nextEmail)) { setMessage('올바른 이메일 형식으로 입력해 주세요.'); return; }
+    if (emailChanged && !emailVerified) { setMessage('새 이메일 인증을 완료해 주세요.'); return; }
+    setBusy(true); setMessage('');
+    try {
+      const updated = await updateAccountProfile({ nickname: nextNickname, email: emailChanged ? nextEmail : '', verificationCode: emailChanged ? code : '', personalContext: personalContext.trim() });
+      onSaved(updated);
+    } catch (error) { setMessage(error.message); }
+    finally { setBusy(false); }
+  };
+
+  const timerText = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+  return (
+    <section className="mypage-panel mypage-account-editor" aria-labelledby="account-editor-title">
+      <header><span>ACCOUNT EDIT</span><h3 id="account-editor-title">계정 정보 입력 / 수정</h3></header>
+      <form noValidate onSubmit={submit}>
+        <label>닉네임<span className="mypage-account-field-row"><input value={nickname} onChange={(event) => { setNickname(event.target.value); setNicknameCheck({ checkedNickname: '', available: false }); setMessage(''); }} maxLength={50} /><button disabled={busy || !nicknameChanged || nicknameWasChecked} type="button" onClick={checkNickname}>{nicknameWasChecked && nicknameChanged ? '확인 완료' : '중복확인'}</button></span></label>
+        <label>이메일<span className="mypage-account-field-row"><input type="email" value={email} onChange={(event) => { setEmail(event.target.value); setCode(''); setSeconds(0); setEmailVerificationSent(false); setEmailVerified(false); setMessage(''); }} /><button disabled={busy || !emailChanged} type="button" onClick={sendCode}>{emailVerificationSent ? '재전송' : '인증 전송'}</button></span></label>
+        {emailChanged ? <label>인증번호<span className="mypage-account-field-row mypage-account-code-row"><span className="mypage-account-code"><input disabled={!emailVerificationSent || emailVerified} inputMode="numeric" maxLength={6} value={code} onChange={(event) => { setCode(event.target.value.replace(/\D/g, '')); setEmailVerified(false); }} placeholder="6자리 인증번호" />{seconds && !emailVerified ? <time>{timerText}</time> : null}</span><button disabled={busy || !emailVerificationSent || emailVerified || code.length !== 6} type="button" onClick={confirmEmail}>{emailVerified ? '인증 완료' : '인증 확인'}</button></span></label> : null}
+        <label>무무에게 알려줄 내 정보<textarea value={personalContext} onChange={(event) => setPersonalContext(event.target.value)} maxLength={500} rows={3} placeholder="이름, 나이, 관심사, 좋아하는 것처럼 대화와 추천에 참고했으면 하는 내용을 자유롭게 적어주세요." /><span className="mypage-account-meta"><small>AI 대화와 영화 추천에만 참고합니다. 비밀번호나 주민등록번호 같은 민감 정보는 입력하지 마세요.</small><small>{personalContext.length}/500 · 선택 입력</small></span></label>
+        {message ? <p className="mypage-account-message">{message}</p> : null}
+        <footer><button type="button" onClick={onCancel}>취소</button><button disabled={busy} type="submit">{busy ? '저장 중…' : '변경사항 저장'}</button></footer>
+      </form>
+      <section className="mypage-account-danger" aria-labelledby="account-management-title">
+        <div><h4 id="account-management-title">계정 관리</h4><p>탈퇴하면 저장된 취향과 활동 기록을 복구할 수 없습니다.</p></div>
+        <button type="button" onClick={onDeleteRequest}>계정 탈퇴</button>
       </section>
+    </section>
+  );
+}
 
-      <section className="mypage-picked">
-        <h2>찜한 영화</h2>
-        <div className="mypage-poster-row">
-          {pickedMovies.map((movie, index) => (
-            <MoviePosterCard
-              movie={movie}
-              index={index}
-              key={movie.id || `${movie.title}-${index}`}
-              isRemovable={likedMovies.some((likedMovie) => likedMovie.title === movie.title)}
-              onRemove={handleRemoveLikedMovie}
-            />
-          ))}
-          {Array.from({
-            length: Math.max(0, PICKED_MOVIE_SLOT_COUNT - pickedMovies.length),
-          }).map((_, index) => (
-            <EmptyPosterCard key={`empty-picked-${index}`} />
-          ))}
-        </div>
-      </section>
+function MyPage({ authUser, onLogout, onUserUpdate }) {
+  const [activeTab, setActiveTab] = useState('overview');
+  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState('');
+  const [profile, setProfile] = useState({});
+  const [preferences, setPreferences] = useState({ genres: [], actors: [], keywords: [] });
+  const [learned, setLearned] = useState({});
+  const [combined, setCombined] = useState({});
+  const [rooms, setRooms] = useState([]);
+  const [recent, setRecent] = useState([]);
+  const [liked, setLiked] = useState([]);
+  const [recommended, setRecommended] = useState([]);
+  const [unlikeBusy, setUnlikeBusy] = useState('');
+  const [tasteBusy, setTasteBusy] = useState(false);
+  const [directEditing, setDirectEditing] = useState(false);
+  const [preferenceInsights, setPreferenceInsights] = useState({});
+  const [insightsRequested, setInsightsRequested] = useState(false);
+  const [insightsLoading, setInsightsLoading] = useState(false);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [accountDeleteConfirmOpen, setAccountDeleteConfirmOpen] = useState(false);
+  const [accountDeleteBusy, setAccountDeleteBusy] = useState(false);
 
-      {isChatHistoryModalOpen ? (
-        <div
-          className="mypage-modal-backdrop"
-          onClick={() => setIsChatHistoryModalOpen(false)}
-          role="presentation"
-        >
-          <div
-            className="mypage-modal"
-            onClick={(event) => event.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-label="전체 대화 이력"
-          >
-            <button
-              className="mypage-modal__close"
-              type="button"
-              onClick={() => setIsChatHistoryModalOpen(false)}
-              aria-label="닫기"
-            >
-              ×
-            </button>
+  useEffect(() => {
+    const controller = new AbortController();
+    Promise.allSettled([
+      fetchUserProfile(controller.signal),
+      fetchUserPreferences(controller.signal),
+      fetchChatRooms(controller.signal),
+      fetchRecentMovies(controller.signal, 8),
+      fetchLikedMovies(controller.signal),
+      fetchChatRecommendedMovies(controller.signal, 8),
+    ]).then(async (results) => {
+      if (controller.signal.aborted) return;
+      const [profileResult, preferenceResult, roomResult, recentResult, likedResult, recommendedResult] = results;
+      if (profileResult.status === 'fulfilled') setProfile(profileResult.value || {});
+      if (preferenceResult.status === 'fulfilled') {
+        setPreferences(preferenceResult.value?.preferences || {});
+        setLearned(preferenceResult.value?.learned_preferences || {});
+        setCombined(preferenceResult.value?.combined_preferences || {});
+      }
+      if (roomResult.status === 'fulfilled') {
+        const roomList = roomResult.value || [];
+        const hydrated = await Promise.all(roomList.map(async (room) => {
+          try {
+            const messages = await fetchChatRoomMessages(room.room_id, controller.signal);
+            const firstUser = messages.find((message) => message.role === 'user' && String(message.content || '').trim());
+            return { ...room, fallbackTitle: firstUser?.content || '' };
+          } catch (error) { return room; }
+        }));
+        if (!controller.signal.aborted) setRooms(hydrated);
+      }
+      if (recentResult.status === 'fulfilled') setRecent((recentResult.value || []).map(normalizeMovie));
+      if (likedResult.status === 'fulfilled') setLiked((likedResult.value || []).map(normalizeMovie));
+      if (recommendedResult.status === 'fulfilled') setRecommended((recommendedResult.value || []).map(normalizeMovie));
+      if (results.some((result) => result.status === 'rejected')) setStatus('일부 기록을 불러오지 못했습니다.');
+    }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, []);
 
-            <h3 className="mypage-modal__title">그동안 나눈 대화 이력</h3>
+  useEffect(() => {
+    if (activeTab !== 'taste' || insightsRequested) return;
+    const controller = new AbortController();
+    setInsightsRequested(true);
+    setInsightsLoading(true);
+    fetchPreferenceInsights(controller.signal)
+      .then((result) => setPreferenceInsights(result || {}))
+      .catch(() => setPreferenceInsights({
+        genres: { value: '', reason: '분석 문장을 불러오지 못했습니다.' },
+        actors: { value: '', reason: '분석 문장을 불러오지 못했습니다.' },
+        keywords: { value: '', reason: '분석 문장을 불러오지 못했습니다.' },
+      }))
+      .finally(() => { if (!controller.signal.aborted) setInsightsLoading(false); });
+    return () => controller.abort();
+  }, [activeTab]);
 
-            <div className="mypage-modal__list">
-              {allChatRows.map((row) => (
-                <a className="mypage-chat-item" href={row.href} key={row.key}>
-                  <strong>{row.title}와 대화중 ....</strong>
-                  <span>바로가기 ›</span>
-                </a>
-              ))}
-            </div>
+  const displayName = profile.nickname || authUser?.nickname || authUser?.name || '사용자';
+  const avatar = profile.profile_image || authUser?.profile_image || DEFAULT_AVATAR;
+  const chatRows = useMemo(() => {
+    const metadata = readStoredChatMetadata();
+    return rooms
+      .map((room, index) => roomInfo(room, index, metadata))
+      .sort((left, right) => Number(Boolean(right.pinned)) - Number(Boolean(left.pinned)));
+  }, [rooms]);
+  const generalChats = chatRows.filter((room) => room.type === 'general');
+  const characterChats = chatRows.filter((room) => room.type !== 'general');
+  const direct = {
+    genres: uniqueText(preferences.genres),
+    actors: uniqueText(preferences.actors),
+    keywords: uniqueText(preferences.keywords),
+  };
+  const learnedTaste = {
+    genres: learnedValues(learned, 'genres'),
+    actors: learnedValues(learned, 'actors'),
+    keywords: learnedValues(learned, 'keywords'),
+  };
+  const combinedTaste = {
+    genres: learnedValues(combined, 'genres').length
+      ? learnedValues(combined, 'genres')
+      : uniqueText([...direct.genres, ...learnedTaste.genres]),
+    actors: learnedValues(combined, 'actors').length
+      ? learnedValues(combined, 'actors')
+      : uniqueText([...direct.actors, ...learnedTaste.actors]),
+    keywords: learnedValues(combined, 'keywords').length
+      ? learnedValues(combined, 'keywords')
+      : uniqueText([...direct.keywords, ...learnedTaste.keywords]),
+  };
+
+  const handleUnlike = async (movie) => {
+    const id = String(movieId(movie));
+    if (!id || unlikeBusy) return;
+    setUnlikeBusy(id); setStatus('');
+    try {
+      await removeLikedMovie(movie);
+      setLiked((current) => current.filter((item) => String(movieId(item)) !== id));
+    } catch (error) { setStatus(error.message); }
+    finally { setUnlikeBusy(''); }
+  };
+
+  const toggleChatPin = (room) => {
+    const pinned = !room.pinned;
+    updateStoredChatRoom(room.id, (conversation) => ({ ...conversation, pinned }), room);
+    setRooms((current) => current.map((item) => (
+      String(item?.room_id ?? item?.roomId ?? item?.id ?? '') === room.id
+        ? { ...item, pinned }
+        : item
+    )));
+  };
+
+  const renameChatRoom = async (room) => {
+    const title = window.prompt('대화 이름을 입력해 주세요.', room.title || '');
+    const normalized = String(title || '').trim();
+    if (!normalized || normalized === room.title) return;
+    setStatus('');
+    try {
+      await updateChatRoomTitle(room.id, normalized);
+      updateStoredChatRoom(room.id, (conversation) => ({ ...conversation, title: normalized, manualTitle: true }), room);
+      setRooms((current) => current.map((item) => (
+        String(item?.room_id ?? item?.roomId ?? item?.id ?? '') === room.id
+          ? { ...item, title: normalized }
+          : item
+      )));
+    } catch (error) { setStatus(error.message); }
+  };
+
+  const removeChatRoom = async (room) => {
+    setStatus('');
+    try {
+      await deleteChatRoom(room.id);
+      removeStoredChatRoom(room.id);
+      setRooms((current) => current.filter((item) => String(item?.room_id ?? item?.roomId ?? item?.id ?? '') !== room.id));
+    } catch (error) { setStatus(error.message); }
+  };
+
+  const addDirectTaste = (category, value) => {
+    setPreferences((current) => ({ ...current, [category]: uniqueText([...(current[category] || []), value]) }));
+  };
+
+  const removeTaste = async (category, preferenceType, value, mode) => {
+    if (tasteBusy) return;
+    if (mode === 'direct') {
+      setPreferences((current) => ({ ...current, [category]: uniqueText(current[category]).filter((item) => item !== value) }));
+      return;
+    }
+    setTasteBusy(true); setStatus('');
+    try {
+      await deletePreference(preferenceType, value);
+      setLearned((current) => ({ ...current, [category]: (current[category] || []).filter((item) => String(item?.value ?? item) !== value) }));
+    } catch (error) { setStatus(error.message); }
+    finally { setTasteBusy(false); }
+  };
+
+  const saveDirectTaste = async () => {
+    setTasteBusy(true); setStatus('');
+    try {
+      await updateUserPreferences({ genres: direct.genres, actors: direct.actors, keywords: direct.keywords });
+      setCombined({
+        genres: uniqueText([...direct.genres, ...learnedTaste.genres]),
+        actors: uniqueText([...direct.actors, ...learnedTaste.actors]),
+        keywords: uniqueText([...direct.keywords, ...learnedTaste.keywords]),
+      });
+      setDirectEditing(false);
+      setStatus('직접 선택한 취향을 수정했습니다.');
+    }
+    catch (error) { setStatus(error.message); }
+    finally { setTasteBusy(false); }
+  };
+
+  const handleDirectEdit = () => {
+    if (directEditing) saveDirectTaste();
+    else setDirectEditing(true);
+  };
+
+  const handleResetLearnedTaste = async () => {
+    if (tasteBusy) return;
+    setTasteBusy(true); setStatus('');
+    try {
+      await resetLearnedPreferences();
+      setLearned({ genres: [], actors: [], keywords: [] });
+      setCombined({ genres: direct.genres, actors: direct.actors, keywords: direct.keywords });
+      setPreferenceInsights({
+        genres: { value: '', reason: '분석할 데이터가 더 필요해요.' },
+        actors: { value: '', reason: '분석할 데이터가 더 필요해요.' },
+        keywords: { value: '', reason: '분석할 데이터가 더 필요해요.' },
+      });
+      setResetConfirmOpen(false);
+      setStatus('활동에서 학습한 취향을 초기화했습니다.');
+    } catch (error) { setStatus(error.message); }
+    finally { setTasteBusy(false); }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (accountDeleteBusy) return;
+    setAccountDeleteBusy(true); setStatus('');
+    try {
+      await deleteMyAccount();
+      window.location.replace('/');
+    } catch (error) {
+      setStatus(error.message);
+      setAccountDeleteConfirmOpen(false);
+      setAccountDeleteBusy(false);
+    }
+  };
+
+  if (loading) {
+    return <main className="mypage cinema-nav-page" aria-busy="true"><CinemaNav authUser={authUser} onLogout={onLogout} /><section className="mypage-shell mypage-skeleton" aria-hidden="true"><SkeletonBlock className="mypage-skeleton__hero" /><PanelSkeleton lines={3} /><PosterRowSkeleton count={6} /></section></main>;
+  }
+
+  return (
+    <main className="mypage cinema-nav-page">
+      <CinemaNav authUser={authUser} onLogout={onLogout} />
+      <div className="mypage-shell">
+        {status ? <p className="mypage-status">{status}</p> : null}
+        <section className="mypage-profile-hero">
+          <div className="mypage-profile-main"><div className="mypage-avatar"><img src={avatar} alt="" onError={(event) => { event.currentTarget.src = DEFAULT_AVATAR; }} /></div><div><span className="mypage-eyebrow">MUSUBI PROFILE</span><h1>{displayName}님의 취향 아카이브</h1><p>무무가 대화와 영화 활동을 통해 이해한 취향을 한곳에 모았어요.</p></div></div>
+          <div className="mypage-profile-actions"><button type="button" onClick={() => setActiveTab('account')}>내 정보</button></div>
+          <div className="mypage-stats"><div><strong>{chatRows.length}</strong><span>저장 대화</span></div><div><strong>{recent.length}</strong><span>최근 본 영화</span></div><div><strong>{liked.length}</strong><span>좋아요</span></div><div><strong>{recommended.length}</strong><span>채팅 추천</span></div></div>
+        </section>
+
+        <nav className="mypage-tabs" aria-label="마이페이지 메뉴">{TABS.map(([key, label]) => <button className={activeTab === key ? 'is-active' : ''} type="button" onClick={() => setActiveTab(key)} key={key}>{label}</button>)}</nav>
+
+        {activeTab === 'overview' ? <div className="mypage-overview">
+          <div className="mypage-overview-grid">
+            <article className="mypage-panel mypage-taste-panel"><header className="mypage-section-heading"><div><span>TASTE INSIGHT</span><h2>무무가 이해한 나</h2></div><button type="button" onClick={() => setActiveTab('taste')}>자세히 보기</button></header><TasteRow label="선호 장르" values={combinedTaste.genres} category="genres" /><TasteRow label="선호 배우" values={combinedTaste.actors} category="actors" /><TasteRow label="관심 키워드" values={combinedTaste.keywords} category="keywords" /></article>
+            <article className="mypage-panel mypage-chat-panel"><header className="mypage-section-heading"><div><span>CONTINUE THE CONVERSATION</span><h2>대화 이어하기</h2></div><button type="button" onClick={() => setActiveTab('chat')}>전체 기록</button></header>{chatRows.length ? chatRows.slice(0, 3).map((room) => <a href={room.href} className="mypage-chat-row" key={room.id}><div><strong>{room.title}</strong><time>{room.date || '날짜 정보 없음'}</time></div><b>›</b></a>) : <EmptyState>아직 저장된 대화가 없습니다.</EmptyState>}</article>
           </div>
-        </div>
-      ) : null}
+          <MovieStrip title="내가 좋아요 누른 영화" description="하트를 다시 누르면 좋아요를 취소할 수 있어요." movies={liked} liked onUnlike={handleUnlike} unlikeBusy={unlikeBusy} />
+        </div> : null}
 
-      {isPreferenceDeleteModalOpen ? (
-        <div
-          className="mypage-modal-backdrop"
-          onClick={() => {
-            if (!deletingPreferenceType) setIsPreferenceDeleteModalOpen(false);
-          }}
-          role="presentation"
-        >
-          <div
-            className="mypage-modal mypage-preference-delete-modal"
-            onClick={(event) => event.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="preference-delete-title"
-          >
-            <button
-              className="mypage-modal__close"
-              type="button"
-              disabled={Boolean(deletingPreferenceType)}
-              onClick={() => setIsPreferenceDeleteModalOpen(false)}
-              aria-label="닫기"
-            >
-              ×
-            </button>
+        {activeTab === 'taste' ? <section className="mypage-tab-page"><header><span>TASTE CONTROL</span><h2>나의 영화 취향</h2><p>직접 선택한 취향과 활동을 통해 발견한 취향을 한눈에 확인해보세요.</p></header><div className="mypage-taste-columns">
+          <article className="mypage-panel mypage-taste-editor is-direct"><header><div><h3>직접 선택한 취향</h3><p>추천에 바로 반영되는 취향입니다. 취향을 바꾸고 싶다면 직접 수정할 수 있어요.</p></div><button disabled={tasteBusy} type="button" onClick={handleDirectEdit}>{directEditing ? '수정 완료' : '수정하기'}</button></header>{TASTE_TYPES.map(([category, type, label]) => <EditableTasteRow key={category} category={category} preferenceType={type} label={label} values={direct[category]} mode="direct" editable={directEditing} busy={tasteBusy} onAdd={addDirectTaste} onRemove={(...args) => removeTaste(...args, 'direct')} />)}</article>
+          <article className="mypage-panel mypage-taste-editor is-learned"><header><div><h3>활동에서 발견한 취향</h3><p>조회·좋아요·검색 활동을 바탕으로 무무가 발견한 취향입니다.</p></div><button className="is-reset" disabled={tasteBusy} type="button" onClick={() => setResetConfirmOpen(true)}>초기화</button></header>{TASTE_TYPES.map(([category, type, label]) => <EditableTasteRow key={category} category={category} preferenceType={type} label={label} values={learnedTaste[category]} mode="learned" insight={preferenceInsights[category]} insightLoading={insightsLoading} busy={tasteBusy} onAdd={() => {}} onRemove={(...args) => removeTaste(...args, 'learned')} />)}</article>
+        </div></section> : null}
 
-            <h3 className="mypage-modal__title" id="preference-delete-title">
-              취향 전체 삭제
-            </h3>
-            <p className="mypage-preference-delete-modal__description">
-              삭제할 취향 종류를 선택하세요. 해당 종류의 저장된 취향과 자동 학습 점수가 모두 삭제됩니다.
-            </p>
+        {activeTab === 'chat' ? <section className="mypage-tab-page"><header><span>MY CONVERSATIONS</span><h2>대화 기록</h2><p>캐릭터 대화와 무무의 일반 대화를 나누어 확인할 수 있어요.</p></header><div className="mypage-chat-columns"><ChatColumn title="캐릭터 대화" rooms={characterChats} side="character" onPin={toggleChatPin} onRename={renameChatRoom} onDelete={removeChatRoom} /><ChatColumn title="일반 대화" rooms={generalChats} side="general" onPin={toggleChatPin} onRename={renameChatRoom} onDelete={removeChatRoom} /></div></section> : null}
 
-            <div className="mypage-preference-delete-options">
-              {[
-                { type: 'genre', label: '선호 장르 전체 삭제' },
-                { type: 'actor', label: '선호 배우 전체 삭제' },
-                { type: 'keyword', label: '관심 키워드 전체 삭제' },
-              ].map((option) => (
-                <button
-                  className="mypage-preference-delete-option"
-                  type="button"
-                  key={option.type}
-                  disabled={Boolean(deletingPreferenceType)}
-                  onClick={() => handleDeletePreferenceType(option.type)}
-                >
-                  {deletingPreferenceType === option.type ? '삭제 중…' : option.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : null}
+        {activeTab === 'activity' ? <section className="mypage-tab-page"><header><span>MOVIE ACTIVITY</span><h2>나의 영화 활동</h2><p>조회와 좋아요, 대화 추천을 기준으로 정리했습니다.</p></header><MovieStrip title="최근 본 영화" movies={recent} /><MovieStrip title="채팅에서 추천받은 영화" movies={recommended} /><MovieStrip title="내가 좋아요 누른 영화" movies={liked} liked onUnlike={handleUnlike} unlikeBusy={unlikeBusy} /></section> : null}
 
-      {isActorPickerOpen ? (
-        <div
-          className="mypage-modal-backdrop"
-          onClick={() => setIsActorPickerOpen(false)}
-          role="presentation"
-        >
-          <div
-            className="mypage-modal"
-            onClick={(event) => event.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-label="배우 추가"
-          >
-            <button
-              className="mypage-modal__close"
-              type="button"
-              onClick={() => setIsActorPickerOpen(false)}
-              aria-label="닫기"
-            >
-              ×
-            </button>
-
-            <h3 className="mypage-modal__title">선호 배우 추가</h3>
-
-            <label className="mypage-actor-search">
-              <span className="sr-only">배우 검색</span>
-              <input
-                type="search"
-                value={actorSearch}
-                onChange={(event) => setActorSearch(event.target.value)}
-                placeholder="배우 이름 검색"
-                autoComplete="off"
-              />
-            </label>
-
-            <div className="mypage-actor-picker">
-              {isActorsLoading ? (
-                <p className="mypage-actor-picker__empty">배우를 검색하고 있습니다.</p>
-              ) : availableActors.length > 0 ? (
-                availableActors.map((actor) => (
-                  <button
-                    className="mypage-actor-pick"
-                    type="button"
-                    key={actor.id || actor.name}
-                    onClick={() => handleAddActor(actor)}
-                  >
-                    <span className="mypage-actor-pick__circle">
-                      {actor.image_url ? (
-                        <img src={actor.image_url} alt="" />
-                      ) : (
-                        <span>{actor.name ? actor.name.slice(0, 1) : '+'}</span>
-                      )}
-                    </span>
-                    <span className="mypage-actor-pick__name">{actor.name}</span>
-                  </button>
-                ))
-              ) : (
-                <p className="mypage-actor-picker__empty">
-                  {actorsError
-                    ? actorsError
-                    : actors.length === 0
-                    ? '등록된 배우가 없습니다.'
-                    : '이미 모든 배우를 추가했습니다.'}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      ) : null}
+        {activeTab === 'account' ? <section className="mypage-tab-page"><header><span>ACCOUNT</span><h2>계정 설정</h2><p>프로필과 로그인 정보를 확인합니다.</p></header>{accountOpen ? <AccountEditor profile={profile} authUser={authUser} onCancel={() => setAccountOpen(false)} onDeleteRequest={() => setAccountDeleteConfirmOpen(true)} onSaved={(updated) => { const next = { ...profile, ...updated }; setProfile(next); onUserUpdate?.({ ...authUser, ...updated }); setAccountOpen(false); setStatus('계정 정보가 수정되었습니다.'); }} /> : <article className="mypage-panel mypage-account-card"><div><span>닉네임</span><strong>{displayName}</strong></div><div><span>이메일</span><strong>{profile.email || authUser?.email || '-'}</strong></div><button type="button" onClick={() => setAccountOpen(true)}>계정 정보 입력 / 수정</button></article>}</section> : null}
+      </div>
+      {resetConfirmOpen ? <div className="mypage-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !tasteBusy) setResetConfirmOpen(false); }}><section className="mypage-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="taste-reset-title"><span>TASTE RESET</span><h2 id="taste-reset-title">활동에서 발견한 취향을 초기화할까요?</h2><p>조회·좋아요·검색으로 학습한 취향 점수만 삭제됩니다.<br />직접 선택한 취향은 그대로 유지됩니다.</p><footer><button disabled={tasteBusy} type="button" onClick={() => setResetConfirmOpen(false)}>취소</button><button disabled={tasteBusy} type="button" onClick={handleResetLearnedTaste}>{tasteBusy ? '초기화 중…' : '초기화'}</button></footer></section></div> : null}
+      {accountDeleteConfirmOpen ? <div className="mypage-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !accountDeleteBusy) setAccountDeleteConfirmOpen(false); }}><section className="mypage-confirm-modal is-account-delete" role="dialog" aria-modal="true" aria-labelledby="account-delete-title"><span>ACCOUNT DELETE</span><h2 id="account-delete-title">정말 계정을 탈퇴하시겠어요?</h2><p>탈퇴하면 계정 정보와 좋아요, 영화 활동, 취향 및 대화 기록이 삭제되며 되돌릴 수 없습니다.</p><footer><button disabled={accountDeleteBusy} type="button" onClick={() => setAccountDeleteConfirmOpen(false)}>취소</button><button disabled={accountDeleteBusy} type="button" onClick={handleDeleteAccount}>{accountDeleteBusy ? '탈퇴 처리 중…' : '계정 탈퇴'}</button></footer></section></div> : null}
     </main>
   );
 }

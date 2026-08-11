@@ -1,9 +1,9 @@
 import Footer from './components/HeaderFooter/Footer.jsx';
 import Header from './components/HeaderFooter/Header.jsx';
 
-function DefaultLayout({ authUser, children, footer, navigation, onLogout }) {
+function DefaultLayout({ authUser, children, footer, isHomeArriving = false, navigation, onLogout }) {
   return (
-    <div className="app-shell">
+    <div className={`app-shell${isHomeArriving ? ' is-arriving-from-onboarding' : ''}`}>
       <div className="page">
         <Header
           navigation={navigation}
@@ -13,7 +13,7 @@ function DefaultLayout({ authUser, children, footer, navigation, onLogout }) {
 
         {children}
 
-        <Footer footer={footer} />
+        <Footer footer={footer} user={authUser} />
       </div>
     </div>
   );

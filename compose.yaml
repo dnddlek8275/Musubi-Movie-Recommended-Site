@@ -21,7 +21,31 @@ services:
     environment: &backend-environment
       DATABASE_URL: postgresql+psycopg://cineverse:${POSTGRES_PASSWORD:-local-only-password}@db:5432/cineverse
       SECRET_KEY: ${SECRET_KEY:-local-development-secret-change-me}
-      AI_BASE_URL: ${AI_BASE_URL:-http://210.109.15.251}
+      TMDB_ACCESS_TOKEN: ${TMDB_ACCESS_TOKEN:-}
+      TMDB_API_KEY: ${TMDB_API_KEY:-}
+      TMDB_SYNC_MIN_RATING: ${TMDB_SYNC_MIN_RATING:-6.0}
+      TMDB_SYNC_MIN_VOTES: ${TMDB_SYNC_MIN_VOTES:-100}
+      TMDB_SYNC_DISCOVER_MAX_PAGES: ${TMDB_SYNC_DISCOVER_MAX_PAGES:-20}
+      TMDB_SYNC_FETCH_CONCURRENCY: ${TMDB_SYNC_FETCH_CONCURRENCY:-5}
+      KOBIS_API_KEY: ${KOBIS_API_KEY:-}
+      KOBIS_TIMEOUT_SECONDS: ${KOBIS_TIMEOUT_SECONDS:-15}
+      AI_BASE_URL: ${AI_BASE_URL:-http://host.docker.internal:8001}
+      AI_SYNC_TOKEN: ${AI_SYNC_TOKEN:-}
+      AI_SYNC_TIMEOUT_SECONDS: ${AI_SYNC_TIMEOUT_SECONDS:-180}
+      OBJECT_STORAGE_ENDPOINT: ${OBJECT_STORAGE_ENDPOINT:-https://objectstorage.kr-central-2.kakaocloud.com}
+      OBJECT_STORAGE_REGION: ${OBJECT_STORAGE_REGION:-kr-central-2}
+      OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-}
+      OBJECT_STORAGE_ACCESS_KEY: ${OBJECT_STORAGE_ACCESS_KEY:-}
+      OBJECT_STORAGE_SECRET_KEY: ${OBJECT_STORAGE_SECRET_KEY:-}
+      OBJECT_STORAGE_PUBLIC_BASE_URL: ${OBJECT_STORAGE_PUBLIC_BASE_URL:-}
+      OBJECT_STORAGE_PROFILE_PREFIX: ${OBJECT_STORAGE_PROFILE_PREFIX:-assets/profiles/user}
+      OBJECT_STORAGE_PRESIGN_EXPIRES_SECONDS: ${OBJECT_STORAGE_PRESIGN_EXPIRES_SECONDS:-3600}
+      GUEST_CHAT_DAILY_LIMIT: ${GUEST_CHAT_DAILY_LIMIT:-10}
+      AUTH_RATE_LIMIT_TRUST_PROXY_HEADERS: "false"
+      LOGIN_FAILURE_LIMIT: "10"
+      LOGIN_FAILURE_WINDOW_MINUTES: "15"
+      EMAIL_REQUEST_LIMIT_PER_HOUR: "5"
+      AUTH_IP_REQUEST_LIMIT_PER_HOUR: "20"
       CORS_ORIGINS: http://localhost:8088
       REFRESH_COOKIE_PATH: /api/auth
       REFRESH_COOKIE_SECURE: "false"
@@ -55,8 +79,6 @@ services:
       interval: 10s
       timeout: 3s
       retries: 10
-    volumes:
-      - backend-uploads:/app/app/uploads
     ports:
       - "8080:8080"
     restart: unless-stopped
@@ -64,15 +86,23 @@ services:
   frontend:
     build:
       context: ./Frontend
+      target: build
       args:
         VITE_API_BASE_URL: /api
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+    environment:
+      VITE_BACKEND_TARGET: http://backend:8080
+      CHOKIDAR_USEPOLLING: "true"
     depends_on:
       backend:
         condition: service_healthy
+    volumes:
+      - ./Frontend:/app
+      - frontend-node-modules:/app/node_modules
     ports:
-      - "8088:80"
+      - "8088:5173"
     restart: unless-stopped
 
 volumes:
   postgres-data:
-  backend-uploads:
+  frontend-node-modules:

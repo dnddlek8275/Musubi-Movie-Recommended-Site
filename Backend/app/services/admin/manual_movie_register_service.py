@@ -71,6 +71,15 @@ def build_manual_movie_data(
     # 제목은 유일한 필수값이며 스키마에서 이미 공백이 제거된다.
     # 저장 직전에도 정리된 값을 명시적으로 사용해 데이터 형식을 통일한다.
     movie_data["title"] = request.title.strip()
+    if request.release_date is not None:
+        movie_data["year"] = request.release_date.year
+    movie_data["production_countries"] = [
+        code.strip().upper()
+        for code in request.production_countries
+        if len(code.strip()) == 2
+    ]
+    if request.certification_country is not None:
+        movie_data["certification_country"] = request.certification_country.upper()
 
     # 직접 입력 영화는 TMDB에서 가져온 데이터가 아니므로 외부 영화 ID와
     # 마지막 동기화 시각을 서버에서 None으로 고정해 데이터 출처를 구분한다.

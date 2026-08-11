@@ -1,6 +1,6 @@
 """
 LLM-as-Judge 평가 스크립트
-GPT-4o를 판사로 써서 CineVerse 캐릭터 대화 응답 품질을 채점한다.
+GPT-4o를 판사로 써서 Musubi 캐릭터 대화 응답 품질을 채점한다.
 
 평가 축 (1~5점):
 - character_voice : 이 캐릭터다운 말투/성격이 드러나는가

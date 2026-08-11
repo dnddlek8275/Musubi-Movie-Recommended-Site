@@ -1,0 +1,16 @@
+[Unit]
+Description=CineVerse GPU and AI service watchdog
+After=multi-user.target cineverse-llama.service cineverse-api.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/cineverse/gpu-watchdog.env
+ExecStart=/usr/local/sbin/cineverse-gpu-watchdog
+User=root
+Group=root
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+PrivateTmp=true
+ProtectHome=true
+NoNewPrivileges=true

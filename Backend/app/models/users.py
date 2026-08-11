@@ -1,4 +1,4 @@
-from sqlalchemy import ARRAY, BigInteger, Boolean, CheckConstraint, Column, DateTime, Float, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import ARRAY, BigInteger, Boolean, CheckConstraint, Column, DateTime, Float, ForeignKey, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 from app.core.base import Base
 
@@ -18,16 +18,26 @@ class User(Base):
     preferred_genres = Column(ARRAY(String), nullable=True)
     # 사용자가 직접 선호한다고 선택한 배우 목록
     preferred_actors = Column(ARRAY(String), nullable=True)
+    # 인물 필모그래피에서 좋아요한 감독 목록
+    preferred_directors = Column(ARRAY(String), nullable=True)
     # 추천에 참고할 사용자 선호 키워드 목록
     preferred_keywords = Column(ARRAY(String), nullable=True)
+    # 최초 취향 온보딩 완료 여부
+    onboarding_completed = Column(Boolean, server_default="false", nullable=False)
     # 관리자 권한 여부. 일반 사용자는 기본값 false
     is_admin = Column(Boolean, server_default="false", nullable=False)
+    # 관리자가 계정 사용을 일시 정지했는지 여부
+    is_suspended = Column(Boolean, server_default="false", nullable=False)
+    suspended_at = Column(DateTime(timezone=True), nullable=True)
+    suspended_reason = Column(Text, nullable=True)
     # 계정 생성 시간
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     # 계정 정보 수정 시간
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     # 사용자 프로필
     profile_image = Column(String(300), nullable=True)
+    # 사용자가 AI 대화 개인화를 위해 직접 입력한 선택 정보
+    personal_context = Column(Text, nullable=True)
 
     # 이 사용자가 남긴 영화 행동 기록 목록
     interactions = relationship(

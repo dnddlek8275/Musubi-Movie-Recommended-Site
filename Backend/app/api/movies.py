@@ -1,22 +1,29 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.ai_client.recommend import request_ai_recommend
 from app.core.current_user import get_current_user, get_optional_current_user
 from app.core.api_responses import error_response
 from app.core.dependencies import get_db
-from app.schemas.movies import MovieDetailData, MovieDetailResponse, RecommendRequest
-from app.services.actor_service import get_actors_result
+from app.schemas.movies import MovieCastData, MovieDetailData, MovieDetailResponse, MovieRatingRequest, PersonFilmographyResponse, RecommendRequest
+from app.schemas.users import PreferenceRequest
+from app.services.actor_service import get_actors_result, get_onboarding_actors_result
 from app.services.movies.genre_service import genre_movies
 from app.services.movies.ranking_service import movie_detail, realtime_movie_ranking_result
+from app.services.movies.discovery_section_service import get_discovery_sections_result
 from app.services.interaction_service import detail_movie_result, like_movie_result
-from app.services.movies.search_service import search_movies_result
-from app.services.movies.recommendation_service import get_recommend_movies_result, get_recommend_today_movie_result, get_user_recommend_movies_result
-from app.services.movies.tmdb_trailer_service import get_movie_trailer_url
+from app.services.movies.search_service import search_movies_result, search_suggestions_result
+from app.services.movies.recommendation_service import get_guest_recommend_movies_result, get_recommend_movies_result, get_recommend_today_movie_result, get_similar_movies_result, get_user_recommend_movies_result
+from app.services.movies.tmdb_trailer_service import get_movie_trailer_videos
 from app.services.user_service import user_like_actor
+from app.services.preference_service import CURATED_LEARNABLE_KEYWORD_ORDER, toggle_person_preference
+from app.models.interactions import MovieRating
+from app.models.actors import Actor, MovieActor
+from app.models.movies import Movie, MovieGenre
+from app.models.users import User
 
 TMDB_IMAGE_BASE_URL = "https://image.tmdb.org/t/p/w500"
-
 
 def tmdb_image_url(path: str | None) -> str | None:
     if not path or not path.strip():
@@ -31,11 +38,118 @@ def tmdb_image_url(path: str | None) -> str | None:
     return f"{TMDB_IMAGE_BASE_URL}{image_path}"
 
 
+def get_rating_summary(db: Session, movie_id: int, user_id: int | None = None) -> dict:
+    average, count = db.execute(
+        select(func.avg(MovieRating.score), func.count(MovieRating.id))
+        .where(MovieRating.movie_id == movie_id)
+    ).one()
+    my_rating = None
+    my_comment = None
+    if user_id is not None:
+        my_rating_row = db.execute(
+            select(MovieRating.score, MovieRating.comment).where(
+                MovieRating.movie_id == movie_id,
+                MovieRating.user_id == user_id,
+            )
+        ).one_or_none()
+        if my_rating_row is not None:
+            my_rating = my_rating_row.score
+            my_comment = my_rating_row.comment
+
+    review_rows = db.execute(
+        select(MovieRating, User.nickname)
+        .join(User, User.id == MovieRating.user_id)
+        .where(
+            MovieRating.movie_id == movie_id,
+            MovieRating.comment.is_not(None),
+            func.btrim(MovieRating.comment) != "",
+        )
+        .order_by(MovieRating.updated_at.desc(), MovieRating.id.desc())
+    ).all()
+    return {
+        "musubi_rating": round(float(average), 1) if average is not None else None,
+        "rating_count": int(count or 0),
+        "my_rating": my_rating,
+        "my_comment": my_comment,
+        "reviews": [
+            {
+                "id": rating.id,
+                "nickname": nickname,
+                "score": rating.score,
+                "comment": rating.comment,
+                "updated_at": rating.updated_at,
+                "is_mine": user_id is not None and rating.user_id == user_id,
+            }
+            for rating, nickname in review_rows
+        ],
+    }
+
+
+def get_movie_cast_details(db: Session, movie_id: int) -> list[MovieCastData]:
+    rows = db.execute(
+        select(Actor, MovieActor.character_name)
+        .join(MovieActor, MovieActor.actor_id == Actor.id)
+        .where(MovieActor.movie_id == movie_id)
+        .order_by(MovieActor.cast_order.asc().nullslast(), MovieActor.id.asc())
+    ).all()
+    return [
+        MovieCastData(
+            actor_id=actor.id,
+            name=actor.name,
+            character_name=character_name,
+            profile_path=tmdb_image_url(actor.profile_path),
+        )
+        for actor, character_name in rows
+    ]
+
+
+def serialize_filmography_movie(movie: Movie, character_name: str | None = None) -> dict:
+    return {
+        "id": movie.id,
+        "title": movie.title,
+        "poster_path": tmdb_image_url(movie.poster_path),
+        "genres": movie.genres or [],
+        "year": movie.year,
+        "release_date": movie.release_date,
+        "vote_average": movie.vote_average,
+        "character_name": character_name,
+    }
+
+
 # 영화 관련 API들을 묶는 Router /movies/
 router = APIRouter(
     prefix="/movies",
     tags=["Movies"]
 )
+
+
+@router.get("/preference-options")
+def get_preference_options(db: Session = Depends(get_db)):
+    """온보딩에서 사용할 실제 DB 기반 장르와 키워드 선택지를 반환한다."""
+    try:
+        genre_rows = (
+            db.query(MovieGenre.genre, func.count(MovieGenre.movie_id).label("count"))
+            .filter(
+                MovieGenre.genre.isnot(None),
+                func.btrim(MovieGenre.genre) != "",
+            )
+            .group_by(MovieGenre.genre)
+            .order_by(func.count(MovieGenre.movie_id).desc(), MovieGenre.genre.asc())
+            .all()
+        )
+
+        return {
+            "state": "success",
+            "message": "온보딩 선택지 조회 성공",
+            "data": {
+                "genres": [row.genre for row in genre_rows if row.genre],
+                # 행동 기반 취향 학습과 같은 60개 키워드를 모두 제공한다.
+                # DB 등장 빈도나 limit에 따라 온보딩 선택지가 빠지지 않도록 한다.
+                "keywords": list(CURATED_LEARNABLE_KEYWORD_ORDER),
+            },
+        }
+    except Exception:
+        return error_response("온보딩 선택지 조회 실패")
 
 # 배우 조회
 @router.get("/actors")
@@ -43,15 +157,19 @@ def get_actors(
     q: str | None = Query(default=None, max_length=100),
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=50, ge=1, le=100),
+    onboarding: bool = Query(default=False),
     db: Session = Depends(get_db),
 ):
     try:
-        actors_result = get_actors_result(
-            db,
-            query=q,
-            page=page,
-            limit=limit,
-        )
+        if onboarding and not (q or "").strip():
+            actors_result = get_onboarding_actors_result(db)
+        else:
+            actors_result = get_actors_result(
+                db,
+                query=q,
+                page=page,
+                limit=limit,
+            )
 
         if not actors_result:
             return {
@@ -96,7 +214,7 @@ def like_actor(
 # AI 영화 추천 POST /movies/recommend
 @router.post("/recommend")
 def recommend_movies(
-    # request: RecommendRequest,
+    preferences: PreferenceRequest | None = None,
     limit : int = Query(12, ge=1, le=30),
     current_user :dict = Depends(get_optional_current_user),
     db : Session = Depends(get_db),
@@ -104,6 +222,14 @@ def recommend_movies(
     try:
         if current_user:
             recommend_movies = get_user_recommend_movies_result(db = db, user_id = current_user["user_id"], limit=limit)
+        elif preferences and (preferences.genres or preferences.actors or preferences.keywords):
+            recommend_movies = get_guest_recommend_movies_result(
+                db=db,
+                genres=preferences.genres,
+                actors=preferences.actors,
+                keywords=preferences.keywords,
+                limit=limit,
+            )
         else :
             recommend_movies = get_recommend_movies_result(db, limit)
 
@@ -121,17 +247,38 @@ def recommend_movies(
         return error_response("영화 추천 오류")
 
 
+# 검색어 자동완성 GET /movies/search/suggestions
+@router.get("/search/suggestions")
+async def search_suggestions(
+    keyword: str = Query(..., min_length=1, max_length=100),
+    limit: int = Query(8, ge=1, le=12),
+    db: Session = Depends(get_db),
+):
+    try:
+        return search_suggestions_result(db, keyword, limit)
+    except Exception:
+        return error_response("검색어 자동완성 에러")
+
+
 # 영화 검색 GET /movies/search
 @router.get("/search")
 async def search_movies(
     keyword: str = Query(..., min_length=1),
     page : int = Query(1, ge=1),
-    limit : int = Query(20, ge=1, le=50),
-    # current_user : dict = Depends(get_optional_current_user),
+    limit : int = Query(80, ge=1, le=100),
+    search_type: str | None = Query(None, alias="type"),
+    current_user: dict | None = Depends(get_optional_current_user),
     db : Session = Depends(get_db),
 ):
     try :
-        return search_movies_result(db, keyword, page, limit)
+        return search_movies_result(
+            db,
+            keyword,
+            page,
+            limit,
+            search_type,
+            current_user["user_id"] if current_user else None,
+        )
     
     except Exception:
         return error_response("영화 검색 에러")
@@ -153,6 +300,231 @@ async def get_realtime_movie_ranking(
         }
     except Exception:
         return error_response("영화 랭킹 조회 에러")
+
+
+@router.post("/discovery-sections")
+def get_discovery_sections(
+    preferences: PreferenceRequest | None = None,
+    limit: int = Query(25, ge=1, le=25),
+    current_user: dict | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        sections = get_discovery_sections_result(
+            db=db,
+            user_id=current_user["user_id"] if current_user else None,
+            guest_preferences=preferences,
+            limit=limit,
+        )
+        return {
+            "state": "success",
+            "message": "영화 탐색 섹션 조회 성공",
+            "data": sections,
+        }
+    except Exception:
+        return error_response("영화 탐색 섹션 조회 에러")
+
+
+@router.get("/people/actor/{identifier}", response_model=PersonFilmographyResponse)
+def get_actor_filmography(
+    identifier: str,
+    current_user: dict | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
+    actor = None
+    if identifier.isdigit():
+        actor = db.scalar(select(Actor).where(Actor.id == int(identifier)))
+    else:
+        actor = db.scalar(
+            select(Actor)
+            .where(func.lower(Actor.name) == identifier.strip().lower())
+            .order_by(Actor.id.asc())
+        )
+
+    person_name = actor.name if actor is not None else identifier.strip()
+    if not person_name:
+        raise HTTPException(status_code=404, detail="배우 정보를 찾을 수 없습니다.")
+
+    credit_rows = []
+    if actor is not None:
+        credit_rows = db.execute(
+            select(Movie, MovieActor.character_name)
+            .join(MovieActor, MovieActor.movie_id == Movie.id)
+            .where(MovieActor.actor_id == actor.id)
+            .order_by(
+                Movie.release_date.desc().nullslast(),
+                Movie.year.desc().nullslast(),
+                Movie.id.desc(),
+            )
+        ).all()
+
+    known_movie_ids = {movie.id for movie, _ in credit_rows}
+    fallback_movies = []
+    if actor is None:
+        fallback_movies = db.scalars(
+            select(Movie)
+            .where(Movie.cast.any(person_name))
+            .order_by(
+                Movie.release_date.desc().nullslast(),
+                Movie.year.desc().nullslast(),
+                Movie.id.desc(),
+            )
+        ).all()
+
+    movies = [
+        serialize_filmography_movie(movie, character_name)
+        for movie, character_name in credit_rows
+    ]
+    movies.extend(
+        serialize_filmography_movie(movie)
+        for movie in fallback_movies
+        if movie.id not in known_movie_ids
+    )
+
+    if actor is None and not movies:
+        raise HTTPException(status_code=404, detail="배우 정보를 찾을 수 없습니다.")
+
+    user = db.get(User, current_user["user_id"]) if current_user is not None else None
+
+    return {
+        "state": "success",
+        "message": "배우 필모그래피 조회 성공",
+        "data": {
+            "id": actor.id if actor is not None else None,
+            "name": person_name,
+            "role": "actor",
+            "profile_path": tmdb_image_url(actor.profile_path) if actor is not None else None,
+            "is_liked": person_name in (user.preferred_actors or []) if user is not None else False,
+            "movie_count": len(movies),
+            "movies": movies,
+        },
+    }
+
+
+@router.get("/people/director/{name}", response_model=PersonFilmographyResponse)
+def get_director_filmography(
+    name: str,
+    current_user: dict | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
+    person_name = name.strip()
+    if not person_name:
+        raise HTTPException(status_code=404, detail="감독 정보를 찾을 수 없습니다.")
+
+    normalized_directors = func.concat(
+        ",",
+        func.lower(func.regexp_replace(Movie.director, r"\s*,\s*", ",", "g")),
+        ",",
+    )
+    movies = db.scalars(
+        select(Movie)
+        .where(
+            Movie.director.isnot(None),
+            normalized_directors.contains(f",{person_name.lower()},"),
+        )
+        .order_by(
+            Movie.release_date.desc().nullslast(),
+            Movie.year.desc().nullslast(),
+            Movie.id.desc(),
+        )
+    ).all()
+
+    if not movies:
+        raise HTTPException(status_code=404, detail="감독 정보를 찾을 수 없습니다.")
+
+    filmography = [serialize_filmography_movie(movie) for movie in movies]
+    user = db.get(User, current_user["user_id"]) if current_user is not None else None
+    return {
+        "state": "success",
+        "message": "감독 필모그래피 조회 성공",
+        "data": {
+            "id": None,
+            "name": person_name,
+            "role": "director",
+            "profile_path": None,
+            "is_liked": person_name in (user.preferred_directors or []) if user is not None else False,
+            "movie_count": len(filmography),
+            "movies": filmography,
+        },
+    }
+
+
+@router.post("/people/actor/{identifier}/like")
+def toggle_actor_like(
+    identifier: str,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    actor = None
+    if identifier.isdigit():
+        actor = db.scalar(select(Actor).where(Actor.id == int(identifier)))
+    else:
+        actor = db.scalar(
+            select(Actor)
+            .where(func.lower(Actor.name) == identifier.strip().lower())
+            .order_by(Actor.id.asc())
+        )
+    if actor is None:
+        raise HTTPException(status_code=404, detail="배우 정보를 찾을 수 없습니다.")
+
+    try:
+        is_liked = toggle_person_preference(
+            db,
+            current_user["user_id"],
+            "actor",
+            actor.name,
+        )
+        return {
+            "state": "success",
+            "message": "배우 좋아요가 반영되었습니다.",
+            "data": {"is_liked": is_liked, "name": actor.name, "role": "actor"},
+        }
+    except Exception:
+        db.rollback()
+        return error_response("배우 좋아요 반영에 실패했습니다.")
+
+
+@router.post("/people/director/{name}/like")
+def toggle_director_like(
+    name: str,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    person_name = name.strip()
+    if not person_name:
+        raise HTTPException(status_code=404, detail="감독 정보를 찾을 수 없습니다.")
+
+    normalized_directors = func.concat(
+        ",",
+        func.lower(func.regexp_replace(Movie.director, r"\s*,\s*", ",", "g")),
+        ",",
+    )
+    director_movie_id = db.scalar(
+        select(Movie.id)
+        .where(
+            Movie.director.isnot(None),
+            normalized_directors.contains(f",{person_name.lower()},"),
+        )
+        .limit(1)
+    )
+    if director_movie_id is None:
+        raise HTTPException(status_code=404, detail="감독 정보를 찾을 수 없습니다.")
+
+    try:
+        is_liked = toggle_person_preference(
+            db,
+            current_user["user_id"],
+            "director",
+            person_name,
+        )
+        return {
+            "state": "success",
+            "message": "감독 좋아요가 반영되었습니다.",
+            "data": {"is_liked": is_liked, "name": person_name, "role": "director"},
+        }
+    except Exception:
+        db.rollback()
+        return error_response("감독 좋아요 반영에 실패했습니다.")
 
 
 # 영화 상세 조회 GET /movies/{id}
@@ -186,7 +558,7 @@ async def get_movie_detail(
 
         # movies 테이블에는 이미 tmdb_id가 저장돼 있다.
         # 해당 값으로 TMDB 예고편 API를 실시간 호출한다.
-        trailer_url = await get_movie_trailer_url(
+        trailer_videos = await get_movie_trailer_videos(
             movie_detail_result.tmdb_id
         )
 
@@ -196,9 +568,17 @@ async def get_movie_detail(
         )
 
         # DB에는 없는 trailer_url을 응답 데이터에만 추가한다.
+        rating_summary = get_rating_summary(
+            db,
+            movie_id,
+            current_user["user_id"] if current_user is not None else None,
+        )
         movie_data = movie_data.model_copy(
             update={
-                "trailer_url": trailer_url,
+                "trailer_url": trailer_videos[0]["url"] if trailer_videos else None,
+                "trailer_videos": trailer_videos,
+                "cast_details": get_movie_cast_details(db, movie_id),
+                **rating_summary,
             }
         )
         return {
@@ -229,6 +609,100 @@ def like_movie(
         return result
     except Exception:
         return error_response("좋아요 API 호출 실패")
+
+
+@router.get("/{movie_id}/similar")
+def get_similar_movies(
+    movie_id: int,
+    limit: int = Query(6, ge=1, le=6),
+    current_user: dict | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        movies = get_similar_movies_result(
+            db,
+            movie_id,
+            limit,
+            current_user["user_id"] if current_user else None,
+        )
+        if movies is None:
+            return {"state": "failure", "message": "해당 영화를 찾을 수 없습니다.", "data": []}
+        return {
+            "state": "success",
+            "message": "콘텐츠 기반 유사 영화 조회 성공",
+            "data": movies,
+        }
+    except Exception:
+        return error_response("유사 영화 조회 실패")
+
+
+@router.put("/{movie_id}/rating")
+def rate_movie(
+    movie_id: int,
+    request: MovieRatingRequest,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        if db.scalar(select(Movie.id).where(Movie.id == movie_id)) is None:
+            return {"state": "failure", "message": "해당 영화를 찾을 수 없습니다."}
+
+        user_id = current_user["user_id"]
+        rating = db.scalar(
+            select(MovieRating).where(
+                MovieRating.movie_id == movie_id,
+                MovieRating.user_id == user_id,
+            )
+        )
+        if rating is None:
+            rating = MovieRating(
+                user_id=user_id,
+                movie_id=movie_id,
+                score=request.score,
+                comment=(request.comment or "").strip() or None,
+            )
+            db.add(rating)
+        else:
+            rating.score = request.score
+            rating.comment = (request.comment or "").strip() or None
+            rating.updated_at = func.now()
+
+        db.commit()
+        return {
+            "state": "success",
+            "message": "영화 평가가 저장되었습니다.",
+            "data": get_rating_summary(db, movie_id, user_id),
+        }
+    except Exception:
+        db.rollback()
+        return error_response("영화 평가 저장 실패")
+
+
+@router.delete("/{movie_id}/rating")
+def delete_movie_rating(
+    movie_id: int,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        user_id = current_user["user_id"]
+        rating = db.scalar(
+            select(MovieRating).where(
+                MovieRating.movie_id == movie_id,
+                MovieRating.user_id == user_id,
+            )
+        )
+        if rating is not None:
+            db.delete(rating)
+            db.commit()
+        return {
+            "state": "success",
+            "message": "영화 평가가 삭제되었습니다.",
+            "data": get_rating_summary(db, movie_id, user_id),
+        }
+    except Exception:
+        db.rollback()
+        return error_response("영화 평가 삭제 실패")
 
     
 @router.get("/today/recommend")

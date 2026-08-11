@@ -1,0 +1,44 @@
+{
+  "version": "1.0",
+  "characters": [
+    {"name": "마석도", "other": "강해상", "relation_expected": true},
+    {"name": "장첸", "other": "마석도", "relation_expected": true},
+    {"name": "토니 스타크", "other": "피터 파커", "relation_expected": true},
+    {"name": "피터 파커", "other": "토니 스타크", "relation_expected": true},
+    {"name": "데드풀", "other": "울버린", "relation_expected": true},
+    {"name": "헤르미온느", "other": "론 위즐리", "relation_expected": true},
+    {"name": "알버스 덤블도어", "other": "해리포터", "relation_expected": true},
+    {"name": "골룸", "other": "프로도", "relation_expected": false},
+    {"name": "엘사", "other": "안나", "relation_expected": true},
+    {"name": "브루스 웨인", "other": "조커", "relation_expected": true}
+  ],
+  "scenarios": [
+    {
+      "id": "emotion_without_cause",
+      "message": "오늘 기분이 너무 별로야.",
+      "history": [],
+      "expect_rag": false
+    },
+    {
+      "id": "specific_everyday_problem",
+      "message": "친구가 약속 시간에 한 시간이나 늦었는데 사과도 안 했어. 뭐라고 말하는 게 좋을까?",
+      "history": [],
+      "expect_rag": false
+    },
+    {
+      "id": "history_followup",
+      "message": "그럼 너라면 지금 뭐라고 답할 거야?",
+      "history": [
+        {"role": "user", "content": "친구가 내 비밀을 다른 사람에게 말해서 화가 났어."},
+        {"role": "assistant", "content": "그건 화날 만한 일이네. 친구에게 직접 확인해 보는 게 좋겠어."}
+      ],
+      "expect_rag": false
+    },
+    {
+      "id": "unverified_relation",
+      "message_template": "{other}에 대해 어떻게 생각해?",
+      "history": [],
+      "expect_rag": false
+    }
+  ]
+}

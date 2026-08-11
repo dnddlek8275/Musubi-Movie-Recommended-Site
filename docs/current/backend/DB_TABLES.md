@@ -1,4 +1,4 @@
-# CineVerse B2 DB 테이블 문서
+# Musubi B2 DB 테이블 문서
 
 ## 전체 테이블 요약
 
@@ -99,6 +99,11 @@ Refresh Token 원문이 아니라 hash를 저장한다. B1이 JWT 발급/검증 
 | `cast` | `ARRAY(String)` | NULL | CSV 호환용 배우명 배열 |
 | `keywords` | `ARRAY(String)` | NULL | 키워드 배열 |
 | `year` | `INTEGER` | NULL | 개봉 연도 |
+| `release_date` | `DATE` | INDEX, NULL | 실제 개봉일. 최신순·최신성 계산 기준 |
+| `runtime` | `INTEGER` | NULL | 상영시간(분) |
+| `production_countries` | `ARRAY(String(2))` | NULL | ISO 3166-1 alpha-2 제작국가 코드 목록 |
+| `certification` | `VARCHAR(20)` | NULL | 국가별 관람등급 |
+| `certification_country` | `VARCHAR(2)` | NULL | 관람등급 기준 국가 코드(KR 우선, US 보조) |
 | `language` | `VARCHAR(10)` | NULL | 언어 코드 |
 | `vote_average` | `FLOAT` | NULL | 평점 |
 | `vote_count` | `INTEGER` | NULL | 투표 수 |
@@ -320,6 +325,40 @@ display_order BETWEEN 1 AND 3
 - AI가 `tmdb_id`를 주면 저장 전 `movies.tmdb_id`로 내부 `movies.id`를 찾아서 저장한다.
 - 화면 조회 시에는 `movies`와 조인해서 포스터, 제목, 개요를 가져온다.
 - AI 원본 응답 JSON은 현재 저장하지 않는다.
+
+## tmdb_daily_sync_runs
+
+TMDB 일일 증분 수집의 날짜별 실행 상태와 처리 건수를 저장한다.
+
+| 컬럼 | 타입 | 키/제약 | 설명 |
+| --- | --- | --- | --- |
+| `sync_date` | `DATE` | PK | 수집 대상 날짜 |
+| `status` | `VARCHAR(20)` | NOT NULL | running, partial, completed, failed |
+| `changed_count` | `INTEGER` | NOT NULL | 처리 대상 수 |
+| `imported_count` | `INTEGER` | NOT NULL | 신규 등록 수 |
+| `updated_count` | `INTEGER` | NOT NULL | 기존 갱신 수 |
+| `deleted_count` | `INTEGER` | NOT NULL | 삭제 수 |
+| `failed_count` | `INTEGER` | NOT NULL | 실패 수 |
+| `last_error` | `TEXT` | NULL | 실행 단계 오류 |
+| `started_at` | `TIMESTAMPTZ` | NOT NULL | 시작 시간 |
+| `completed_at` | `TIMESTAMPTZ` | NULL | 완료 시간 |
+
+## movie_vector_sync_jobs
+
+PostgreSQL 반영 이후 Milvus에 전달할 증분 작업 대기열이다.
+
+| 컬럼 | 타입 | 키/제약 | 설명 |
+| --- | --- | --- | --- |
+| `id` | `BIGINT` | PK | 작업 ID |
+| `tmdb_id` | `INTEGER` | UNIQUE, INDEX, NOT NULL | PostgreSQL–Milvus 공통 식별자 |
+| `movie_id` | `BIGINT` | FK -> `movies.id`, ON DELETE SET NULL | 내부 영화 ID |
+| `operation` | `VARCHAR(10)` | NOT NULL | upsert 또는 delete |
+| `status` | `VARCHAR(20)` | INDEX, NOT NULL | pending, failed, completed |
+| `attempts` | `INTEGER` | NOT NULL | 전송 시도 횟수 |
+| `last_error` | `TEXT` | NULL | 최근 전송 오류 |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL | 생성 시간 |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL | 최근 변경 시간 |
+| `completed_at` | `TIMESTAMPTZ` | NULL | Milvus 반영 완료 시간 |
 
 ## admin_audit_logs
 

@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, StringConstraints, model_validator
@@ -27,6 +28,23 @@ KeywordName = Annotated[
 class AdminRoleUpdateRequest(BaseModel):
     email : EmailStr
     is_admin: bool
+
+
+class AdminInquiryReplyRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    body: Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=10_000)]
+
+
+class AdminUserSuspensionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    is_suspended: bool
+    reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=500)] | None = None
+
+    @model_validator(mode="after")
+    def require_suspension_reason(self):
+        if self.is_suspended and not self.reason:
+            raise ValueError("계정 정지 사유를 입력해 주세요.")
+        return self
 
 
 class AdminManualMovieCreateRequest(BaseModel):
@@ -64,6 +82,11 @@ class AdminManualMovieCreateRequest(BaseModel):
 
     # 개봉 연도를 모르는 경우 생략할 수 있으며 잘못된 범위는 차단한다.
     year: int | None = Field(default=None, ge=1800, le=2100, description="영화 개봉 연도")
+    release_date: date | None = Field(default=None, description="영화 개봉일")
+    runtime: int | None = Field(default=None, ge=1, le=1440, description="상영시간(분)")
+    production_countries: list[str] = Field(default_factory=list, max_length=20, description="ISO 제작국가 코드")
+    certification: str | None = Field(default=None, max_length=20, description="관람등급")
+    certification_country: str | None = Field(default=None, min_length=2, max_length=2, description="등급 국가 코드")
 
     # 가능하면 ko, en, ja와 같은 언어 코드를 입력한다.
     language: str | None = Field(default=None, max_length=10, description="영화 원어 코드")
@@ -95,6 +118,11 @@ class AdminMovieUpdateRequest(BaseModel):
     overview: str | None = Field(default=None, max_length=10_000, description="수정할 영화 줄거리")
     director: str | None = Field(default=None, max_length=200, description="수정할 감독 이름")
     year: int | None = Field(default=None, ge=1800, le=2100, description="수정할 영화 개봉 연도")
+    release_date: date | None = Field(default=None, description="수정할 영화 개봉일")
+    runtime: int | None = Field(default=None, ge=1, le=1440, description="수정할 상영시간(분)")
+    production_countries: list[str] | None = Field(default=None, max_length=20, description="수정할 ISO 제작국가 코드")
+    certification: str | None = Field(default=None, max_length=20, description="수정할 관람등급")
+    certification_country: str | None = Field(default=None, min_length=2, max_length=2, description="수정할 등급 국가 코드")
     language: str | None = Field(default=None, max_length=10, description="수정할 영화 원어 코드")
     audience_count: int | None = Field(default=None, ge=0, description="수정할 관객 수")
 
@@ -126,6 +154,7 @@ class AdminMovieUpdateRequest(BaseModel):
             "genres": self.genres,
             "cast": self.cast,
             "keywords": self.keywords,
+            "production_countries": self.production_countries,
         }
 
         for field_name, field_value in list_fields.items():

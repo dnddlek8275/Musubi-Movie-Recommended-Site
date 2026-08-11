@@ -7,3 +7,5 @@ resources:
   - frontend.yaml
   - ingress.yaml
   - pod-disruption-budget.yaml
+  - hpa.yaml
+  - tmdb-sync-cronjob.yaml

@@ -70,7 +70,7 @@ KOREAN_PATTERN = re.compile(r"[가-힣]")
 MODEL_LOCK = threading.Lock()
 CHATAI_PRESET = "chatai"
 
-app = FastAPI(title="CineVerse OpenVoice V2 TTS", version="2.0.0")
+app = FastAPI(title="Musubi OpenVoice V2 TTS", version="2.0.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[origin.strip() for origin in os.getenv(
@@ -267,7 +267,7 @@ def synthesize(request: SynthesisRequest):
                     src_se=source_se,
                     tgt_se=target_se,
                     output_path=str(output_path),
-                    message="@CineVerse",
+                    message="@Musubi",
                 )
 
             if chatai_style:

@@ -1,3 +1,5 @@
+from datetime import date
+
 from pydantic import BaseModel, Field
 
 
@@ -31,6 +33,7 @@ class RecommendedMovie(BaseModel):
     title: str
     # 개봉연도
     year: int | None = None
+    release_date: date | None = None
     # 대표 장르
     genre: str | None = None
     # 평점

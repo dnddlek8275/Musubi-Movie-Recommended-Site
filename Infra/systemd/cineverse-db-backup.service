@@ -1,0 +1,17 @@
+[Unit]
+Description=CineVerse PostgreSQL backup to Object Storage
+After=network-online.target postgresql.service
+Wants=network-online.target
+Requires=postgresql.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/cineverse-db-backup
+User=root
+Group=root
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+PrivateTmp=true
+ProtectHome=true
+NoNewPrivileges=true

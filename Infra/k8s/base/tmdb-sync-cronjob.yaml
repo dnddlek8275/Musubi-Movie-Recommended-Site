@@ -1,0 +1,52 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: tmdb-daily-sync
+  namespace: cineverse
+spec:
+  schedule: "30 18 * * *"
+  timeZone: Asia/Seoul
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 7200
+      ttlSecondsAfterFinished: 604800
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: tmdb-daily-sync
+            app.kubernetes.io/part-of: cineverse
+        spec:
+          restartPolicy: Never
+          imagePullSecrets:
+            - name: kcr-pull-secret
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 100
+            runAsGroup: 101
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: sync
+              image: kc-sfacspace05.kr-central-2.kcr.dev/team3-back-repo/backend:20260810-1
+              imagePullPolicy: IfNotPresent
+              command: ["python", "scripts/sync_tmdb_daily.py"]
+              envFrom:
+                - configMapRef:
+                    name: cineverse-config
+                - secretRef:
+                    name: cineverse-secrets
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: "1"
+                  memory: 1Gi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]

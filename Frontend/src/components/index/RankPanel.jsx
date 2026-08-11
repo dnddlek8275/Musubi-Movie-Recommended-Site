@@ -2,24 +2,38 @@ import { useEffect, useState } from 'react';
 
 import { fetchMovieRanking } from '../../api.js';
 import PosterArt from './PosterArt.jsx';
+import { SkeletonBlock } from '../common/LoadingSkeleton.jsx';
 
-const VISIBLE_COUNT = 3;
+const VISIBLE_COUNT = 4;
 const SWAP_INTERVAL_MS = 5000;
+const RANK_REFRESH_INTERVAL_MS = 60000;
 
 function RankPanel() {
   const [rankings, setRankings] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const controller = new AbortController();
 
-    fetchMovieRanking(controller.signal)
-      .then(setRankings)
-      .catch((error) => {
-        if (error.name === 'AbortError') return;
-        console.error('실시간 랭킹 불러오기 실패:', error);
-      });
+    const loadRankings = () => {
+      fetchMovieRanking(controller.signal)
+        .then(setRankings)
+        .catch((error) => {
+          if (error.name === 'AbortError') return;
+          console.error('실시간 랭킹 불러오기 실패:', error);
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setLoading(false);
+        });
+    };
 
-    return () => controller.abort();
+    loadRankings();
+    const refreshTimer = window.setInterval(loadRankings, RANK_REFRESH_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(refreshTimer);
+      controller.abort();
+    };
   }, []);
 
   const [startIndex, setStartIndex] = useState(0);
@@ -43,31 +57,62 @@ function RankPanel() {
   return (
     <article className="index-info-card rank-card">
       <div className="index-card-header">
-        <h3>🔥 실시간 top10</h3>
-        <a href="/recommendations">더보기 ›</a>
+        <h3>실시간 TOP10</h3>
       </div>
 
       <div className="index-rank-list" key={startIndex}>
-        {visibleRankings.map((movie) => (
-          <div className="index-rank-item" key={movie.rank}>
-            <strong>{movie.rank}</strong>
-            <a
-              className="index-rank-poster-link"
-              href={`/recommendations?keyword=${encodeURIComponent(movie.title)}`}
-              aria-label={`${movie.title} 검색 결과 보기`}
-              title={`${movie.title} 검색`}
-            >
-              <PosterArt movie={movie} compact />
-            </a>
+        {loading ? Array.from({ length: VISIBLE_COUNT }, (_, index) => (
+          <div className="index-rank-item index-rank-item--skeleton" key={index}>
+            <SkeletonBlock className="index-rank-number-skeleton" />
+            <SkeletonBlock className="index-rank-poster-skeleton" />
             <div>
-              <b>{movie.title}</b>
-              <span>{movie.genre}</span>
+              <SkeletonBlock className="loading-skeleton--line loading-skeleton--title" />
             </div>
-            <em>★ {movie.rating}</em>
-            <span className="rank-change">{movie.change}</span>
           </div>
-        ))}
+        )) : visibleRankings.map((movie) => {
+          const href = movie.id
+            ? `/movies/${movie.id}`
+            : `/recommendations?keyword=${encodeURIComponent(movie.title)}`;
+
+          return (
+            <a
+              className={`index-rank-item ${movie.rank <= 3 ? 'index-rank-item--top' : ''}`}
+              href={href}
+              key={movie.rank}
+              aria-label={`${movie.rank}위 ${movie.title} 상세 보기`}
+            >
+              <strong className="index-rank-number">{movie.rank}</strong>
+              <span className="index-rank-poster">
+              <PosterArt movie={movie} compact />
+              </span>
+              <span className="index-rank-copy">
+                <b>{movie.title}</b>
+              </span>
+              <span
+                className={`index-rank-trend${movie.isNew ? ' is-new' : movie.rankChange > 0 ? ' is-up' : movie.rankChange < 0 ? ' is-down' : ''}`}
+                aria-label={movie.isNew
+                  ? 'TOP10 신규 진입'
+                  : movie.rankChange > 0
+                  ? `${movie.rankChange}계단 상승`
+                  : movie.rankChange < 0
+                    ? `${Math.abs(movie.rankChange)}계단 하락`
+                    : '순위 변동 없음'}
+              >
+                {movie.isNew ? <b className="index-rank-trend__new">NEW</b> : (
+                  <>
+                    <i aria-hidden="true">{movie.rankChange > 0 ? '↑' : movie.rankChange < 0 ? '↓' : '—'}</i>
+                    {movie.rankChange ? <b>{Math.abs(movie.rankChange)}</b> : null}
+                  </>
+                )}
+              </span>
+            </a>
+          );
+        })}
       </div>
+
+      <a className="index-rank-more" href="/recommendations#site-popular">
+        실시간 차트보기 ›
+      </a>
     </article>
   );
 }

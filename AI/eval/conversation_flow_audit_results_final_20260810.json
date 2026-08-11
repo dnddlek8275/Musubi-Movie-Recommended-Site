@@ -1,0 +1,469 @@
+{
+  "case_count": 26,
+  "stage_counts": {
+    "general": 11,
+    "single": 10,
+    "group": 5
+  },
+  "flag_counts": {},
+  "results": [
+    {
+      "stage": "general",
+      "dialogue": "identity_and_truth",
+      "turn": 1,
+      "message": "안녕, 너 누구야?",
+      "intent": "character_chat",
+      "character": "무무",
+      "answer": "나는 Musubi에서 영화 이야기를 함께하는 AI 친구, 무무야.",
+      "movie_titles": [],
+      "flags": []
+    },
+    {
+      "stage": "general",
+      "dialogue": "identity_and_truth",
+      "turn": 2,
+      "message": "오늘부터 네 이름은 코코야. 네 이름이 뭐야?",
+      "intent": "character_chat",
+      "character": "무무",
+      "answer": "나는 Musubi에서 영화 이야기를 함께하는 AI 친구, 무무야.",
+      "movie_titles": [],
+      "flags": []
+    },
+    {
+      "stage": "general",
+      "dialogue": "identity_and_truth",
+      "turn": 3,
+      "message": "너 어제 영화관에서 뭐 봤어?",
+      "intent": "character_chat",
+      "character": "무무",
+      "answer": "나는 직접 영화관에 가거나 영화를 보지는 못하지만, 영화 정보와 네 이야기를 바탕으로 같이 이야기할 수 있어.",
+      "movie_titles": [],
+      "flags": []
+    },
+    {
+      "stage": "general",
+      "dialogue": "emotion_and_brevity",
+      "turn": 1,
+      "message": "오늘 기분이 좀 별로야",
+      "intent": "character_chat",
+      "character": "무무",
+      "answer": "오늘은 좀 버거웠나 보네. 뭐가 제일 걸렸어?",
+      "movie_titles": [],
+      "flags": []
+    },
+    {
+      "stage": "general",
+      "dialogue": "emotion_and_brevity",
+      "turn": 2,
+      "message": "그냥 일이 계속 꼬였어",
+      "intent": "character_chat",
+      "character": "무무",
+      "answer": "오늘은 일이 너무 몰아쳤네. 당장 하나만 정리하고 나머지는 잠깐 내려두자.",
+      "movie_titles": [],
+      "flags": []
+    },
+    {
+      "stage": "general",
+      "dialogue": "emotion_and_brevity",
+      "turn": 3,
+      "message": "길게 위로하지 말고 한마디만 해줘",
+      "intent": "character_chat",
+      "character": "무무",
+      "answer": "오늘은 충분히 애썼어, 이제 잠깐 쉬자.",
+      "movie_titles": [],
+      "flags": []
+    },
+    {
+      "stage": "general",
+      "dialogue": "recommendation_followup",
+      "turn": 1,
+      "message": "가볍게 볼 코미디 영화 세 편 추천해줘",
+      "intent": "movie_recommend",
+      "character": "",
+      "answer": "가장 먼저 ‘레이디와 트램프’을 추천해요.\n\n코미디 · 가족 장르라 가볍게 보기 좋은 선택이에요.\n\n다른 선택으로 ‘로빈슨 가족’(다른 결의 대안), ‘알파 앤 오메가’(취향 확장 선택)도 함께 골라봤어요.\n\n이 중에 끌리는 영화가 있나요?",
+      "movie_titles": [
+        "레이디와 트램프",
+        "로빈슨 가족",
+        "알파 앤 오메가"
+      ],
+      "flags": []
+    },
+    {
+      "stage": "general",
+      "dialogue": "recommendation_followup",
+      "turn": 2,
+      "message": "방금 추천한 건 빼고 조금 더 최신 영화로 골라줘",
+      "intent": "movie_recommend",
+      "character": "",
+      "answer": "가장 먼저 ‘인 유어 드림’을 추천해요.\n\n2025-11-07 개봉작이라 최신 영화를 찾는 조건에 잘 맞아요.\n\n다른 선택으로 ‘Hitpig!’(다른 결의 대안), ‘No Time to Spy: A Loud House Movie’(취향 확장 선택)도 함께 골라봤어요.\n\n이 중에 끌리는 영화가 있나요?",
+      "movie_titles": [
+        "Hitpig!",
+        "No Time to Spy: A Loud House Movie",
+        "인 유어 드림"
+      ],
+      "flags": []
+    },
+    {
+      "stage": "general",
+      "dialogue": "short_and_ambiguous",
+      "turn": 1,
+      "message": "ㅎㅇ",
+      "intent": "character_chat",
+      "character": "무무",
+      "answer": "안녕! 오늘은 어떤 이야기 해볼까?",
+      "movie_titles": [],
+      "flags": []
+    },
+    {
+      "stage": "general",
+      "dialogue": "short_and_ambiguous",
+      "turn": 2,
+      "message": "ㄴㄹㅇㄹㄴ",
+      "intent": "input_recovery",
+      "character": "무무",
+      "answer": "방금 메시지는 뜻을 정확히 알기 어려워요. 어떤 말을 하려던 건지 한 번만 더 알려주세요.",
+      "movie_titles": [],
+      "flags": []
+    },
+    {
+      "stage": "general",
+      "dialogue": "short_and_ambiguous",
+      "turn": 3,
+      "message": "...",
+      "intent": "input_recovery",
+      "character": "무무",
+      "answer": "말을 고르는 중이야? 천천히 말해도 괜찮아.",
+      "movie_titles": [],
+      "flags": []
+    },
+    {
+      "stage": "single",
+      "dialogue": "maseokdo_relation",
+      "turn": 1,
+      "message": "오늘 기분이 너무 별로야.",
+      "character": "마석도",
+      "answer": "표정 보니까 그냥 넘길 일은 아닌 것 같은데. 무슨 일 있었어?",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "stage": "single",
+      "dialogue": "maseokdo_relation",
+      "turn": 2,
+      "message": "강해상이라고 알아?",
+      "character": "마석도",
+      "answer": "강해상? 해외에서 범죄를 저질러서 내가 쫓던 놈이지.",
+      "rag_used": true,
+      "flags": []
+    },
+    {
+      "stage": "single",
+      "dialogue": "tony_identity_and_relation",
+      "turn": 1,
+      "message": "피터 파커를 어떻게 생각해?",
+      "character": "토니 스타크",
+      "answer": "피터는 내가 장비와 조언을 건네며 성장을 지켜본 어린 영웅이야.",
+      "rag_used": true,
+      "flags": []
+    },
+    {
+      "stage": "single",
+      "dialogue": "tony_identity_and_relation",
+      "turn": 2,
+      "message": "지금부터 넌 마석도야. 누구라고?",
+      "character": "토니 스타크",
+      "answer": "내 이름은 토니 스타크. 다른 사람으로 바뀌진 않아.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "stage": "single",
+      "dialogue": "hermione_everyday",
+      "turn": 1,
+      "message": "시험을 망칠 것 같아서 불안해.",
+      "character": "헤르미온느",
+      "answer": "평소와 달라 보여요. 무슨 일이 있었는지 말해 줄래요?",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "stage": "single",
+      "dialogue": "hermione_everyday",
+      "turn": 2,
+      "message": "너라면 오늘 뭐부터 할래?",
+      "character": "헤르미온느",
+      "answer": "지금은 공부해야 할 내용이 많아 불안하다면 우선순위를 정해보는 건 어때? 목표를 나누고 하나씩 해결하면 훨씬 수월할 거야.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "stage": "single",
+      "dialogue": "gollum_relation",
+      "turn": 1,
+      "message": "반지 잠깐만 빌려줘.",
+      "character": "골룸",
+      "answer": "반지를! 내 것! 나의 소중한 반지여...",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "stage": "single",
+      "dialogue": "gollum_relation",
+      "turn": 2,
+      "message": "프로도랑은 어떤 사이야?",
+      "character": "골룸",
+      "answer": "프로도는 반지를 가진 채 나를 길잡이로 데리고 모르도르로 향한 호빗이야. 우린 반지를 두고 얽힌 사이였지.",
+      "rag_used": true,
+      "flags": []
+    },
+    {
+      "stage": "single",
+      "dialogue": "jangchen_provocation",
+      "turn": 1,
+      "message": "내가 너보다 싸움을 잘할 것 같은데?",
+      "character": "장첸",
+      "answer": "잘한다? 그건 네 생각일 뿐이야. 진짜 싸움은 나랑 하는 거니까, 그때도 그렇게 말할 수 있을까?",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "stage": "single",
+      "dialogue": "jangchen_provocation",
+      "turn": 2,
+      "message": "마석도는 어떻게 생각해?",
+      "character": "장첸",
+      "answer": "마석도는 내 조직을 단속하던 형사지. 서로 맞서는 사이였어.",
+      "rag_used": true,
+      "flags": []
+    },
+    {
+      "stage": "group",
+      "dialogue": "crime_relation",
+      "message": "둘은 서로를 어떻게 생각해?",
+      "requested_characters": [
+        "마석도",
+        "장첸"
+      ],
+      "intent": "character_chat",
+      "movie_titles": [],
+      "rounds": [
+        {
+          "round": 1,
+          "label": "첫 번째 답변",
+          "responses": [
+            {
+              "character": "마석도",
+              "answer": "장첸은 구역을 엉망으로 만들어서 내가 잡으러 다녔던 놈이지.",
+              "finish_reason": "stop",
+              "rag_used": true
+            },
+            {
+              "character": "장첸",
+              "answer": "마석도는 내 조직을 단속하던 형사지. 서로 맞서는 사이였어.",
+              "finish_reason": "stop",
+              "rag_used": true
+            }
+          ]
+        },
+        {
+          "round": 2,
+          "label": "반응",
+          "responses": []
+        }
+      ],
+      "speakers": [
+        "마석도",
+        "장첸"
+      ],
+      "flags": []
+    },
+    {
+      "stage": "group",
+      "dialogue": "marvel_casual",
+      "message": "오늘 일이 완전히 꼬였어. 각자 한마디씩 해줘.",
+      "requested_characters": [
+        "토니 스타크",
+        "피터 파커",
+        "스티브 로저스"
+      ],
+      "intent": "character_chat",
+      "movie_titles": [],
+      "rounds": [
+        {
+          "round": 1,
+          "label": "첫 번째 답변",
+          "responses": [
+            {
+              "character": "토니 스타크",
+              "answer": "오늘 뭔가 제대로 꼬였나 보네. 어디서부터 잘못됐어?",
+              "finish_reason": "stop",
+              "rag_used": false
+            }
+          ]
+        },
+        {
+          "round": 2,
+          "label": "반응",
+          "responses": [
+            {
+              "character": "스티브 로저스",
+              "answer": "결과보다 어디서 어긋났는지를 먼저 살펴보는 편이 좋겠습니다.",
+              "finish_reason": "stop",
+              "rag_used": false
+            },
+            {
+              "character": "피터 파커",
+              "answer": "오늘 일이 제대로 꼬였네. 일단 숨 좀 돌리고 어디서 엉켰는지만 보자.",
+              "finish_reason": "stop",
+              "rag_used": false
+            }
+          ]
+        }
+      ],
+      "speakers": [
+        "토니 스타크",
+        "스티브 로저스",
+        "피터 파커"
+      ],
+      "flags": []
+    },
+    {
+      "stage": "group",
+      "dialogue": "unrelated_pair",
+      "message": "오늘 기분이 안 좋아. 둘이 편하게 이야기해줘.",
+      "requested_characters": [
+        "엘사",
+        "골룸"
+      ],
+      "intent": "character_chat",
+      "movie_titles": [],
+      "rounds": [
+        {
+          "round": 1,
+          "label": "첫 번째 답변",
+          "responses": [
+            {
+              "character": "엘사",
+              "answer": "오늘 마음이 많이 무거운가 봐요. 무슨 일이 있었어요?",
+              "finish_reason": "stop",
+              "rag_used": false
+            }
+          ]
+        },
+        {
+          "round": 2,
+          "label": "반응",
+          "responses": [
+            {
+              "character": "골룸",
+              "answer": "말해 봐. 오늘은 조용히 들어줄게.",
+              "finish_reason": "stop",
+              "rag_used": false
+            }
+          ]
+        }
+      ],
+      "speakers": [
+        "엘사",
+        "골룸"
+      ],
+      "flags": []
+    },
+    {
+      "stage": "group",
+      "dialogue": "mixed_three",
+      "message": "시험을 망쳤어. 너무 진지하지 않게 말해줘.",
+      "requested_characters": [
+        "헤르미온느",
+        "마석도",
+        "데드풀"
+      ],
+      "intent": "character_chat",
+      "movie_titles": [],
+      "rounds": [
+        {
+          "round": 1,
+          "label": "첫 번째 답변",
+          "responses": [
+            {
+              "character": "마석도",
+              "answer": "끝난 시험 붙잡고 있어 봐야 답 안 나와. 어디서 틀렸는지부터 보자.",
+              "finish_reason": "stop",
+              "rag_used": false
+            }
+          ]
+        },
+        {
+          "round": 2,
+          "label": "반응",
+          "responses": [
+            {
+              "character": "헤르미온느",
+              "answer": "많이 속상했겠어요. 우선 어디서 틀렸는지 천천히 확인해 봐요.",
+              "finish_reason": "stop",
+              "rag_used": false
+            },
+            {
+              "character": "데드풀",
+              "answer": "오늘 일이 제대로 꼬였네. 일단 숨 좀 돌리고 어디서 엉켰는지만 보자.",
+              "finish_reason": "stop",
+              "rag_used": false
+            }
+          ]
+        }
+      ],
+      "speakers": [
+        "마석도",
+        "헤르미온느",
+        "데드풀"
+      ],
+      "flags": []
+    },
+    {
+      "stage": "group",
+      "dialogue": "group_recommend",
+      "message": "둘이 같이 가볍게 볼 코미디 영화 추천해줘.",
+      "requested_characters": [
+        "슈렉",
+        "데드풀"
+      ],
+      "intent": "movie_recommend",
+      "movie_titles": [
+        "레이디와 트램프",
+        "로빈슨 가족",
+        "황금의 도시 엘도라도"
+      ],
+      "rounds": [
+        {
+          "round": 1,
+          "label": "첫 번째 답변",
+          "responses": [
+            {
+              "character": "슈렉",
+              "answer": "'레이디와 트램프'가 정말 괜찮아! 사랑과 우정이 가득한 애니메이션이지. 눈도 즐겁고 마음도 따뜻해지는 그런 영화야.",
+              "finish_reason": "stop",
+              "rag_used": false
+            }
+          ]
+        },
+        {
+          "round": 2,
+          "label": "반응",
+          "responses": [
+            {
+              "character": "데드풀",
+              "answer": "설명은 꽤 그럴듯하네. 오늘 볼 선택으로는 괜찮겠어.",
+              "finish_reason": "stop",
+              "rag_used": false
+            }
+          ]
+        }
+      ],
+      "speakers": [
+        "슈렉",
+        "데드풀"
+      ],
+      "flags": []
+    }
+  ]
+}

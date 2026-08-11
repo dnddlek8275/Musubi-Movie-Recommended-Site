@@ -14,6 +14,7 @@ class Character(Base):
     actor = Column(String(100), nullable=True)
     lang = Column(String(10), nullable=False)
     system_prompt = Column(Text, nullable=False)
+    greeting_message = Column(Text, nullable=True)
     profile_image = Column(String(300), nullable=True)
     is_active = Column(Boolean, default=True, server_default="true", nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

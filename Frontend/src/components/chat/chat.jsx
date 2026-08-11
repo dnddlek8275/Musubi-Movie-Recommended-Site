@@ -14,6 +14,7 @@ import {
 
 import './chat.css';
 import SttMicButton from './SttMicButton.jsx';
+import { SkeletonBlock } from '../common/LoadingSkeleton.jsx';
 
 const POSTER_BASE_URL =
   import.meta.env.VITE_TMDB_IMAGE_BASE_URL || 'https://image.tmdb.org/t/p/w500';
@@ -132,7 +133,7 @@ function normalizeCharacter(rawCharacter, index) {
   };
 }
 
-function ChatPage() {
+function ChatPage({ authUser }) {
   // menu1(/chat)은 1:1, menu2(/chat/group)는 동일한 UI에서 1:다 그룹 대화
   const isGroupMode = window.location.pathname.startsWith('/chat/group');
 
@@ -151,6 +152,7 @@ function ChatPage() {
 
   const [characters, setCharacters] = useState([]);
   const [characterLoadError, setCharacterLoadError] = useState('');
+  const [charactersLoading, setCharactersLoading] = useState(true);
 
   // 대화 상대(파트너) 목록: + 버튼으로 추가한 캐릭터 id만 사이드바에 보여준다 (1:1 모드)
   // 대화 상대/채팅방 정보는 로컬에 저장하지 않는다. 다른 페이지로 나갔다 오면
@@ -168,6 +170,7 @@ function ChatPage() {
   // 이 페이지에 머무는 동안에만 유지되는 메모리 상태(로컬 저장 안 함).
   const [roomIdByCharacter, setRoomIdByCharacter] = useState({});
   const [messagesByCharacter, setMessagesByCharacter] = useState({});
+  const [loadingRoomKey, setLoadingRoomKey] = useState('');
 
   const [connectionStatus, setConnectionStatus] = useState({
     backend: '확인 중',
@@ -291,6 +294,7 @@ function ChatPage() {
   // 화면 처음 열림 → 백엔드/AI/DB 헬스체크
   useEffect(() => {
     const controller = new AbortController();
+    setCharactersLoading(true);
     const updateStatus = (key, value) => {
       setConnectionStatus((current) => ({
         ...current,
@@ -354,6 +358,9 @@ function ChatPage() {
 
         setCharacterLoadError(fetchError.message);
         setCharacters([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setCharactersLoading(false);
       });
 
     return () => controller.abort();
@@ -403,10 +410,11 @@ function ChatPage() {
 
     stickToBottomRef.current = true;
 
-    const roomId = roomIdByCharacter[activeKey];
+    const roomId = authUser ? roomIdByCharacter[activeKey] : '';
     if (!roomId || messagesByCharacter[activeKey]) return undefined;
 
     const controller = new AbortController();
+    setLoadingRoomKey(activeKey);
 
     fetchChatRoomMessages(roomId, controller.signal)
       .then((roomMessages) => {
@@ -433,6 +441,9 @@ function ChatPage() {
           delete next[activeKey];
           return next;
         });
+      })
+      .finally(() => {
+        setLoadingRoomKey((current) => (current === activeKey ? '' : current));
       });
 
     return () => controller.abort();
@@ -592,9 +603,13 @@ function ChatPage() {
 
     const history = (messagesByCharacter[activeKey] || [])
       .filter((message) => !message.pending && !message.error)
-      .map(({ role, content: messageContent }) => ({
+      .slice(-10)
+      .map(({ role, content: messageContent, movies }) => ({
         role,
-        content: messageContent,
+        content: String(messageContent || '').slice(0, 1000),
+        ...(Array.isArray(movies) && movies.length > 0
+          ? { recommended_movies: movies }
+          : {}),
       }));
 
     setMessagesByCharacter((current) => ({
@@ -626,7 +641,7 @@ function ChatPage() {
     const controller = new AbortController();
     abortRef.current = controller;
 
-    const roomId = roomIdByCharacter[activeKey];
+    const roomId = authUser ? roomIdByCharacter[activeKey] : '';
 
     try {
       const chatRequest = isGroupMode
@@ -636,6 +651,7 @@ function ChatPage() {
             history,
             characters: memberNames,
             room_type: 'group',
+            guest: !authUser,
           }
         : {
             mode: 'auto',
@@ -644,6 +660,7 @@ function ChatPage() {
             character: replyLabel,
             characters: memberNames,
             room_type: 'character',
+            guest: !authUser,
           };
 
       const response = !isGroupMode
@@ -680,6 +697,7 @@ function ChatPage() {
         character: finalCharacter,
         intent: response?.intent,
         movies: response?.movies || [],
+        sources: response?.sources || [],
         createdAt,
         pending: false,
       };
@@ -693,7 +711,7 @@ function ChatPage() {
       if (ttsEnabled) void speakMessage(finalMessage);
 
       // 추천받은 영화를 마이페이지 추천과 잇기 위해 저장한다.
-      addRecommendedMovies(response?.movies || []);
+      if (authUser) addRecommendedMovies(response?.movies || []);
     } catch (requestError) {
       const aborted = requestError.name === 'AbortError';
       const errorMessage = aborted
@@ -812,6 +830,11 @@ function ChatPage() {
 
   return (
     <main className="chat-page" aria-label="ChatwithAI">
+      {!authUser ? (
+        <p className="chat-guest-notice">
+          비회원 캐릭터 대화는 하루 10회이며 대화와 추천 결과가 저장되지 않습니다. 페이지를 나가면 초기화됩니다.
+        </p>
+      ) : null}
       <div className="chat-layout">
         {/* 좌측: 대화 상대 목록 */}
         <aside className="chat-sidebar">
@@ -830,7 +853,19 @@ function ChatPage() {
           </div>
 
           <div className="chat-charlist" ref={charlistRef}>
-            {(isGroupMode ? groupMembers : partners).length > 0 ? (
+            {charactersLoading ? (
+              <div className="chat-sidebar-skeleton" aria-hidden="true">
+                {Array.from({ length: 4 }, (_, index) => (
+                  <div className="chat-charitem" key={index}>
+                    <SkeletonBlock className="chat-sidebar-skeleton__avatar" />
+                    <span className="chat-charitem__body">
+                      <SkeletonBlock className="loading-skeleton--line loading-skeleton--title" />
+                      <SkeletonBlock className="loading-skeleton--line loading-skeleton--short" />
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (isGroupMode ? groupMembers : partners).length > 0 ? (
               (isGroupMode ? groupMembers : partners).map((character) => (
                 <button
                   type="button"
@@ -873,7 +908,7 @@ function ChatPage() {
                 {characterLoadError ||
                   (isGroupMode
                     ? '+ 버튼으로 그룹 멤버를 추가해보세요'
-                    : 'DB 캐릭터 불러오는 중...')}
+                    : '대화 상대를 추가해보세요')}
               </p>
             )}
 
@@ -1019,7 +1054,13 @@ function ChatPage() {
             ref={messagesRef}
             aria-live="polite"
           >
-            {messages.length === 0 ? (
+            {loadingRoomKey === activeKey ? (
+              <div className="chat-message-skeleton" aria-label="대화 내역 불러오는 중">
+                <SkeletonBlock height="62px" radius="18px" />
+                <SkeletonBlock height="82px" radius="18px" />
+                <SkeletonBlock height="52px" radius="18px" />
+              </div>
+            ) : messages.length === 0 ? (
               <div className="chat-empty">
                 <p>
                   {canChat
@@ -1142,6 +1183,11 @@ function ChatPage() {
                                         ) : null}
                                       </div>
                                       <div className="chat-movie__body">
+                                        {movie.recommendation_role ? (
+                                          <div className="chat-movie__role">
+                                            {movie.recommendation_role}
+                                          </div>
+                                        ) : null}
                                         <div className="chat-movie__title">
                                           {title}
                                         </div>
@@ -1156,10 +1202,31 @@ function ChatPage() {
                                             {rating}
                                           </div>
                                         ) : null}
+                                        {movie.recommendation_reason ? (
+                                          <p className="chat-movie__reason">
+                                            {movie.recommendation_reason}
+                                          </p>
+                                        ) : null}
                                       </div>
                                     </div>
                                   );
                                 })}
+                              </div>
+                            ) : null}
+
+                            {message.sources?.length > 0 ? (
+                              <div className="chat-sources" aria-label="웹 검색 출처">
+                                <strong>웹 검색 출처</strong>
+                                {message.sources.map((source, index) => (
+                                  <a
+                                    href={source.url}
+                                    target="_blank"
+                                    rel="noreferrer noopener"
+                                    key={`${source.url}-${index}`}
+                                  >
+                                    [{index + 1}] {source.title || new URL(source.url).hostname}
+                                  </a>
+                                ))}
                               </div>
                             ) : null}
                           </>
@@ -1332,14 +1399,14 @@ function ChatPage() {
               </div>
 
               {/* 녹음 종료 후 STT 결과를 즉시 전송한다. */}
-              <SttMicButton
+              {authUser ? <SttMicButton
                 disabled={busy || !canChat}
                 onTranscript={(text) => {
                   setError('');
                   void sendMessage(text);
                 }}
                 onError={setError}
-              />
+              /> : null}
             </form>
 
             {statusText ? <p className="chat-status">{statusText}</p> : null}

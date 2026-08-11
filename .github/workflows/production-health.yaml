@@ -1,0 +1,48 @@
+name: Production Health
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-health
+  cancel-in-progress: true
+
+jobs:
+  health:
+    name: Check movieverse.cloud
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check public endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in / /api/health /api/ready /api/db-test /api/ai-health; do
+            echo "Checking https://movieverse.cloud${path}"
+            curl \
+              --fail \
+              --silent \
+              --show-error \
+              --retry 2 \
+              --retry-all-errors \
+              --retry-delay 2 \
+              --connect-timeout 5 \
+              --max-time 30 \
+              --output /dev/null \
+              "https://movieverse.cloud${path}"
+          done
+
+      - name: Require at least 14 days of TLS validity
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 15 openssl s_client \
+            -connect movieverse.cloud:443 \
+            -servername movieverse.cloud \
+            </dev/null 2>/dev/null |
+            openssl x509 -noout -checkend 1209600

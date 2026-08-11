@@ -13,7 +13,7 @@ const MAX_RECOMMENDED_MOVIES = 30;
 
 // 로그아웃/다른 사용자 로그인 시 비워야 하는, 브라우저에 남는 대화 로그/캐시 키.
 const CHAT_CACHE_KEYS = [
-  'cineverse.autochat.conversations', // 매표소(CineBuddy) 대화 리스트
+  'cineverse.autochat.conversations', // 무 자동 대화 리스트
   'cineverse.groupchat.conversations', // 배우대기실 대화 리스트
   'cineverse.chat.rooms', // (구) 1:1 채팅방 매핑
   'cineverse.chat.partners', // (구) 대화 상대 목록
@@ -57,14 +57,25 @@ export function getRecommendedMovies() {
 }
 
 const FALLBACK_GENRES = [
-  '액션',
   '드라마',
-  '로맨스',
-  'SF',
-  '공포',
   '코미디',
   '스릴러',
+  '액션',
+  '공포',
+  '로맨스',
+  '범죄',
+  '모험',
   '애니메이션',
+  'SF',
+  '가족',
+  'TV 영화',
+  '판타지',
+  '미스터리',
+  '다큐멘터리',
+  '음악',
+  '서부',
+  '역사',
+  '전쟁',
 ];
 const TMDB_IMAGE_BASE_URL =
   import.meta.env.VITE_TMDB_IMAGE_BASE_URL || 'https://image.tmdb.org/t/p/w500';
@@ -113,6 +124,15 @@ function mergePreferenceValues(...values) {
         .filter(Boolean)
     )
   );
+}
+
+export function getLocalPreferences() {
+  const preferences = readLocalJson(LOCAL_PREFERENCES_KEY, {});
+  return {
+    genres: mergePreferenceValues(preferences?.genres),
+    actors: mergePreferenceValues(preferences?.actors),
+    keywords: mergePreferenceValues(preferences?.keywords),
+  };
 }
 
 function getErrorMessage(data, fallbackMessage) {
@@ -404,7 +424,7 @@ export function scheduleAutoLogout() {
   autoLogoutTimer = setTimeout(run, Math.min(delay, 2_000_000_000));
 }
 
-function storeAuthSession({ accessToken, email, nickname, tokenType }) {
+function storeAuthSession({ accessToken, email, nickname, tokenType, onboardingCompleted }) {
   // 다른 사용자가 로그인하면 이전 사용자의 로컬 대화 캐시를 비운다(이전 채팅 노출 방지).
   const previousUser = getStoredAuthUser();
   if (!previousUser || previousUser.email !== email) {
@@ -416,6 +436,7 @@ function storeAuthSession({ accessToken, email, nickname, tokenType }) {
     email,
     nickname: nickname || email,
     tokenType: tokenType || 'bearer',
+    onboardingCompleted: Boolean(onboardingCompleted),
   };
 
   localStorage.setItem('access_token', accessToken);
@@ -454,6 +475,7 @@ export async function loginWithEmail({ email, password }, signal) {
     email: authData.email || email,
     nickname: authData.nickname || authData.email || email,
     tokenType: authData.token_type,
+    onboardingCompleted: authData.onboarding_completed,
   });
 }
 
@@ -473,6 +495,45 @@ export async function requestEmailVerification(email, signal) {
   }
 
   return data?.data || {};
+}
+
+export async function confirmEmailVerification(email, verificationCode, signal) {
+  const response = await fetch(`${BACKEND_BASE_URL}/auth/email-verification/confirm`, {
+    method: 'POST',
+    credentials: 'include',
+    cache: 'no-store',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, verification_code: verificationCode }),
+    signal,
+  });
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok || getResponseState(data) !== 'success') {
+    throw new Error(getErrorMessage(data, `이메일 인증 실패 (${response.status})`));
+  }
+
+  return data?.data || {};
+}
+
+export async function checkNicknameAvailability(nickname, signal) {
+  const response = await fetch(`${BACKEND_BASE_URL}/auth/nickname-check`, {
+    method: 'POST',
+    credentials: 'include',
+    cache: 'no-store',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nickname }),
+    signal,
+  });
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok || getResponseState(data) !== 'success') {
+    throw new Error(getErrorMessage(data, `닉네임 중복 확인 실패 (${response.status})`));
+  }
+
+  return {
+    available: Boolean(data?.data?.available),
+    message: data?.message || '',
+  };
 }
 
 export async function registerWithEmail(
@@ -614,6 +675,7 @@ function normalizeChatResponse(json, request) {
   // 백엔드 응답 키가 rounds/rouds/roud 로 제각각이라 모두 확인한다(실제 응답은 roud 사용).
   const rounds = payload.rounds ?? payload.rouds ?? payload.roud ?? [];
   const movies = payload.movies ?? payload.movie ?? payload.recommended_movies ?? [];
+  const sources = payload.sources ?? payload.web_sources ?? [];
 
   return {
     conversationId:
@@ -625,13 +687,69 @@ function normalizeChatResponse(json, request) {
       '',
     character: payload.character || request.character,
     intent: payload.intent || payload.meta?.intent || 'character_chat',
+    emotion: payload.emotion || payload.meta?.emotion || 'default',
     rounds: Array.isArray(rounds) ? rounds : [],
     movies: Array.isArray(movies) ? movies : [],
+    sources: Array.isArray(sources) ? sources : [],
+    webSearchQuota: payload.web_search_quota || payload.webSearchQuota || {},
+    guestRemaining: payload.guest_remaining,
+    saved: payload.saved,
     raw: json,
   };
 }
 
+const RECOVERY_LOADING_MIN_MS = 600;
+
+function waitWithSignal(delayMs, signal) {
+  if (delayMs <= 0) return Promise.resolve();
+
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException('응답 대기가 중단되었습니다.', 'AbortError'));
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      signal?.removeEventListener('abort', abort);
+      resolve();
+    }, delayMs);
+    const abort = () => {
+      window.clearTimeout(timer);
+      reject(new DOMException('응답 대기가 중단되었습니다.', 'AbortError'));
+    };
+    signal?.addEventListener('abort', abort, { once: true });
+  });
+}
+
+async function keepRecoveryLoadingVisible(startedAt, intent, signal) {
+  if (intent !== 'input_recovery') return;
+  const remaining = RECOVERY_LOADING_MIN_MS - (Date.now() - startedAt);
+  await waitWithSignal(remaining, signal);
+}
+
+export async function fetchCharacterGreeting(character, signal) {
+  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/chat/greeting`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ character }),
+    signal,
+  });
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok || isFailureResponse(data)) {
+    throw new Error(getErrorMessage(data, `캐릭터 첫인사 요청 실패 (${response.status})`));
+  }
+
+  const payload = data?.state === 'success' && data?.data ? data.data : data || {};
+  return {
+    answer: String(payload.answer || '').trim(),
+    character: payload.character || character,
+    emotion: payload.emotion || 'default',
+  };
+}
+
 export async function sendChat(request, signal, onChunk) {
+  const requestStartedAt = Date.now();
   const isGroup = request.mode === 'group';
   const isAuto = !isGroup && !request.character;
 
@@ -643,6 +761,7 @@ export async function sendChat(request, signal, onChunk) {
   let body = {
     message: request.message,
     character: request.character ?? null,
+    history: request.history || [],
   };
 
   if (isGroup) {
@@ -650,12 +769,14 @@ export async function sendChat(request, signal, onChunk) {
     body = {
       characters: request.characters,
       message: request.message,
+      history: request.history || [],
     };
   } else if (isAuto) {
     url = `${BACKEND_BASE_URL}/chat/auto`;
     body = {
       message: request.message,
       character: request.character ?? null,
+      history: request.history || [],
     };
   }
 
@@ -672,7 +793,25 @@ export async function sendChat(request, signal, onChunk) {
     throw new Error(getErrorMessage(data, `채팅 요청 실패 (${response.status})`));
   }
 
-  return normalizeChatResponse(data, request);
+  const normalized = normalizeChatResponse(data, request);
+  await keepRecoveryLoadingVisible(requestStartedAt, normalized.intent, signal);
+  return normalized;
+}
+
+export async function generateChatTitle(message, signal) {
+  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/chat/title`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message }),
+    signal,
+  });
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok || isFailureResponse(data)) {
+    throw new Error(getErrorMessage(data, `대화 제목 생성 실패 (${response.status})`));
+  }
+
+  return String(data?.data?.title || '').trim();
 }
 
 function getStreamText(payload) {
@@ -704,6 +843,7 @@ function parseStreamPayload(raw) {
 
 // POST /chat과 POST /chat/rooms/{id}/messages는 성공 시 SSE, 실패 시 JSON을 반환한다.
 export async function sendCharacterChatStream(request, signal, onChunk) {
+  const requestStartedAt = Date.now();
   const isExistingRoom = request.roomId !== undefined && request.roomId !== null && request.roomId !== '';
   const url = isExistingRoom
     ? `${BACKEND_BASE_URL}/chat/rooms/${request.roomId}/messages`
@@ -716,6 +856,7 @@ export async function sendCharacterChatStream(request, signal, onChunk) {
     : {
         message: request.message,
         character: request.character,
+        history: request.history || [],
       };
   const response = await fetchWithAuth(url, {
     method: 'POST',
@@ -736,7 +877,9 @@ export async function sendCharacterChatStream(request, signal, onChunk) {
       throw new Error(getErrorMessage(data, `스트림 채팅 요청 실패 (${response.status})`));
     }
 
-    return normalizeChatResponse(data, request);
+    const normalized = normalizeChatResponse(data, request);
+    await keepRecoveryLoadingVisible(requestStartedAt, normalized.intent, signal);
+    return normalized;
   }
 
   if (!response.ok) {
@@ -774,7 +917,9 @@ export async function sendCharacterChatStream(request, signal, onChunk) {
 
       // AI 서버가 누적 답변을 보내는 경우와 토큰만 보내는 경우를 모두 지원한다.
       answer = chunk.startsWith(answer) ? chunk : answer + chunk;
-      onChunk?.(answer, payload);
+      if (payload?.intent !== 'input_recovery') {
+        onChunk?.(answer, payload);
+      }
     }
 
     return false;
@@ -802,10 +947,14 @@ export async function sendCharacterChatStream(request, signal, onChunk) {
   if (!streamDone && buffer.trim()) consumeEvent(buffer);
 
   const normalized = normalizeChatResponse(finalPayload, request);
+  await keepRecoveryLoadingVisible(requestStartedAt, normalized.intent, signal);
+  if (normalized.intent === 'input_recovery' && answer) {
+    onChunk?.(answer, finalPayload);
+  }
   let conversationId = normalized.conversationId;
 
   // 신규 1:1 SSE에는 room_id가 없으므로 종료 후 최신 캐릭터 방을 다시 조회한다.
-  if (!isExistingRoom && !conversationId) {
+  if (!request.guest && !isExistingRoom && !conversationId) {
     try {
       const rooms = await fetchChatRooms(signal);
       const latestRoom = rooms.find(
@@ -864,6 +1013,22 @@ export async function fetchChatRooms(signal) {
   return getArrayPayload(data, 'rooms');
 }
 
+export async function updateChatRoomTitle(roomId, title, signal) {
+  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/chat/rooms/${roomId}/title`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title }),
+    signal,
+  });
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok || isFailureResponse(data)) {
+    throw new Error(getErrorMessage(data, `대화 제목 저장 실패 (${response.status})`));
+  }
+
+  return data?.data || {};
+}
+
 // 채팅방 삭제 (DELETE /chat/rooms/{room_id}) — 인증 필요, 본인 방만.
 export async function deleteChatRoom(roomId, signal) {
   const response = await fetchWithAuth(
@@ -892,13 +1057,7 @@ export async function fetchCharacters(signal) {
     throw new Error(getErrorMessage(data, `캐릭터 목록 요청 실패 (${response.status})`));
   }
 
-  const excludedNames = new Set(['마석도', '막석도']);
-
   return getArrayPayload(data, 'characters')
-    .filter(
-      (character) =>
-        !excludedNames.has(String(character?.name || character?.character || '').trim())
-    )
     .map((character) => ({
       ...character,
       image:
@@ -945,13 +1104,14 @@ export async function fetchCharacter(characterName, signal) {
 
 // 배우 목록 조회 API (GET /movies/actors).
 // 명세서: { state, message, data: [{ actor_id, actor_name, profile_path }] }
-export async function fetchActors(signal, { query = '', page = 1, limit = 50 } = {}) {
+export async function fetchActors(signal, { query = '', page = 1, limit = 50, onboarding = false } = {}) {
   const params = new URLSearchParams({
     page: String(page),
     limit: String(limit),
   });
   const normalizedQuery = String(query || '').trim();
   if (normalizedQuery) params.set('q', normalizedQuery);
+  if (onboarding && !normalizedQuery) params.set('onboarding', 'true');
 
   const response = await fetchWithAuth(
     `${BACKEND_BASE_URL}/movies/actors?${params.toString()}`,
@@ -1034,12 +1194,16 @@ export async function fetchGenres(signal) {
   }
 }
 
-export async function getRecommendMovies(limit = 12, signal) {
+export async function getRecommendMovies(limit = 12, signal, preferences = null) {
   const params = new URLSearchParams({
     limit: String(clampNumber(limit, 1, 30, 12)),
   });
+  const hasPreferences = preferences && ['genres', 'actors', 'keywords']
+    .some((key) => Array.isArray(preferences[key]) && preferences[key].length > 0);
   const response = await fetchWithAuth(`${BACKEND_BASE_URL}/movies/recommend?${params}`, {
     method: 'POST',
+    headers: hasPreferences ? { 'Content-Type': 'application/json' } : undefined,
+    body: hasPreferences ? JSON.stringify(preferences) : undefined,
     signal,
   });
   const data = await response.json().catch(() => null);
@@ -1058,25 +1222,30 @@ export async function getRecommendMovies(limit = 12, signal) {
   return data || { state: 'success', message: '', data: [] };
 }
 
-export async function fetchRecommendedMovies(signal, limit = 12) {
-  const data = await getRecommendMovies(limit, signal);
+export async function fetchRecommendedMovies(signal, limit = 12, preferences = null) {
+  const data = await getRecommendMovies(limit, signal, preferences);
 
   return data?.state === 'success' ? getArrayPayload(data) : [];
 }
 
-export async function fetchMovies(signal, keyword = '', { page = 1, limit } = {}) {
+export async function fetchMovies(
+  signal,
+  keyword = '',
+  { page = 1, limit, preferences = null, searchType = '' } = {},
+) {
   const searchKeyword = String(keyword ?? '').trim();
 
   if (!searchKeyword) {
-    return fetchRecommendedMovies(signal, limit ?? 12);
+    return fetchRecommendedMovies(signal, limit ?? 12, preferences);
   }
 
   const params = new URLSearchParams({
     keyword: searchKeyword,
     page: String(clampNumber(page, 1, Number.MAX_SAFE_INTEGER, 1)),
-    limit: String(clampNumber(limit, 1, 50, 20)),
+    limit: String(clampNumber(limit, 1, 100, 80)),
   });
-  const response = await fetch(`${BACKEND_BASE_URL}/movies/search?${params}`, {
+  if (searchType) params.set('type', searchType);
+  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/movies/search?${params}`, {
     method: 'GET',
     signal,
   });
@@ -1091,6 +1260,29 @@ export async function fetchMovies(signal, keyword = '', { page = 1, limit } = {}
   }
 
   return getArrayPayload(data, 'movies', 'results', 'items');
+}
+
+export async function fetchSearchSuggestions(signal, keyword, limit = 8) {
+  const searchKeyword = String(keyword ?? '').trim();
+  if (!searchKeyword) return [];
+
+  const params = new URLSearchParams({
+    keyword: searchKeyword,
+    limit: String(clampNumber(limit, 1, 12, 8)),
+  });
+  const response = await fetch(`${BACKEND_BASE_URL}/movies/search/suggestions?${params}`, {
+    method: 'GET',
+    signal,
+  });
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok || getResponseState(data) === 'error') {
+    throw new Error(getErrorMessage(data, `검색어 자동완성 요청 실패 (${response.status})`));
+  }
+
+  return getArrayPayload(data, 'suggestions', 'results', 'items')
+    .map((item) => (typeof item === 'string' ? { text: item, type: '' } : item))
+    .filter((item) => item?.text);
 }
 
 export async function fetchMovieRanking(signal, limit = 10) {
@@ -1112,8 +1304,35 @@ export async function fetchMovieRanking(signal, limit = 10) {
       ? movie.genres.join(', ')
       : movie.genre || movie.genres || '',
     rating: movie.vote_average ?? movie.rating ?? movie.ranking_score ?? '',
-    change: movie.change || '',
+    rankChange: Number.isFinite(Number(movie.rank_change)) && movie.rank_change !== null
+      ? Number(movie.rank_change)
+      : null,
+    isNew: Boolean(movie.is_new),
   }));
+}
+
+export async function fetchDiscoverySections(signal, preferences = null, limit = 25) {
+  const params = new URLSearchParams({
+    limit: String(clampNumber(limit, 1, 25, 25)),
+  });
+  const hasPreferences = preferences && ['genres', 'actors', 'keywords']
+    .some((key) => Array.isArray(preferences[key]) && preferences[key].length > 0);
+  const response = await fetchWithAuth(
+    `${BACKEND_BASE_URL}/movies/discovery-sections?${params}`,
+    {
+      method: 'POST',
+      headers: hasPreferences ? { 'Content-Type': 'application/json' } : undefined,
+      body: hasPreferences ? JSON.stringify(preferences) : undefined,
+      signal,
+    }
+  );
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok || isFailureResponse(data)) {
+    throw new Error(getErrorMessage(data, `영화 탐색 섹션 요청 실패 (${response.status})`));
+  }
+
+  return getArrayPayload(data, 'sections');
 }
 
 // 영화 상세 조회 (GET /movies/{movie_id}?source=direct).
@@ -1135,6 +1354,89 @@ export async function fetchMovieDetail(movieId, source = 'direct', signal) {
   }
 
   return data?.data || null;
+}
+
+export async function fetchPersonFilmography(role, identifier, signal) {
+  const normalizedRole = role === 'director' ? 'director' : 'actor';
+  const normalizedIdentifier = String(identifier || '').trim();
+  if (!normalizedIdentifier) throw new Error('인물 정보가 올바르지 않습니다.');
+
+  const response = await fetchWithAuth(
+    `${BACKEND_BASE_URL}/movies/people/${normalizedRole}/${encodeURIComponent(normalizedIdentifier)}`,
+    { signal }
+  );
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok || isFailureResponse(data)) {
+    throw new Error(getErrorMessage(data, `필모그래피 조회 실패 (${response.status})`));
+  }
+
+  return data?.data || null;
+}
+
+export async function togglePersonLike(role, identifier, signal) {
+  const normalizedRole = role === 'director' ? 'director' : 'actor';
+  const normalizedIdentifier = String(identifier || '').trim();
+  if (!normalizedIdentifier) throw new Error('인물 정보가 올바르지 않습니다.');
+
+  const response = await fetchWithAuth(
+    `${BACKEND_BASE_URL}/movies/people/${normalizedRole}/${encodeURIComponent(normalizedIdentifier)}/like`,
+    { method: 'POST', signal }
+  );
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok || isFailureResponse(data)) {
+    throw new Error(getErrorMessage(data, `인물 좋아요 요청 실패 (${response.status})`));
+  }
+
+  return data?.data || {};
+}
+
+export async function fetchSimilarMovies(movieId, signal, limit = 6) {
+  const params = new URLSearchParams({
+    limit: String(clampNumber(limit, 1, 6, 6)),
+  });
+  const response = await fetch(
+    `${BACKEND_BASE_URL}/movies/${movieId}/similar?${params}`,
+    { credentials: 'include', cache: 'no-store', signal }
+  );
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok || isFailureResponse(data)) {
+    throw new Error(getErrorMessage(data, `유사 영화를 불러오지 못했습니다. (${response.status})`));
+  }
+
+  return getArrayPayload(data, 'movies');
+}
+
+export async function rateMovie(movieId, score, comment = '', signal) {
+  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/movies/${movieId}/rating`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ score: clampNumber(score, 1, 5, 1), comment }),
+    signal,
+  });
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok || isFailureResponse(data)) {
+    throw new Error(getErrorMessage(data, `영화 평가 저장 실패 (${response.status})`));
+  }
+
+  return data?.data || {};
+}
+
+export async function deleteMovieRating(movieId, signal) {
+  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/movies/${movieId}/rating`, {
+    method: 'DELETE',
+    signal,
+  });
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok || isFailureResponse(data)) {
+    throw new Error(getErrorMessage(data, `영화 평가 삭제 실패 (${response.status})`));
+  }
+
+  return data?.data || {};
 }
 
 export async function fetchMoviesByGenre(genre, signal, { page = 1, limit = 20 } = {}) {
@@ -1341,6 +1643,7 @@ export async function fetchUserPreferences(signal) {
   // 명세의 explicit_preferences를 현재 UI가 쓰는 preferences 형태로 함께 노출한다.
   const serverData = data?.data || data || {};
   const explicitPreferences = serverData.explicit_preferences || {};
+  const combinedPreferences = serverData.combined_preferences || {};
   const serverPreferences = {
     genres:
       explicitPreferences.genres || serverData.preferred_genres || serverData.genres || [],
@@ -1348,11 +1651,28 @@ export async function fetchUserPreferences(signal) {
       explicitPreferences.actors || serverData.preferred_actors || serverData.actors || [],
     keywords:
       explicitPreferences.keywords || serverData.preferred_keywords || serverData.keywords || [],
-    directors: serverData.preferred_directors || serverData.directors || [],
+    directors:
+      explicitPreferences.directors || serverData.preferred_directors || serverData.directors || [],
   };
 
   return {
     ...serverData,
+    // 캐릭터 추천처럼 활동 학습까지 반영해야 하는 UI에서 사용한다.
+    // combined가 아직 없는 계정은 직접 선택 취향으로 안전하게 대체한다.
+    recommendationPreferences: {
+      genres: [
+        ...(combinedPreferences.genres?.length ? combinedPreferences.genres : serverPreferences.genres),
+        ...(localPreferences?.genres || []),
+      ],
+      actors: [
+        ...(combinedPreferences.actors?.length ? combinedPreferences.actors : serverPreferences.actors),
+        ...(localPreferences?.actors || []),
+      ],
+      keywords: [
+        ...(combinedPreferences.keywords?.length ? combinedPreferences.keywords : serverPreferences.keywords),
+        ...(localPreferences?.keywords || []),
+      ],
+    },
     preferences: {
       genres: mergePreferenceValues(
         serverPreferences.genres,
@@ -1369,6 +1689,71 @@ export async function fetchUserPreferences(signal) {
       ),
     },
   };
+}
+
+export async function fetchPreferenceInsights(signal) {
+  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/user/preferences/insights`, { signal });
+  const data = await response.json().catch(() => null);
+  if (!response.ok || isFailureResponse(data)) {
+    throw new Error(getErrorMessage(data, `취향 분석 문장 요청 실패 (${response.status})`));
+  }
+  const insights = data?.data?.insights || {};
+  return {
+    genres: insights.genre || insights.genres || {},
+    actors: insights.actor || insights.actors || {},
+    keywords: insights.keyword || insights.keywords || {},
+  };
+}
+
+export async function resetLearnedPreferences(signal) {
+  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/user/preferences/learned`, {
+    method: 'DELETE',
+    signal,
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok || isFailureResponse(data)) {
+    throw new Error(getErrorMessage(data, `학습 취향 초기화 실패 (${response.status})`));
+  }
+  return data?.data || {};
+}
+
+export async function fetchOnboardingOptions(signal) {
+  const response = await fetch(`${BACKEND_BASE_URL}/movies/preference-options`, {
+    signal,
+    cache: 'no-store',
+  });
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok || isFailureResponse(data)) {
+    throw new Error(getErrorMessage(data, `취향 선택지 요청 실패 (${response.status})`));
+  }
+
+  return {
+    genres: Array.isArray(data?.data?.genres) ? data.data.genres : FALLBACK_GENRES,
+    keywords: Array.isArray(data?.data?.keywords) ? data.data.keywords : [],
+  };
+}
+
+export async function saveOnboardingPreferences(preferences, signal) {
+  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/user/preferences`, {
+    method: 'PATCH',
+    signal,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      genres: preferences.genres || [],
+      actors: preferences.actors || [],
+      keywords: preferences.keywords || [],
+      onboarding_completed: true,
+    }),
+  });
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok || isFailureResponse(data)) {
+    throw new Error(getErrorMessage(data, `초기 취향 저장 실패 (${response.status})`));
+  }
+
+  writeLocalJson(LOCAL_PREFERENCES_KEY, preferences);
+  return data?.data || {};
 }
 
 export async function fetchUserProfile(signal) {
@@ -1395,6 +1780,92 @@ export async function updateUserProfile(profile, signal) {
   writeLocalJson(LOCAL_PROFILE_KEY, profile);
 
   return profile;
+}
+
+export async function requestAccountEmailVerification(email, signal) {
+  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/user/email-verification/request`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+    signal,
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok || isFailureResponse(data)) {
+    throw new Error(getErrorMessage(data, `인증번호 전송 실패 (${response.status})`));
+  }
+  return data?.data || {};
+}
+
+export async function confirmAccountEmailVerification(email, verificationCode, signal) {
+  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/user/email-verification/confirm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, verification_code: verificationCode }),
+    signal,
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok || isFailureResponse(data)) {
+    throw new Error(getErrorMessage(data, `이메일 인증 실패 (${response.status})`));
+  }
+  return data?.data || {};
+}
+
+export async function checkAccountNicknameAvailability(nickname, signal) {
+  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/user/nickname-check`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nickname }),
+    signal,
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok || isFailureResponse(data)) {
+    throw new Error(getErrorMessage(data, `닉네임 중복 확인 실패 (${response.status})`));
+  }
+  return {
+    available: Boolean(data?.data?.available),
+    message: data?.message || '',
+  };
+}
+
+export async function updateAccountProfile({ nickname, email, verificationCode, personalContext }, signal) {
+  const payload = { nickname, personal_context: personalContext ?? '' };
+  if (email) payload.email = email;
+  if (verificationCode) payload.verification_code = verificationCode;
+  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/user/profile`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    signal,
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok || isFailureResponse(data)) {
+    throw new Error(getErrorMessage(data, `계정 정보 수정 실패 (${response.status})`));
+  }
+
+  const updated = data?.data || {};
+  const stored = getStoredAuthUser() || {};
+  localStorage.setItem('auth_user', JSON.stringify({
+    ...stored,
+    email: updated.email || email || stored.email || '',
+    nickname: updated.nickname || nickname || stored.nickname || '',
+    personal_context: updated.personal_context ?? personalContext ?? stored.personal_context ?? '',
+  }));
+  writeLocalJson(LOCAL_PROFILE_KEY, updated);
+  return updated;
+}
+
+export async function deleteMyAccount(signal) {
+  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/user`, {
+    method: 'DELETE',
+    credentials: 'include',
+    signal,
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok || isFailureResponse(data)) {
+    throw new Error(getErrorMessage(data, `계정 탈퇴 실패 (${response.status})`));
+  }
+  clearStoredAuth();
+  return data;
 }
 
 // 프로필 이미지 수정 (PATCH /user/profile_image, multipart/form-data) — 인증 필요.
@@ -1444,6 +1915,27 @@ export async function updateUserPreferences(preferences, signal) {
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   writeLocalJson(LOCAL_PREFERENCES_KEY, preferences);
+
+  // 비회원은 브라우저에만 저장하고, 로그인 회원은 서버 추천 프로필도 함께
+  // 갱신한다. 기존 구현은 로컬 저장만 해 회원 추천에 변경값이 반영되지 않았다.
+  if (localStorage.getItem('access_token')) {
+    const response = await fetchWithAuth(`${BACKEND_BASE_URL}/user/preferences`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        genres: preferences.genres || [],
+        actors: preferences.actors || [],
+        keywords: preferences.keywords || [],
+        onboarding_completed: true,
+      }),
+      signal,
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || ['failure', 'error'].includes(getResponseState(data))) {
+      throw new Error(getErrorMessage(data, `취향 저장 실패 (${response.status})`));
+    }
+    return data?.data || { preferences };
+  }
 
   return { preferences };
 }
@@ -1532,6 +2024,7 @@ export async function fetchAiRecommendation(signal) {
   const movieList = (Array.isArray(movies) ? movies : [])
     .slice(0, 3)
     .map((movie) => ({
+      movie_id: movie?.movie_id || movie?.id || null,
       movie: movie?.title || '',
       poster_path: movie?.poster_url || movie?.poster_path || movie?.poster || '',
       description:
@@ -1572,11 +2065,56 @@ async function requestAdminApi(path, { method = 'GET', body, signal } = {}) {
 }
 
 export const checkAdminAccess = (signal) => requestAdminApi('/admin/check', { signal });
+export const fetchAdminOverview = (signal) => requestAdminApi('/admin/overview', { signal });
+export const fetchAdminMovies = (query = '', page = 1, filters = {}, signal) => {
+  const params = new URLSearchParams({
+    query: query.trim(),
+    page: String(page),
+    limit: '20',
+    source: filters.source || 'all',
+    poster: filters.poster || 'all',
+    sync_status: filters.syncStatus || 'all',
+    sort: filters.sort || 'updated_desc',
+  });
+  return requestAdminApi(`/admin/movies?${params}`, { signal });
+};
+export const fetchAdminUsers = (query = '', page = 1, signal) => {
+  const params = new URLSearchParams({ query: query.trim(), page: String(page), limit: '20' });
+  return requestAdminApi(`/admin/users?${params}`, { signal });
+};
+export const fetchAdminAuditLogs = (query = '', action = 'all', page = 1, signal) => {
+  const params = new URLSearchParams({ query: query.trim(), action, page: String(page), limit: '30' });
+  return requestAdminApi(`/admin/audit-logs?${params}`, { signal });
+};
+export const fetchAdminInquiries = (query = '', status = 'all', page = 1, signal) => {
+  const params = new URLSearchParams({ query: query.trim(), status, page: String(page), limit: '20' });
+  return requestAdminApi(`/admin/inquiries?${params}`, { signal });
+};
+export const updateAdminInquiryStatus = (inquiryId, status, signal) => {
+  const params = new URLSearchParams({ status });
+  return requestAdminApi(`/admin/inquiries/${encodeURIComponent(inquiryId)}/status?${params}`, {
+    method: 'PATCH', signal,
+  });
+};
+export const replyAdminInquiry = (inquiryId, body, signal) =>
+  requestAdminApi(`/admin/inquiries/${encodeURIComponent(inquiryId)}/reply`, {
+    method: 'POST', body: { body }, signal,
+  });
 export const updateUserAdminRole = (email, isAdmin, signal) =>
   requestAdminApi('/admin/users/admin-role', {
     method: 'PATCH',
     body: { email: email.trim(), is_admin: isAdmin },
     signal,
+  });
+export const updateAdminUserSuspension = (userId, isSuspended, reason = '', signal) =>
+  requestAdminApi(`/admin/users/${encodeURIComponent(userId)}/suspension`, {
+    method: 'PATCH',
+    body: { is_suspended: isSuspended, reason: isSuspended ? reason.trim() : null },
+    signal,
+  });
+export const deleteAdminUser = (userId, signal) =>
+  requestAdminApi(`/admin/users/${encodeURIComponent(userId)}`, {
+    method: 'DELETE', signal,
   });
 
 export const searchAdminTmdbMovies = (query, page = 1, signal) => {
@@ -1601,3 +2139,30 @@ export const deleteAdminMovie = (movieId, signal) =>
     method: 'DELETE',
     signal,
   });
+export const refreshAdminTmdbMovie = (movieId, signal) =>
+  requestAdminApi(`/admin/movie/${encodeURIComponent(movieId)}/tmdb-refresh`, {
+    method: 'POST', signal,
+  });
+export const retryAdminMovieVectorSync = (movieId, signal) =>
+  requestAdminApi(`/admin/movie/${encodeURIComponent(movieId)}/vector-sync-retry`, {
+    method: 'POST', signal,
+  });
+
+export async function submitContactInquiry(payload, signal) {
+  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/contact`, {
+    method: 'POST',
+    signal,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok || isFailureResponse(data)) {
+    throw new Error(getErrorMessage(data, `문의 접수에 실패했습니다. (${response.status})`));
+  }
+
+  return {
+    message: data?.message || '문의가 접수되었습니다.',
+    inquiryId: data?.data?.inquiry_id || null,
+  };
+}

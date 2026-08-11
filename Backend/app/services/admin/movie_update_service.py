@@ -9,6 +9,9 @@ from app.models.admin import AdminAuditLog
 from app.models.movies import Movie
 from app.models.users import User
 from app.services.admin.movie_service import admin_movie_to_dict, normalize_string_list, sync_admin_movie_genres
+from app.services.movies.genre_relevance import sync_movie_genre_weights
+from app.services.admin.tmdb_register_service import require_non_explicit_metadata
+from app.services.movies.vector_sync_service import enqueue_movie_vector_sync
 
 
 # 수정 중인 영화를 제외하고 동일한 제목과 개봉 연도의 영화가 있는지 확인한다.
@@ -101,6 +104,13 @@ def update_admin_movie(
     if "keywords" in data:
         data["keywords"] = normalize_string_list(data["keywords"])
 
+    if "production_countries" in data:
+        data["production_countries"] = [
+            code.strip().upper()[:2]
+            for code in normalize_string_list(data["production_countries"])
+            if len(code.strip()) == 2
+        ]
+
     # 관리자 수정 API에서 변경할 수 있는 Movie 컬럼만 허용한다.
     # tmdb_id, 평점, 포스터와 동기화 시각 같은 서버 관리 값은 제외한다.
     allowed_fields = {
@@ -110,6 +120,11 @@ def update_admin_movie(
         "cast",
         "keywords",
         "year",
+        "release_date",
+        "runtime",
+        "production_countries",
+        "certification",
+        "certification_country",
         "language",
         "audience_count",
     }
@@ -126,18 +141,45 @@ def update_admin_movie(
             setattr(movie, field_name, field_value)
             has_changes = True
 
+    # 정확한 개봉일을 수정하면 표시·연도 필터용 year도 같은 값으로 맞춘다.
+    if "release_date" in data and data["release_date"] is not None:
+        release_year = data["release_date"].year
+        if movie.year != release_year:
+            movie.year = release_year
+            has_changes = True
+
     # 요청 필드는 있었지만 모든 값이 기존 데이터와 같다면
     # 수정 시각과 감사 로그를 만들지 않고 None을 반환한다.
     if not has_changes:
         return None
 
+    require_non_explicit_metadata(
+        movie.keywords or [],
+        movie.certification,
+        movie.certification_country,
+        movie.overview,
+        movie.title,
+        movie.genres or [],
+    )
+
     # Movie 모델에는 updated_at 자동 갱신 설정이 없으므로
     # 실제 영화 데이터가 변경된 경우 한국 시간 기준으로 직접 갱신한다.
     movie.updated_at = datetime.now(ZoneInfo("Asia/Seoul"))
 
+    if {"genres", "keywords", "overview"} & update_data.keys():
+        sync_movie_genre_weights(db, movie)
+
     # 영화와 장르 변경 SQL을 현재 트랜잭션에서 DB에 전달한다.
     # flush는 최종 확정이 아니므로 이후 실패하면 API에서 rollback할 수 있다.
     db.flush()
+
+    if movie.tmdb_id is not None:
+        enqueue_movie_vector_sync(
+            db,
+            tmdb_id=movie.tmdb_id,
+            movie_id=movie.id,
+            operation="upsert",
+        )
 
     # 수정된 Movie 객체를 API 응답과 감사 로그가 사용하는 형식으로 변환한다.
     after_data = admin_movie_to_dict(movie)

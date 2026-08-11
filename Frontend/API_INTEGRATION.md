@@ -1,4 +1,4 @@
-# CineVerse 프론트엔드 API·STT 연동 기준
+# Musubi 프론트엔드 API·STT 연동 기준
 
 작성 기준: 2026-07-29
 

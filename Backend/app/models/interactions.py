@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, CheckConstraint, Column, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import BigInteger, CheckConstraint, Column, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 
 from app.core.base import Base
@@ -53,3 +53,19 @@ class UserMovieInteraction(Base):
 
     # Movie 모델과 연결
     movie = relationship("Movie", back_populates="interactions")
+
+
+class MovieRating(Base):
+    __tablename__ = "movie_ratings"
+    __table_args__ = (
+        CheckConstraint("score BETWEEN 1 AND 5", name="ck_movie_ratings_score"),
+        UniqueConstraint("user_id", "movie_id", name="uq_movie_ratings_user_movie"),
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    movie_id = Column(BigInteger, ForeignKey("movies.id", ondelete="CASCADE"), nullable=False, index=True)
+    score = Column(Integer, nullable=False)
+    comment = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

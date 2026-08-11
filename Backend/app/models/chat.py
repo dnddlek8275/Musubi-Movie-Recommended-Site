@@ -17,6 +17,7 @@ class ChatRoom(Base):
         index=True,
     )
     room_type = Column(String(20), nullable=False)
+    title = Column(String(30), nullable=True)
     characters = Column(ARRAY(String), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -37,6 +38,7 @@ class ChatMessage(Base):
     )
     role = Column(String(20), nullable=False)
     character_name = Column(String(100), nullable=True)
+    emotion = Column(String(20), nullable=True)
     content = Column(Text, nullable=False)
     recommended_movies = Column(JSONB, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

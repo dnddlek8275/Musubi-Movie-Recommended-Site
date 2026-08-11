@@ -1,5 +1,5 @@
 """
-CineVerse LLM Client
+Musubi LLM Client
 llama-server (OpenAI 호환) 호출 모듈
 """
 

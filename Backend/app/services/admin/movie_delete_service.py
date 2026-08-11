@@ -6,6 +6,7 @@ from app.models.admin import AdminAuditLog
 from app.models.movies import Movie
 from app.models.users import User
 from app.services.admin.movie_service import admin_movie_to_dict
+from app.services.movies.vector_sync_service import enqueue_movie_vector_sync
 
 # 삭제 전 영화 정보를 보존하고 영화 삭제와 감사 로그 생성을 함께 준비한다.
 def delete_admin_movie(
@@ -53,6 +54,13 @@ def delete_admin_movie(
     # movies 행만 직접 삭제 대기 상태로 만든다. movie_genres, movie_stats,
     # movie_actors, 사용자 행동 기록과 일일 추천 연결은 각 외래키의
     # ON DELETE CASCADE 설정에 따라 DB가 최종 commit 시 함께 정리한다.
+    if movie.tmdb_id is not None:
+        enqueue_movie_vector_sync(
+            db,
+            tmdb_id=movie.tmdb_id,
+            movie_id=None,
+            operation="delete",
+        )
     db.delete(movie)
 
     # 삭제 API가 어떤 영화를 삭제했는지 data에 담아 반환할 수 있도록

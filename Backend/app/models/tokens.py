@@ -63,3 +63,22 @@ class EmailVerificationCode(Base):
     expires_at = Column(DateTime(timezone=True), nullable=False)
     verified_at = Column(DateTime(timezone=True), nullable=True)
     attempt_count = Column(Integer, default=0, server_default="0", nullable=False)
+
+
+class AuthRequestEvent(Base):
+    """인증 API 남용 방지를 위한 익명화된 요청 기록."""
+
+    __tablename__ = "auth_request_events"
+    __table_args__ = (
+        Index(
+            "ix_auth_request_events_scope_key_created_at",
+            "scope",
+            "key_hash",
+            "created_at",
+        ),
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    scope = Column(String(40), nullable=False)
+    key_hash = Column(String(64), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

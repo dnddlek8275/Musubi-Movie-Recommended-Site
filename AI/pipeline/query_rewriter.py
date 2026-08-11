@@ -1,5 +1,5 @@
 """
-CineVerse Query Rewriter
+Musubi Query Rewriter
 사용자의 자연어 입력을 영화 검색에 최적화된 쿼리로 재작성.
 
 처리 전략:
@@ -59,6 +59,18 @@ _LANG_MAP = {"한국": "ko", "한국어": "ko", "영어": "en", "영미": "en",
              "일본": "ja", "일본어": "ja", "중국": "zh", "중국어": "zh",
              "프랑스": "fr", "프랑스어": "fr"}
 _LANG_PATTERN = re.compile(r"(" + "|".join(_LANG_MAP) + r")\s*(?:영화|작품)?")
+_MOOD_HINT_PATTERN = re.compile(
+    r"가볍게|가벼운|유쾌|웃긴|재밌는|부담\s*없이|편하게|머리\s*비우고|힐링|"
+    r"감동|뭉클|눈물\s*나는|마음\s*따뜻|우울할\s*때|기분\s*전환|"
+    r"기분이?\s*(?:안\s*좋|별로)|기운\s*없|데이트|연인|커플|"
+    r"아이와|아이랑|아이하고|어린이와|어린이랑|자녀와|온\s*가족"
+)
+_GENERIC_RECOMMENDATION_WORDS = re.compile(r"추천|골라|뭐\s*볼|볼\s*만한")
+_GENERIC_RECOMMENDATION_FILLER = re.compile(
+    r"오늘|지금|이번|주말|밤|저녁|볼\s*만한|볼|보기|영화|작품|"
+    r"한|두|세|네|다섯|[1-5]|편|개|정도|좀|뭐|추천(?:해\s*줘|해줘|해주세요|해\s*주세요|해|)|"
+    r"골라(?:\s*줘|줘|주세요|\s*주세요|)|알려(?:\s*줘|줘|주세요|\s*주세요|)"
+)
 
 # 감독 추출: "[이름] 감독" 패턴
 _DIRECTOR_PATTERN = re.compile(r"([가-힣A-Za-z\s·]{2,20}?)\s*감독")
@@ -80,6 +92,11 @@ def _regex_extract(text: str) -> dict:
         "search_query": text,
         "genre": None, "actor": None, "director": None,
         "language": None, "year_from": None, "year_to": None, "min_rating": None,
+        "sort_latest": bool(re.search(r"최신|최근\s*개봉|새로\s*개봉|신작", text)),
+        # 조건 없이 분위기만 말한 추천은 의미 유사도만으로 고르면 오래되고
+        # 인지도가 낮은 작품이 튀기 쉽다. 검색 단계에서 품질 비중을 높이기
+        # 위한 내부 신호이며 LLM이 임의로 만들 수 없도록 regex로만 정한다.
+        "quality_priority": "mood" if _MOOD_HINT_PATTERN.search(text) else None,
     }
 
     # 배우
@@ -132,6 +149,14 @@ def _regex_extract(text: str) -> dict:
     return result
 
 
+def _is_generic_recommendation_request(text: str) -> bool:
+    if not _GENERIC_RECOMMENDATION_WORDS.search(text):
+        return False
+    remainder = _GENERIC_RECOMMENDATION_FILLER.sub(" ", text)
+    remainder = re.sub(r"[^가-힣A-Za-z0-9]+", "", remainder)
+    return not remainder
+
+
 # ── 2단계: LLM 보완 ─────────────────────────────────────────────
 
 REWRITE_SYSTEM = """너는 영화 검색 쿼리 분석 전문가다.
@@ -145,7 +170,8 @@ REWRITE_SYSTEM = """너는 영화 검색 쿼리 분석 전문가다.
   "language": "언어코드 ko/en/ja 등 (없으면 null)",
   "year_from": 시작연도 정수 (없으면 null),
   "year_to": 종료연도 정수 (없으면 null),
-  "min_rating": 최소평점 실수 (없으면 null)
+  "min_rating": 최소평점 실수 (없으면 null),
+  "sort_latest": 최신/최근 개봉/신작 요청이면 true, 아니면 false
 }
 
 절대 규칙: 사용자 문장에 실제로 등장하지 않은 정보는 절대 추측해서 채우지 마라.
@@ -225,6 +251,9 @@ def _validate_against_text(llm: dict, pre: dict, user_message: str) -> dict:
         if val and str(val) not in user_message:
             llm[field] = None
 
+    # 최신작 요청은 명시적인 표현이 있을 때만 허용한다.
+    llm["sort_latest"] = pre["sort_latest"]
+
     return llm
 
 
@@ -247,7 +276,13 @@ def rewrite(user_message: str) -> dict:
     # 검증 가드(_validate_against_text)가 regex 근거 없는 LLM 값은 어차피 버리기 때문에,
     # 이 경우 LLM 호출은 실질적 가치 없이 2~5초만 더 든다. regex가 아무것도 못 찾은
     # 애매한 자유 발화일 때만 LLM으로 보완한다.
-    if any(pre.get(f) is not None for f in _PRE_FIELDS):
+    if pre["sort_latest"] or _MOOD_HINT_PATTERN.search(user_message) or any(pre.get(f) is not None for f in _PRE_FIELDS):
+        return pre
+    if _is_generic_recommendation_request(user_message):
+        # '대중적인' 한 단어는 줄거리 안의 표현과 과도하게 매칭됐다.
+        # 흥행·관객·인지도 개념을 함께 넣어 널리 알려진 후보군을 먼저 만든다.
+        pre["search_query"] = "흥행에 성공하고 많은 관객에게 사랑받은 인기 명작 영화"
+        pre["quality_priority"] = "generic"
         return pre
 
     # 2단계: LLM으로 search_query 정제 + 미추출 필드 보완
@@ -270,9 +305,10 @@ def rewrite(user_message: str) -> dict:
     raw = chat_json(messages, max_tokens=400)
     llm = _parse_llm_json(raw, pre)
     llm = _validate_against_text(llm, pre, user_message)
+    llm["quality_priority"] = pre.get("quality_priority")
 
     # regex 결과로 LLM 누락 필드 보완 (LLM 우선, regex는 보조)
-    for field in ("genre", "actor", "director", "language", "year_from", "year_to", "min_rating"):
+    for field in ("genre", "actor", "director", "language", "year_from", "year_to", "min_rating", "sort_latest"):
         if llm.get(field) is None and pre.get(field) is not None:
             llm[field] = pre[field]
 

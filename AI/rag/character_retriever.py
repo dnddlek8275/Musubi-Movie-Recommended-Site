@@ -1,10 +1,11 @@
 """
-CineVerse Character Retriever
+Musubi Character Retriever
 Milvus characters 컬렉션 하이브리드 검색
 스키마: character_name / movie / lang / data_type / text / metadata / dense_vector / sparse_vector
 """
 
 from functools import lru_cache
+import os
 
 from pymilvus import MilvusClient, AnnSearchRequest, RRFRanker
 
@@ -12,7 +13,7 @@ from rag.embedder import embed_query
 from rag.reranker import rerank
 
 MILVUS_URI       = "http://localhost:19530"
-COLLECTION_NAME  = "characters"
+COLLECTION_NAME  = os.getenv("CHARACTER_COLLECTION_NAME", "characters_verified_v4")
 
 
 @lru_cache(maxsize=1)

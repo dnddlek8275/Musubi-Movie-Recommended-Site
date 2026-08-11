@@ -1,5 +1,5 @@
 """
-CineVerse RAG Retriever
+Musubi RAG Retriever
 - characters 컬렉션: 캐릭터 기억/경험 검색
 - movies 컬렉션: 영화 추천 검색
 - BGE-M3 하이브리드 (Dense + Sparse) + RRF + CrossEncoder 리랭커
@@ -8,11 +8,15 @@ CineVerse RAG Retriever
 from __future__ import annotations
 from functools import lru_cache
 
+import os
+
 from pymilvus import MilvusClient, AnnSearchRequest, RRFRanker
 from FlagEmbedding import BGEM3FlagModel
 from sentence_transformers import CrossEncoder
 
 MILVUS_URI = "http://localhost:19530"
+MOVIE_COLLECTION_NAME = os.getenv("MOVIE_COLLECTION_NAME", "movies_active")
+CHARACTER_COLLECTION_NAME = os.getenv("CHARACTER_COLLECTION_NAME", "characters_verified_v4")
 BGE_MODEL_NAME = "BAAI/bge-m3"
 RERANKER_MODEL_NAME = "BAAI/bge-reranker-v2-m3"
 
@@ -72,7 +76,7 @@ def get_character_context(
 
     try:
         results = client.hybrid_search(
-            collection_name="characters",
+            collection_name=CHARACTER_COLLECTION_NAME,
             reqs=[dense_req, sparse_req],
             ranker=RRFRanker(k=60),
             limit=limit * 2,
@@ -83,7 +87,7 @@ def get_character_context(
 
     if not results or not results[0]:
         rows = client.query(
-            collection_name="characters",
+            collection_name=CHARACTER_COLLECTION_NAME,
             filter=filter_expr,
             output_fields=["data_type", "text"],
             limit=limit,
@@ -167,7 +171,7 @@ def search_movies(
 
     try:
         results = client.hybrid_search(
-            collection_name="movies",
+            collection_name=MOVIE_COLLECTION_NAME,
             reqs=[dense_req, sparse_req],
             ranker=RRFRanker(k=60),
             limit=limit * 2,

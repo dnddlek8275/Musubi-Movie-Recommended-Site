@@ -2,7 +2,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import Depends, UploadFile
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_db
@@ -10,6 +10,13 @@ from app.models.actors import Actor
 from app.models.interactions import UserMovieInteraction
 from app.models.movies import Movie
 from app.models.users import User, UserPreferenceScore
+from app.core.config import settings
+from app.services.object_storage_service import (
+    delete_object,
+    parse_object_uri,
+    resolve_object_url,
+    upload_object,
+)
 
 # 프로젝트 최상위 폴더를 기준으로 업로드 파일의 절대 경로를 구성한다.
 # 현재 파일은 app/services/user_service.py에 있으므로 parents[2]가 프로젝트 루트이다.
@@ -22,9 +29,8 @@ PROFILE_IMAGE_ROOT = (
     BASE_DIR / "app" / "uploads" / "images" / "user_profiles"
 )
 
-# DB에 저장하고 프론트엔드에 전달할 공개 URL의 앞부분이다.
-# main.py에서 app/uploads를 "/uploads"로 연결했으므로 실제 저장 경로의
-# images/user_profiles 부분까지 동일하게 이어서 작성해야 한다.
+# 기존 로컬 업로드 값의 읽기·삭제 호환을 위한 접두사다. 신규 업로드는
+# Object Storage에 저장하며 DB에는 s3://bucket/key 형식으로 기록한다.
 PUBLIC_PROFILE_IMAGE_PREFIX = "/uploads/images/user_profiles"
 
 # 배포 환경이나 새로 프로젝트를 내려받은 환경에서도 이미지 저장이 가능하도록
@@ -86,14 +92,37 @@ def get_recently_viewed_movies_result(
         user_id: int,
         limit: int = 5,
 ):
-    return db.scalars(
-        select(UserMovieInteraction)
+    # 과거에 동일 영화를 여러 번 조회해 이벤트 행이 중복돼 있어도 영화별
+    # 가장 최근 기록 한 건만 선택한다. 바깥 쿼리에서 다시 최신순으로 정렬해
+    # 재조회한 영화가 목록 맨 앞으로 오게 한다.
+    ranked_interactions = (
+        select(
+            UserMovieInteraction.id.label("interaction_id"),
+            func.row_number().over(
+                partition_by=UserMovieInteraction.movie_id,
+                order_by=(
+                    UserMovieInteraction.created_at.desc(),
+                    UserMovieInteraction.id.desc(),
+                ),
+            ).label("recent_rank"),
+        )
         .where(
             UserMovieInteraction.user_id == user_id,
-            UserMovieInteraction.action_type == "view"
+            UserMovieInteraction.action_type.in_(("view", "search_click")),
         )
-        # 최신 순으로 정렬
-        .order_by(UserMovieInteraction.created_at.desc())
+        .subquery()
+    )
+    return db.scalars(
+        select(UserMovieInteraction)
+        .join(
+            ranked_interactions,
+            ranked_interactions.c.interaction_id == UserMovieInteraction.id,
+        )
+        .where(ranked_interactions.c.recent_rank == 1)
+        .order_by(
+            UserMovieInteraction.created_at.desc(),
+            UserMovieInteraction.id.desc(),
+        )
         .limit(limit)
     ).all()
 
@@ -126,7 +155,7 @@ def check_profile_image(image : UploadFile, contents : bytes):
     return True, "검증 성공", extension
 
 # 사용자 프로필 이미지 수정 및 저장
-async def update_user_profile_image(db : Session, user_id: int, profile_image:str):
+async def update_user_profile_image(db: Session, user_id: int, profile_image: UploadFile):
     # 사용자 찾기
     user = get_user(db, user_id)
     if not user:
@@ -141,22 +170,37 @@ async def update_user_profile_image(db : Session, user_id: int, profile_image:st
     if not check_result:
         return False, message
     
-    if user.profile_image is not None:
-        check, message = delet_user_profile_image(user.profile_image)
-        if check == False:
-            return check, message
-    
-    # 서버에 이미지 저장
+    old_profile_image = user.profile_image
     file_name = f"profile_{uuid4().hex}{extension}"
-    file_path = PROFILE_IMAGE_ROOT/file_name
+    object_key = f"{settings.OBJECT_STORAGE_PROFILE_PREFIX.strip('/')}/{user_id}/{file_name}"
 
-    file_path.write_bytes(contents)
+    try:
+        profile_image_uri = upload_object(
+            key=object_key,
+            contents=contents,
+            content_type=profile_image.content_type or "application/octet-stream",
+        )
+    except Exception:
+        return False, "Object Storage에 프로필 이미지를 저장하지 못했습니다."
 
-    profile_image_url = f"{PUBLIC_PROFILE_IMAGE_PREFIX}/{file_name}"
-    
-    # db에 저장
-    user.profile_image = profile_image_url
-    db.commit()
+    try:
+        user.profile_image = profile_image_uri
+        db.commit()
+    except Exception:
+        db.rollback()
+        try:
+            delete_object(profile_image_uri)
+        except Exception:
+            pass
+        raise
+
+    # 새 객체와 DB 반영이 성공한 뒤 이전 객체를 정리한다. 이전 객체 삭제 실패가
+    # 새 프로필 반영을 되돌리지는 않으며, 운영 로그/정리 작업에서 처리한다.
+    if old_profile_image:
+        try:
+            delet_user_profile_image(old_profile_image)
+        except Exception:
+            pass
     return True, "사용자 프로필 이미지 저장 성공"
 
 
@@ -170,15 +214,42 @@ def get_profile_image_path(profile_image_url:str):
     file_name = profile_image_url.replace(perfix, "", 1)
     return PROFILE_IMAGE_ROOT/file_name
 
+
+def resolve_profile_image_url(
+    profile_image_value: str | None,
+    request_base_url: str | None = None,
+) -> str | None:
+    if not profile_image_value:
+        return None
+
+    object_url = resolve_object_url(profile_image_value)
+    if object_url:
+        return object_url
+
+    if profile_image_value.startswith(("http://", "https://")):
+        return profile_image_value
+
+    if profile_image_value.startswith("/") and request_base_url:
+        return request_base_url.rstrip("/") + profile_image_value
+
+    return profile_image_value
+
     
 
 # 파일에서 삭제
 def delet_user_profile_image(profile_image_url: str):
+    if parse_object_uri(profile_image_url):
+        try:
+            delete_object(profile_image_url)
+            return True, "Object Storage 파일 삭제 완료"
+        except Exception:
+            return False, "Object Storage에서 프로필 이미지를 삭제하지 못했습니다."
+
     file_path = get_profile_image_path(profile_image_url)
     if not file_path:
         return False , "프로필 이미지 경로가 없습니다."
     if not file_path.exists():
-        return False, "서버에 이미지가 저장되어 있지 않습니다."
+        return True, "기존 로컬 파일이 이미 없습니다."
     file_path.unlink()
     return True, "파일 삭제 완료"
 

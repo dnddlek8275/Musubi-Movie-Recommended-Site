@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Import movies_final.csv into the local CineVerse PostgreSQL database."""
+"""Import movies_final.csv into the local Musubi PostgreSQL database."""
 
 from __future__ import annotations
 
 import argparse
 import csv
+from datetime import date
 from pathlib import Path
 
 from sqlalchemy import delete, func
@@ -13,10 +14,13 @@ from sqlalchemy.engine import make_url
 
 from app.core.config import settings
 from app.core.dependencies import SessionLocal
-from app.models.movies import Movie, MovieGenre, MovieStats
+from app.models.movies import Movie, MovieGenre, MovieGenreWeight, MovieStats
+from app.services.admin.tmdb_register_service import require_non_explicit_metadata
+from app.services.movies.genre_relevance import GENRE_WEIGHT_VERSION, genre_relevance_details
 
 
 REQUIRED_COLUMNS = {
+    "adult",
     "tmdb_id",
     "title",
     "language",
@@ -29,6 +33,8 @@ REQUIRED_COLUMNS = {
     "poster_path",
     "audience_count",
     "개봉연도",
+    "release_date",
+    "runtime",
 }
 LOCAL_DB_HOSTS = {"db", "localhost", "127.0.0.1", "::1"}
 
@@ -70,28 +76,59 @@ def optional_float(value: str | None) -> float | None:
     return float(normalized) if normalized else None
 
 
+def optional_date(value: str | None) -> date | None:
+    normalized = (value or "").strip()
+    if not normalized:
+        return None
+    try:
+        return date.fromisoformat(normalized)
+    except ValueError:
+        return None
+
+
+def require_adult_false(value: str | None, tmdb_id: str) -> None:
+    normalized = (value or "").strip().casefold()
+    if normalized not in {"false", "0"}:
+        raise ValueError(
+            f"TMDB {tmdb_id}: CSV adult 값이 false인 영화만 가져올 수 있습니다."
+        )
+
+
 def movie_values(row: dict[str, str]) -> dict:
-    return {
+    require_adult_false(row.get("adult"), row.get("tmdb_id", ""))
+    values = {
         "tmdb_id": int(row["tmdb_id"]),
         "title": row["title"].strip(),
         "overview": optional_text(row["overview"]),
         "genres": string_list(row["genres"]),
         "director": optional_text(row["director"]),
         "cast": string_list(row["cast"]),
-        "keywords": None,
+        "keywords": string_list(row.get("keywords")),
         "year": optional_int(row["개봉연도"]),
+        "release_date": optional_date(row["release_date"]),
+        "runtime": optional_int(row["runtime"]),
         "language": optional_text(row["language"]),
         "vote_average": optional_float(row["vote_average"]),
         "vote_count": optional_int(row["vote_count"]),
         "audience_count": optional_int(row["audience_count"]),
         "poster_path": optional_text(row["poster_path"]),
     }
+    require_non_explicit_metadata(
+        values["keywords"] or [],
+        optional_text(row.get("certification")),
+        optional_text(row.get("certification_country")),
+        values["overview"],
+        values["title"],
+        values["genres"] or [],
+    )
+    return values
 
 
 def import_batch(rows: list[dict]) -> tuple[int, int]:
     movie_table = Movie.__table__
     genre_table = MovieGenre.__table__
     stats_table = MovieStats.__table__
+    genre_weight_table = MovieGenreWeight.__table__
 
     statement = insert(movie_table).values(rows)
     update_columns = {
@@ -104,6 +141,8 @@ def import_batch(rows: list[dict]) -> tuple[int, int]:
             "cast",
             "keywords",
             "year",
+            "release_date",
+            "runtime",
             "language",
             "vote_average",
             "vote_count",
@@ -134,6 +173,23 @@ def import_batch(rows: list[dict]) -> tuple[int, int]:
         ]
         if genre_rows:
             session.execute(insert(genre_table), genre_rows)
+
+        session.execute(
+            delete(genre_weight_table).where(genre_weight_table.c.movie_id.in_(movie_ids))
+        )
+        weight_rows = []
+        for row in rows:
+            movie_like = type("MovieMetadata", (), row)()
+            for genre, detail in genre_relevance_details(movie_like).items():
+                weight_rows.append({
+                    "movie_id": ids_by_tmdb[row["tmdb_id"]],
+                    "genre": genre,
+                    "weight": detail["weight"],
+                    "evidence_count": detail["evidence_count"],
+                    "calculation_version": GENRE_WEIGHT_VERSION,
+                })
+        if weight_rows:
+            session.execute(insert(genre_weight_table), weight_rows)
 
         stats_statement = insert(stats_table).values(
             [{"movie_id": movie_id} for movie_id in movie_ids]

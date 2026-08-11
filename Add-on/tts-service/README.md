@@ -1,4 +1,4 @@
-# CineVerse chatai 음성
+# Musubi chatai 음성
 
 OpenVoice V2와 MeloTTS를 사용하는 무료 로컬 TTS입니다. 현재 캐릭터 음성은
 `chatai` 하나이며, 실제 아동을 복제하지 않은 합성 음성입니다.

@@ -1,4 +1,4 @@
-# CineVerse GPU 서버 프라이빗 서브넷 이전 가이드
+# Musubi GPU 서버 프라이빗 서브넷 이전 가이드
 
 ## 1. 목적
 
@@ -12,6 +12,32 @@
 - 커스텀 이미지 생성 및 신규 GPU 서버 복제
 - 신규 서버의 서비스·데이터·GPU 성능 검증
 - 장애 발생 시 롤백
+
+## Milvus v2.4.0 반복 경고 운영 예외
+
+다음 경고는 현재 사용 중인 `milvusdb/milvus:v2.4.0`의 버전 코드 오류로 인해 지속적으로 발생한다.
+
+```text
+field id not found, ignore to report indexed num entities
+```
+
+Milvus v2.4.0의 DataCoord 통계 코드가 `FieldID` 자리에 실제 필드 ID가 아닌 `IndexID`를 넣고, RootCoord가 이 값을 스키마의 필드 ID와 비교하면서 발생하는 경고다. 일자 컬럼 추가, 컬렉션 손상 또는 인덱스 손상을 의미하지 않는다. 현재 이전·신규 서버의 스키마와 `field-index` 메타데이터 값이 동일하고 컬렉션 행 수, 인덱스 상태 및 검색 결과가 정상임을 확인했다.
+
+운영 시 원본 Docker 로그는 보존한다. 장애 점검과 알림 결과에서 위의 정확한 문구만 제외하며, 다른 `WARN`, `ERROR`, `FATAL`, `panic`, 컨테이너 비정상 상태 및 재시작 증가는 계속 확인한다. Milvus 전체 로그 레벨을 `error`로 올리지 않는다.
+
+점검 명령:
+
+```bash
+/home/ubuntu/cineverse/ops/check-milvus-alerts.sh 10m
+```
+
+스크립트 종료 코드는 다음과 같다.
+
+- `0`: 컨테이너가 정상이며 예외 문구를 제외한 경고·오류가 없음
+- `1`: 확인해야 할 다른 경고 또는 오류가 있음
+- `2`: 컨테이너가 없거나 실행·헬스 상태가 비정상
+
+이 문제를 제거하려면 별도 테스트 환경에서 Milvus 업그레이드 호환성을 검증한 후 운영 버전을 변경한다. 현재 운영 이전 완료 단계에서는 버전을 유지한다.
 
 ## 2. 확인된 기존 서버 구성
 
@@ -638,5 +664,5 @@ curl http://NEW_GPU_PRIVATE_IP/health
 ---
 
 작성 기준일: 2026-07-29  
-대상: KakaoCloud CineVerse GPU 서버  
+대상: KakaoCloud Musubi GPU 서버
 주의: 이 문서는 현재 확인된 서버 구성을 기준으로 작성되었다. 실제 이전 전에 콘솔의 인스턴스 유형, GPU 가용 수량, 커스텀 이미지 선택 가능 여부와 네트워크 CIDR을 다시 확인한다.

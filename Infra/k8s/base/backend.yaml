@@ -21,6 +21,8 @@ spec:
         app.kubernetes.io/name: backend
         app.kubernetes.io/part-of: cineverse
     spec:
+      imagePullSecrets:
+        - name: kcr-pull-secret
       securityContext:
         runAsNonRoot: true
         runAsUser: 100
@@ -31,7 +33,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: backend
-          image: registry.example.com/cineverse/backend:dev
+          image: kc-sfacspace05.kr-central-2.kcr.dev/team3-back-repo/backend:20260810-1
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -57,17 +59,17 @@ spec:
             periodSeconds: 20
             timeoutSeconds: 3
             failureThreshold: 3
-          volumeMounts:
-            - name: uploads
-              mountPath: /app/app/uploads
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 3Gi
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
-      volumes:
-        - name: uploads
-          persistentVolumeClaim:
-            claimName: backend-uploads
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname

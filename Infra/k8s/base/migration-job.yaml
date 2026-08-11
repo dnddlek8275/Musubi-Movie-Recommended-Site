@@ -13,6 +13,8 @@ spec:
         app.kubernetes.io/part-of: cineverse
     spec:
       restartPolicy: Never
+      imagePullSecrets:
+        - name: kcr-pull-secret
       securityContext:
         runAsNonRoot: true
         runAsUser: 100
@@ -21,7 +23,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: migrate
-          image: registry.example.com/cineverse/backend:dev
+          image: kc-sfacspace05.kr-central-2.kcr.dev/team3-back-repo/backend:20260810-1
           imagePullPolicy: IfNotPresent
           command: ["/bin/sh", "-c"]
           args:
