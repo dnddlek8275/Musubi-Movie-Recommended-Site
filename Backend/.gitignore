@@ -12,6 +12,8 @@ docs/
 scripts/
 !scripts/
 scripts/*
+!scripts/__init__.py
+!scripts/sync_tmdb_daily.py
 !scripts/import_movies_csv.py
 !scripts/import_tmdb_regional_movies.py
 !scripts/import_tmdb_anime_franchises.py
