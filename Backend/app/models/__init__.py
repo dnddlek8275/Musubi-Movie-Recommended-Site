@@ -11,7 +11,7 @@ from app.models.daily_ai_recommendation import (
     DailyAiRecommendation,
     DailyAiRecommendationMovie,
 )
-from app.models.interactions import MovieRating, UserMovieInteraction
+from app.models.interactions import MovieRating, MovieWishlist, UserMovieInteraction
 from app.models.movies import Movie, MovieGenre, MovieGenreWeight, MovieStats
 from app.models.ranking import DailyBoxOfficeRanking, DailyMovieRankingSnapshot, KobisMovieMapping
 from app.models.sync import MovieVectorSyncJob, TmdbDailySyncRun
@@ -33,6 +33,7 @@ __all__ = [
     "DailyAiRecommendationMovie",
     "UserMovieInteraction",
     "MovieRating",
+    "MovieWishlist",
     "Movie",
     "MovieGenre",
     "MovieGenreWeight",

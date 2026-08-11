@@ -21,7 +21,7 @@ from app.services.movies.recommendation_service import get_guest_recommend_movie
 from app.services.movies.tmdb_trailer_service import get_movie_trailer_videos
 from app.services.user_service import user_like_actor
 from app.services.preference_service import CURATED_LEARNABLE_KEYWORD_ORDER, toggle_person_preference
-from app.models.interactions import MovieRating
+from app.models.interactions import MovieRating, MovieWishlist
 from app.models.actors import Actor, MovieActor
 from app.models.movies import Movie, MovieGenre
 from app.models.users import User
@@ -59,9 +59,10 @@ def get_rating_summary(db: Session, movie_id: int, user_id: int | None = None) -
     ).one()
     my_rating = None
     my_comment = None
+    my_is_spoiler = False
     if user_id is not None:
         my_rating_row = db.execute(
-            select(MovieRating.score, MovieRating.comment).where(
+            select(MovieRating.score, MovieRating.comment, MovieRating.is_spoiler).where(
                 MovieRating.movie_id == movie_id,
                 MovieRating.user_id == user_id,
             )
@@ -69,6 +70,7 @@ def get_rating_summary(db: Session, movie_id: int, user_id: int | None = None) -
         if my_rating_row is not None:
             my_rating = my_rating_row.score
             my_comment = my_rating_row.comment
+            my_is_spoiler = bool(my_rating_row.is_spoiler)
 
     review_rows = db.execute(
         select(MovieRating, User.nickname)
@@ -85,12 +87,15 @@ def get_rating_summary(db: Session, movie_id: int, user_id: int | None = None) -
         "rating_count": int(count or 0),
         "my_rating": my_rating,
         "my_comment": my_comment,
+        "my_is_spoiler": my_is_spoiler,
         "reviews": [
             {
                 "id": rating.id,
+                "user_id": rating.user_id,
                 "nickname": nickname,
                 "score": rating.score,
                 "comment": rating.comment,
+                "is_spoiler": bool(rating.is_spoiler),
                 "updated_at": rating.updated_at,
                 "is_mine": user_id is not None and rating.user_id == user_id,
             }
@@ -625,6 +630,50 @@ def like_movie(
         return error_response("좋아요 API 호출 실패")
 
 
+@router.post("/{movie_id}/wishlist")
+def add_movie_to_wishlist(
+    movie_id: int,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        user_id = current_user["user_id"]
+        if db.get(Movie, movie_id) is None:
+            return {"state": "failure", "message": "영화 정보를 찾을 수 없습니다."}
+        existing = db.scalar(select(MovieWishlist).where(
+            MovieWishlist.user_id == user_id,
+            MovieWishlist.movie_id == movie_id,
+        ))
+        if existing is None:
+            db.add(MovieWishlist(user_id=user_id, movie_id=movie_id))
+            db.commit()
+        return {"state": "success", "message": "찜한 영화에 저장했습니다.", "data": {"movie_id": movie_id, "wishlisted": True}}
+    except Exception:
+        db.rollback()
+        return error_response("영화 찜 저장 실패")
+
+
+@router.delete("/{movie_id}/wishlist")
+def remove_movie_from_wishlist(
+    movie_id: int,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        user_id = current_user["user_id"]
+        rows = db.scalars(select(MovieWishlist).where(
+            MovieWishlist.user_id == user_id,
+            MovieWishlist.movie_id == movie_id,
+        )).all()
+        for row in rows:
+            db.delete(row)
+        db.commit()
+        return {"state": "success", "message": "찜한 영화에서 제거했습니다.", "data": {"movie_id": movie_id, "wishlisted": False}}
+    except Exception:
+        db.rollback()
+        return error_response("영화 찜 삭제 실패")
+
+
 @router.get("/{movie_id}/similar")
 def get_similar_movies(
     movie_id: int,
@@ -696,11 +745,13 @@ def rate_movie(
                 movie_id=movie_id,
                 score=request.score,
                 comment=(request.comment or "").strip() or None,
+                is_spoiler=request.is_spoiler,
             )
             db.add(rating)
         else:
             rating.score = request.score
             rating.comment = (request.comment or "").strip() or None
+            rating.is_spoiler = request.is_spoiler
             rating.updated_at = func.now()
 
         db.commit()

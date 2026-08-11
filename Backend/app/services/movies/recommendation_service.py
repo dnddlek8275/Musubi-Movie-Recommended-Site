@@ -44,6 +44,7 @@ CONTENT_SIMILARITY_WEIGHTS = {
 CONTENT_SIMILARITY_MINIMUM = 0.25
 CONTENT_MINIMUM_VOTES = 300
 CONTENT_DUPLICATE_GENRE_PENALTY = 0.03
+CONTENT_CANDIDATE_POOL_LIMIT = 400
 INTERACTED_RECOMMENDATION_MAX_SHARE = 0.33
 DAILY_RECOMMENDATION_GENRES = [
     "액션", "드라마", "코미디", "로맨스", "스릴러",
@@ -626,6 +627,10 @@ def get_similar_movies_result(
         )
         .where(or_(*match_filters))
         .where(vote_filter)
+        # 전체 영화 행을 Python으로 가져와 점수 계산하던 병목을 제한한다.
+        # 충분한 후보 다양성을 유지하면서 우선 검토할 고신뢰 후보만 읽는다.
+        .order_by(Movie.vote_count.desc().nullslast(), Movie.vote_average.desc().nullslast(), Movie.id.asc())
+        .limit(CONTENT_CANDIDATE_POOL_LIMIT)
     ).all()
 
     global_average = float(

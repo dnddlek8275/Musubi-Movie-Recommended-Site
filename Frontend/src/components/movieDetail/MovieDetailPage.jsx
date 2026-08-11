@@ -2,12 +2,16 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   addLikedMovie,
+  addWishlistMovie,
   deleteMovieRating,
   fetchLikedMovies,
   fetchMovieDetail,
+  fetchPublicUserActivity,
   fetchSimilarMovies,
+  fetchWishlistMovies,
   rateMovie,
   removeLikedMovie,
+  removeWishlistMovie,
   resolveMovieImage,
 } from '../../api.js';
 import { normalizeMovie } from '../index/RecommendationRow.jsx';
@@ -63,18 +67,25 @@ function MovieDetailPage({ authUser, movieId }) {
   const [detail, setDetail] = useState(null);
   const [recommended, setRecommended] = useState([]);
   const [liked, setLiked] = useState(false);
+  const [wishlisted, setWishlisted] = useState(false);
   const [rating, setRating] = useState(0);
   const [draftRating, setDraftRating] = useState(0);
   const [reviewComment, setReviewComment] = useState('');
   const [draftComment, setDraftComment] = useState('');
+  const [reviewSpoiler, setReviewSpoiler] = useState(false);
+  const [draftSpoiler, setDraftSpoiler] = useState(false);
   const [ratingOpen, setRatingOpen] = useState(false);
   const [ratingSaving, setRatingSaving] = useState(false);
   const [showAllCast, setShowAllCast] = useState(false);
   const [showAllReviews, setShowAllReviews] = useState(false);
   const [expandedReviews, setExpandedReviews] = useState([]);
+  const [revealedSpoilers, setRevealedSpoilers] = useState([]);
+  const [memberActivity, setMemberActivity] = useState(null);
+  const [memberActivityLoading, setMemberActivityLoading] = useState(false);
   const [selectedTrailerUrl, setSelectedTrailerUrl] = useState('');
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(true);
+  const [recommendedLoading, setRecommendedLoading] = useState(true);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -93,6 +104,9 @@ function MovieDetailPage({ authUser, movieId }) {
         const savedComment = String(movie?.my_comment || '');
         setReviewComment(savedComment);
         setDraftComment(savedComment);
+        const savedSpoiler = Boolean(movie?.my_is_spoiler);
+        setReviewSpoiler(savedSpoiler);
+        setDraftSpoiler(savedSpoiler);
         const firstTrailer = movie?.trailer_videos?.[0]?.url || movie?.trailer_url || '';
         setSelectedTrailerUrl(toEmbedUrl(firstTrailer));
       })
@@ -109,20 +123,25 @@ function MovieDetailPage({ authUser, movieId }) {
   useEffect(() => {
     if (!authUser) return undefined;
     const controller = new AbortController();
-    fetchLikedMovies(controller.signal)
-      .then((movies) => {
-        setLiked(movies.some((movie) => String(getInternalMovieId(movie)) === String(movieId)));
+    Promise.allSettled([fetchLikedMovies(controller.signal), fetchWishlistMovies(controller.signal)])
+      .then(([likedResult, wishlistResult]) => {
+        if (likedResult.status === 'fulfilled') {
+          setLiked(likedResult.value.some((movie) => String(getInternalMovieId(movie)) === String(movieId)));
+        }
+        if (wishlistResult.status === 'fulfilled') {
+          setWishlisted(wishlistResult.value.some((movie) => String(getInternalMovieId(movie)) === String(movieId)));
+        }
+        const rejected = [likedResult, wishlistResult].find((result) => result.status === 'rejected');
+        if (rejected && rejected.reason?.name !== 'AbortError') setStatus(rejected.reason.message);
       })
-      .catch((error) => {
-        if (error.name !== 'AbortError') setStatus(error.message);
-      });
+      .catch(() => {});
     return () => controller.abort();
   }, [authUser, movieId]);
 
   useEffect(() => {
-    if (!detail?.id) return undefined;
     const controller = new AbortController();
-    fetchSimilarMovies(detail.id, controller.signal, 6)
+    setRecommendedLoading(true);
+    fetchSimilarMovies(movieId, controller.signal, 6)
       .then((movies) => {
         setRecommended(
           movies
@@ -130,9 +149,12 @@ function MovieDetailPage({ authUser, movieId }) {
             .slice(0, 6)
         );
       })
-      .catch(() => setRecommended([]));
+      .catch(() => setRecommended([]))
+      .finally(() => {
+        if (!controller.signal.aborted) setRecommendedLoading(false);
+      });
     return () => controller.abort();
-  }, [detail?.id]);
+  }, [movieId]);
 
   const reviews = Array.isArray(detail?.reviews) ? detail.reviews : [];
   const reviewAverage = useMemo(() => {
@@ -192,6 +214,23 @@ function MovieDetailPage({ authUser, movieId }) {
     }
   };
 
+  const handleWishlist = async () => {
+    if (!authUser) {
+      setStatus('찜하기는 로그인 후 이용할 수 있어요.');
+      return;
+    }
+    const next = !wishlisted;
+    setWishlisted(next);
+    setStatus('');
+    try {
+      if (next) await addWishlistMovie(movieId);
+      else await removeWishlistMovie(movieId);
+    } catch (error) {
+      setWishlisted(!next);
+      setStatus(error.message);
+    }
+  };
+
   const toggleRating = () => {
     if (!authUser) {
       setStatus('평가는 로그인 후 이용할 수 있어요.');
@@ -199,6 +238,7 @@ function MovieDetailPage({ authUser, movieId }) {
     }
     setDraftRating(rating || 0);
     setDraftComment(reviewComment);
+    setDraftSpoiler(reviewSpoiler);
     setStatus('');
     setRatingOpen((open) => !open);
   };
@@ -221,10 +261,12 @@ function MovieDetailPage({ authUser, movieId }) {
           expectedMovieId: verifiedMovieId,
           expectedTmdbId: detail?.tmdb_id,
           expectedTitle: detail?.title,
+          isSpoiler: draftSpoiler,
         }
       );
       setRating(Number(result.my_rating) || draftRating);
       setReviewComment(String(result.my_comment || ''));
+      setReviewSpoiler(Boolean(result.my_is_spoiler ?? draftSpoiler));
       setDetail((current) => ({ ...current, ...result }));
       setRatingOpen(false);
       setStatus(`${detail?.title || '선택한 영화'}에 리뷰가 저장되었습니다.`);
@@ -254,6 +296,8 @@ function MovieDetailPage({ authUser, movieId }) {
       setDraftRating(0);
       setReviewComment('');
       setDraftComment('');
+      setReviewSpoiler(false);
+      setDraftSpoiler(false);
       setDetail((current) => ({ ...current, ...result }));
       setRatingOpen(false);
       setStatus('평가와 리뷰가 삭제되었습니다.');
@@ -275,6 +319,19 @@ function MovieDetailPage({ authUser, movieId }) {
     setExpandedReviews((current) => (
       current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
     ));
+  };
+
+  const openMemberActivity = async (review) => {
+    if (!review?.user_id || review.is_mine || memberActivityLoading) return;
+    setMemberActivityLoading(true);
+    setStatus('');
+    try {
+      setMemberActivity(await fetchPublicUserActivity(review.user_id));
+    } catch (error) {
+      setStatus(error.message);
+    } finally {
+      setMemberActivityLoading(false);
+    }
   };
 
   if (loading) {
@@ -325,6 +382,10 @@ function MovieDetailPage({ authUser, movieId }) {
             <button type="button" onClick={handleLike}>
               <span className={liked ? 'movie-detail__heart is-liked' : 'movie-detail__heart'}>{liked ? '♥' : '♡'}</span> 좋아요
             </button>
+            <button className={wishlisted ? 'is-wishlisted' : ''} type="button" onClick={handleWishlist}>
+              <span className="movie-detail__bookmark" aria-hidden="true">{wishlisted ? '★' : '☆'}</span>
+              {wishlisted ? '찜 해제' : '찜하기'}
+            </button>
             <button type="button" onClick={toggleRating}>
               평가하기
             </button>
@@ -354,6 +415,10 @@ function MovieDetailPage({ authUser, movieId }) {
                   value={draftComment}
                 />
                 <small>{draftComment.length}/500</small>
+              </label>
+              <label className="movie-detail__spoiler-check">
+                <input checked={draftSpoiler} onChange={(event) => setDraftSpoiler(event.target.checked)} type="checkbox" />
+                <span>스포일러가 포함된 리뷰예요</span>
               </label>
               <div className="movie-detail__rating-controls">
                 {rating ? (
@@ -437,13 +502,23 @@ function MovieDetailPage({ authUser, movieId }) {
             <div className="movie-detail__review-grid">
               {visibleReviews.map((review, index) => (
                 <article className="movie-detail__review" key={review.id ?? index}>
-                  <strong className="movie-detail__review-author">{review.nickname || '사용자'}</strong>
+                  {review.is_mine || !review.user_id ? (
+                    <strong className="movie-detail__review-author">{review.nickname || '사용자'}</strong>
+                  ) : (
+                    <button className="movie-detail__review-author is-clickable" disabled={memberActivityLoading} onClick={() => openMemberActivity(review)} type="button">
+                      {review.nickname || '사용자'}의 활동 보기
+                    </button>
+                  )}
                   <div className="movie-detail__review-meta">
                     <time dateTime={review.updated_at}>{formatReviewDate(review.updated_at)}</time>
-                    <span>★ {review.score}</span>
+                    <span>{review.is_spoiler ? '스포일러 · ' : ''}★ {review.score}</span>
                   </div>
-                  <p className={expandedReviews.includes(String(review.id ?? index)) ? 'is-expanded' : ''}>{review.comment}</p>
-                  {String(review.comment || '').length > 90 ? (
+                  {review.is_spoiler && !revealedSpoilers.includes(String(review.id ?? index)) ? (
+                    <button className="movie-detail__spoiler-cover" onClick={() => setRevealedSpoilers((current) => [...current, String(review.id ?? index)])} type="button">
+                      스포일러가 포함되어 있습니다. 눌러서 보기
+                    </button>
+                  ) : <p className={expandedReviews.includes(String(review.id ?? index)) ? 'is-expanded' : ''}>{review.comment}</p>}
+                  {(!review.is_spoiler || revealedSpoilers.includes(String(review.id ?? index))) && String(review.comment || '').length > 90 ? (
                     <button className="movie-detail__review-more" onClick={() => toggleReview(review.id ?? index)} type="button">
                       {expandedReviews.includes(String(review.id ?? index)) ? '접기' : '더보기'}
                     </button>
@@ -493,7 +568,13 @@ function MovieDetailPage({ authUser, movieId }) {
       <section className="movie-detail__similar">
         <div className="movie-detail__section-heading"><span>MORE LIKE THIS</span><h2>이런 영화를 좋아하신다면?</h2></div>
         <div className="movie-detail__similar-grid">
-          {recommended.map((movie) => (
+          {recommendedLoading ? Array.from({ length: 6 }, (_, index) => (
+            <div className="movie-detail__similar-skeleton" key={`similar-skeleton-${index}`} aria-hidden="true">
+              <SkeletonBlock />
+              <SkeletonBlock className="loading-skeleton--line" />
+              <SkeletonBlock className="loading-skeleton--line loading-skeleton--short" />
+            </div>
+          )) : recommended.map((movie) => (
             <a href={`/movies/${movie.id}`} key={movie.id}>
               <div>{movie.poster ? <img src={movie.poster} alt="" decoding="async" loading="lazy" /> : <span>NO POSTER</span>}</div>
               <strong>{movie.title}</strong>
@@ -501,7 +582,44 @@ function MovieDetailPage({ authUser, movieId }) {
             </a>
           ))}
         </div>
+        {!recommendedLoading && recommended.length === 0 ? <p className="movie-detail__empty-copy">추천 영화를 준비하지 못했습니다.</p> : null}
       </section>
+
+      {memberActivity ? (
+        <div className="movie-detail__member-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setMemberActivity(null); }}>
+          <section className="movie-detail__member-modal" role="dialog" aria-modal="true" aria-label={`${memberActivity.user?.nickname || '회원'}의 영화 활동`}>
+            <header>
+              <div><span>MEMBER ACTIVITY</span><h2>{memberActivity.user?.nickname || '회원'}님의 영화 활동</h2></div>
+              <button aria-label="회원 활동 닫기" onClick={() => setMemberActivity(null)} type="button">×</button>
+            </header>
+            <div className="movie-detail__member-section">
+              <h3>좋아요 누른 영화</h3>
+              <div className="movie-detail__member-movies">
+                {(memberActivity.liked_movies || []).map((movie) => (
+                  <a href={`/movies/${getInternalMovieId(movie)}`} key={getInternalMovieId(movie)}>
+                    {resolveMovieImage(movie.poster_path) ? <img src={resolveMovieImage(movie.poster_path)} alt="" /> : <span>NO POSTER</span>}
+                    <strong>{movie.title}</strong>
+                  </a>
+                ))}
+              </div>
+              {(memberActivity.liked_movies || []).length === 0 ? <p>공개할 좋아요 영화가 없습니다.</p> : null}
+            </div>
+            <div className="movie-detail__member-section">
+              <h3>남긴 리뷰와 별점</h3>
+              <div className="movie-detail__member-reviews">
+                {(memberActivity.reviews || []).map((review) => (
+                  <a href={`/movies/${getInternalMovieId(review.movie)}`} key={review.id}>
+                    <strong>{review.movie?.title || '영화'}</strong>
+                    <span>★ {review.score}</span>
+                    <p>{review.is_spoiler ? '스포일러가 포함된 리뷰입니다.' : String(review.comment || '').trim() || '별점만 남긴 평가입니다.'}</p>
+                  </a>
+                ))}
+              </div>
+              {(memberActivity.reviews || []).length === 0 ? <p>공개할 리뷰가 없습니다.</p> : null}
+            </div>
+          </section>
+        </div>
+      ) : null}
     </main>
   );
 }

@@ -10,10 +10,12 @@ import {
   fetchChatRoomMessages,
   fetchChatRooms,
   fetchLikedMovies,
+  fetchMyReviews,
   fetchPreferenceInsights,
   fetchRecentMovies,
   fetchUserPreferences,
   fetchUserProfile,
+  fetchWishlistMovies,
   removeLikedMovie,
   requestAccountEmailVerification,
   resetLearnedPreferences,
@@ -34,6 +36,7 @@ const TABS = [
   ['taste', '취향 관리'],
   ['chat', '대화 기록'],
   ['activity', '영화 활동'],
+  ['reviews', '내 활동'],
   ['account', '계정 설정'],
 ];
 
@@ -215,9 +218,9 @@ function EditableTasteRow({ category, preferenceType, label, values, mode, edita
   );
 }
 
-function MovieStrip({ title, description, movies, liked = false, onUnlike, unlikeBusy }) {
+function MovieStrip({ id, title, description, movies, emptyText = '아직 이곳에 표시할 영화가 없습니다.', liked = false, onUnlike, unlikeBusy }) {
   return (
-    <section className="mypage-movie-section">
+    <section className="mypage-movie-section" id={id}>
       <header className="mypage-section-heading"><div><h2>{title}</h2>{description ? <p>{description}</p> : null}</div></header>
       {movies.length ? (
         <div className="mypage-movie-strip">
@@ -239,8 +242,34 @@ function MovieStrip({ title, description, movies, liked = false, onUnlike, unlik
             );
           })}
         </div>
-      ) : <EmptyState>아직 이곳에 표시할 영화가 없습니다.</EmptyState>}
+      ) : <EmptyState>{emptyText}</EmptyState>}
     </section>
+  );
+}
+
+function ReviewList({ reviews }) {
+  return (
+    <div className="mypage-review-list">
+      {reviews.length ? reviews.map((review) => {
+        const movie = review.movie || {};
+        const id = movieId(movie);
+        const poster = moviePoster(movie);
+        const title = movie.title || movie.name || '제목 정보 없음';
+        return (
+          <a className="mypage-review-card" href={id ? `/movies/${id}` : undefined} key={review.id}>
+            <div className="mypage-review-card__poster">
+              {poster ? <img src={poster} alt="" /> : <span>포스터 준비 중</span>}
+            </div>
+            <div className="mypage-review-card__body">
+              <header><strong>{title}</strong><span>★ {review.score}</span></header>
+              <p>{String(review.comment || '').trim() || '별점만 남긴 평가입니다.'}</p>
+              <time dateTime={review.updated_at || review.created_at}>{formatDate(review.updated_at || review.created_at) || '날짜 정보 없음'}</time>
+            </div>
+            <b aria-hidden="true">›</b>
+          </a>
+        );
+      }) : <EmptyState>아직 작성한 리뷰가 없습니다.</EmptyState>}
+    </div>
   );
 }
 
@@ -409,6 +438,8 @@ function MyPage({ authUser, onLogout, onUserUpdate }) {
   const [recent, setRecent] = useState([]);
   const [liked, setLiked] = useState([]);
   const [recommended, setRecommended] = useState([]);
+  const [wishlisted, setWishlisted] = useState([]);
+  const [reviews, setReviews] = useState([]);
   const [unlikeBusy, setUnlikeBusy] = useState('');
   const [tasteBusy, setTasteBusy] = useState(false);
   const [directEditing, setDirectEditing] = useState(false);
@@ -426,12 +457,14 @@ function MyPage({ authUser, onLogout, onUserUpdate }) {
       fetchUserProfile(controller.signal),
       fetchUserPreferences(controller.signal),
       fetchChatRooms(controller.signal),
-      fetchRecentMovies(controller.signal, 8),
+      fetchRecentMovies(controller.signal, 50),
       fetchLikedMovies(controller.signal),
-      fetchChatRecommendedMovies(controller.signal, 8),
+      fetchChatRecommendedMovies(controller.signal, 50),
+      fetchMyReviews(controller.signal),
+      fetchWishlistMovies(controller.signal),
     ]).then(async (results) => {
       if (controller.signal.aborted) return;
-      const [profileResult, preferenceResult, roomResult, recentResult, likedResult, recommendedResult] = results;
+      const [profileResult, preferenceResult, roomResult, recentResult, likedResult, recommendedResult, reviewResult, wishlistResult] = results;
       if (profileResult.status === 'fulfilled') setProfile(profileResult.value || {});
       if (preferenceResult.status === 'fulfilled') {
         setPreferences(preferenceResult.value?.preferences || {});
@@ -452,10 +485,14 @@ function MyPage({ authUser, onLogout, onUserUpdate }) {
       if (recentResult.status === 'fulfilled') setRecent((recentResult.value || []).map(normalizeMovie));
       if (likedResult.status === 'fulfilled') setLiked((likedResult.value || []).map(normalizeMovie));
       if (recommendedResult.status === 'fulfilled') setRecommended((recommendedResult.value || []).map(normalizeMovie));
+      if (reviewResult.status === 'fulfilled') setReviews(reviewResult.value || []);
+      if (wishlistResult.status === 'fulfilled') setWishlisted((wishlistResult.value || []).map(normalizeMovie));
       if (results.some((result) => result.status === 'rejected')) setStatus('일부 기록을 불러오지 못했습니다.');
     }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, []);
+
+  const openArchiveSection = (tab) => setActiveTab(tab);
 
   useEffect(() => {
     if (activeTab !== 'taste' || insightsRequested) return;
@@ -633,7 +670,13 @@ function MyPage({ authUser, onLogout, onUserUpdate }) {
         <section className="mypage-profile-hero">
           <div className="mypage-profile-main"><div className="mypage-avatar"><img src={avatar} alt="" onError={(event) => { event.currentTarget.src = DEFAULT_AVATAR; }} /></div><div><span className="mypage-eyebrow">MUSUBI PROFILE</span><h1>{displayName}님의 취향 아카이브</h1><p>무무가 대화와 영화 활동을 통해 이해한 취향을 한곳에 모았어요.</p></div></div>
           <div className="mypage-profile-actions"><button type="button" onClick={() => setActiveTab('account')}>내 정보</button></div>
-          <div className="mypage-stats"><div><strong>{chatRows.length}</strong><span>저장 대화</span></div><div><strong>{recent.length}</strong><span>최근 본 영화</span></div><div><strong>{liked.length}</strong><span>좋아요</span></div><div><strong>{recommended.length}</strong><span>채팅 추천</span></div></div>
+          <div className="mypage-stats">
+            <button type="button" onClick={() => openArchiveSection('chat')}><strong>{chatRows.length}</strong><span>저장 대화</span></button>
+            <button type="button" onClick={() => openArchiveSection('activity')}><strong>{recent.length}</strong><span>최근 본 영화</span></button>
+            <button type="button" onClick={() => openArchiveSection('activity')}><strong>{liked.length}</strong><span>좋아요</span></button>
+            <button type="button" onClick={() => openArchiveSection('reviews')}><strong>{reviews.length}</strong><span>리뷰</span></button>
+            <button type="button" onClick={() => openArchiveSection('activity')}><strong>{recommended.length}</strong><span>채팅 추천</span></button>
+          </div>
         </section>
 
         <nav className="mypage-tabs" aria-label="마이페이지 메뉴">{TABS.map(([key, label]) => <button className={activeTab === key ? 'is-active' : ''} type="button" onClick={() => setActiveTab(key)} key={key}>{label}</button>)}</nav>
@@ -653,7 +696,9 @@ function MyPage({ authUser, onLogout, onUserUpdate }) {
 
         {activeTab === 'chat' ? <section className="mypage-tab-page"><header><span>MY CONVERSATIONS</span><h2>대화 기록</h2><p>캐릭터 대화와 무무의 일반 대화를 나누어 확인할 수 있어요.</p></header><div className="mypage-chat-columns"><ChatColumn title="캐릭터 대화" rooms={characterChats} side="character" onPin={toggleChatPin} onRename={renameChatRoom} onDelete={removeChatRoom} /><ChatColumn title="일반 대화" rooms={generalChats} side="general" onPin={toggleChatPin} onRename={renameChatRoom} onDelete={removeChatRoom} /></div></section> : null}
 
-        {activeTab === 'activity' ? <section className="mypage-tab-page"><header><span>MOVIE ACTIVITY</span><h2>나의 영화 활동</h2><p>조회와 좋아요, 대화 추천을 기준으로 정리했습니다.</p></header><MovieStrip title="최근 본 영화" movies={recent} /><MovieStrip title="채팅에서 추천받은 영화" movies={recommended} /><MovieStrip title="내가 좋아요 누른 영화" movies={liked} liked onUnlike={handleUnlike} unlikeBusy={unlikeBusy} /></section> : null}
+        {activeTab === 'activity' ? <section className="mypage-tab-page"><header><span>MOVIE ACTIVITY</span><h2>나의 영화 활동</h2><p>조회와 좋아요, 찜, 대화 추천을 기준으로 정리했습니다.</p></header><MovieStrip id="wishlisted-movies" title="찜한 영화" description="보고 싶은 영화를 모아두는 공간이에요." movies={wishlisted} emptyText="아직 찜한 영화가 없습니다." /><MovieStrip id="recent-movies" title="최근 본 영화" movies={recent} /><MovieStrip id="chat-recommended-movies" title="채팅에서 추천받은 영화" movies={recommended} /><MovieStrip id="liked-movies" title="내가 좋아요 누른 영화" movies={liked} liked onUnlike={handleUnlike} unlikeBusy={unlikeBusy} /></section> : null}
+
+        {activeTab === 'reviews' ? <section className="mypage-tab-page"><header><span>MY ACTIVITY</span><h2>내 활동</h2><p>내가 남긴 리뷰를 확인하고 해당 영화 상세페이지로 이동할 수 있어요.</p></header><ReviewList reviews={reviews} /></section> : null}
 
         {activeTab === 'account' ? <section className="mypage-tab-page"><header><span>ACCOUNT</span><h2>계정 설정</h2><p>프로필과 로그인 정보를 확인합니다.</p></header>{accountOpen ? <AccountEditor profile={profile} authUser={authUser} onCancel={() => setAccountOpen(false)} onDeleteRequest={() => setAccountDeleteConfirmOpen(true)} onSaved={(updated) => { const next = { ...profile, ...updated }; setProfile(next); onUserUpdate?.({ ...authUser, ...updated }); setAccountOpen(false); setStatus('계정 정보가 수정되었습니다.'); }} /> : <article className="mypage-panel mypage-account-card"><div><span>닉네임</span><strong>{displayName}</strong></div><div><span>이메일</span><strong>{profile.email || authUser?.email || '-'}</strong></div><button type="button" onClick={() => setAccountOpen(true)}>계정 정보 입력 / 수정</button></article>}</section> : null}
       </div>

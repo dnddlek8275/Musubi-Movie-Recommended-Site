@@ -17,9 +17,11 @@ class PreferenceRequest(BaseModel):
 
 class MovieReviewData(BaseModel):
     id: int
+    user_id: int
     nickname: str
     score: int
     comment: str
+    is_spoiler: bool = False
     updated_at: datetime
     is_mine: bool = False
 
@@ -102,6 +104,7 @@ class MovieDetailData(BaseModel):
     rating_count: int = 0
     my_rating: int | None = None
     my_comment: str | None = None
+    my_is_spoiler: bool = False
     reviews: list[MovieReviewData] = Field(default_factory=list)
 
     @computed_field
@@ -127,6 +130,7 @@ class MovieIdentityRequest(BaseModel):
 class MovieRatingRequest(MovieIdentityRequest):
     score: int = Field(ge=1, le=5)
     comment: str | None = Field(default=None, max_length=500)
+    is_spoiler: bool = False
 
 class ShowMovie(BaseModel):
     movie_id: int

@@ -39,9 +39,11 @@
 .mypage-profile-actions { display: flex; align-items: flex-start; gap: 8px; }
 .mypage-profile-actions button { min-height: 40px; padding: 0 16px; border: 1px solid var(--panel-border); border-radius: 999px; background: color-mix(in srgb, var(--text) 4%, transparent); color: var(--text); font-weight: 750; cursor: pointer; }
 
-.mypage-stats { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--panel-border); }
-.mypage-stats div { padding: 22px 24px 0; border-left: 1px solid var(--panel-border); display: flex; align-items: baseline; gap: 10px; }
-.mypage-stats div:first-child { border-left: 0; padding-left: 0; }
+.mypage-stats { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(5, 1fr); border-top: 1px solid var(--panel-border); }
+.mypage-stats button { min-width: 0; padding: 22px 24px 0; border: 0; border-left: 1px solid var(--panel-border); display: flex; align-items: baseline; gap: 10px; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.mypage-stats button:first-child { border-left: 0; padding-left: 0; }
+.mypage-stats button:hover span, .mypage-stats button:focus-visible span { color: var(--text); text-decoration: underline; text-underline-offset: 4px; }
+.mypage-stats button:focus-visible { outline: 2px solid var(--accent); outline-offset: 5px; }
 .mypage-stats strong { font-size: 27px; }
 .mypage-stats span { color: var(--muted); font-size: 14px; }
 
@@ -98,6 +100,19 @@
 .mypage-account-card > button:hover,
 .mypage-account-card > button:focus-visible { color: var(--text); text-decoration: underline; text-underline-offset: 4px; outline: none; }
 .mypage-empty { min-height: 100px; margin: 0; display: grid; place-items: center; color: var(--muted); font-size: 14px; }
+.mypage-review-list { display: grid; gap: 14px; }
+.mypage-review-card { min-height: 132px; padding: 16px; border: 1px solid var(--panel-border); border-radius: 18px; display: grid; grid-template-columns: 68px minmax(0, 1fr) auto; align-items: center; gap: 18px; background: var(--panel); color: var(--text); text-decoration: none; }
+.mypage-review-card:hover, .mypage-review-card:focus-visible { border-color: color-mix(in srgb, var(--accent) 58%, var(--panel-border)); transform: translateY(-1px); }
+.mypage-review-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.mypage-review-card__poster { width: 68px; aspect-ratio: 2 / 3; border-radius: 9px; overflow: hidden; display: grid; place-items: center; background: color-mix(in srgb, var(--text) 5%, transparent); color: var(--muted); font-size: 10px; text-align: center; }
+.mypage-review-card__poster img { width: 100%; height: 100%; object-fit: cover; }
+.mypage-review-card__body { min-width: 0; }
+.mypage-review-card__body header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.mypage-review-card__body header strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mypage-review-card__body header span { flex: 0 0 auto; color: var(--accent); font-weight: 850; }
+.mypage-review-card__body p { margin: 12px 0 10px; overflow: hidden; display: -webkit-box; color: color-mix(in srgb, var(--text) 86%, var(--muted)); line-height: 1.6; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.mypage-review-card__body time { color: var(--muted); font-size: 12px; }
+.mypage-review-card > b { color: var(--accent); font-size: 22px; }
 .mypage-skeleton { display: grid; gap: 28px; }
 .mypage-skeleton__hero { height: 248px; border-radius: 28px; }
 
@@ -189,7 +204,7 @@
   .mypage-profile-hero { padding: 28px; grid-template-columns: 1fr; }
   .mypage-profile-actions { grid-row: 2; }
   .mypage-stats { grid-template-columns: repeat(2, 1fr); }
-  .mypage-stats div:nth-child(3) { border-left: 0; }
+  .mypage-stats button:nth-child(odd) { border-left: 0; padding-left: 0; }
   .mypage-tabs { gap: 30px; overflow-x: auto; }
   .mypage-tabs button { flex: 0 0 auto; }
   .mypage-overview-grid, .mypage-taste-columns { grid-template-columns: 1fr; }
@@ -211,4 +226,7 @@
   .mypage-account-editor footer button,
   .mypage-account-editor footer button:last-child { width: 100%; }
   .mypage-account-danger { align-items: flex-start; flex-direction: column; gap: 10px; }
+  .mypage-review-card { grid-template-columns: 54px minmax(0, 1fr); gap: 13px; }
+  .mypage-review-card__poster { width: 54px; }
+  .mypage-review-card > b { display: none; }
 }

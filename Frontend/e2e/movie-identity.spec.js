@@ -68,6 +68,7 @@ test('리뷰 저장 요청에 검증된 내부 ID와 TMDB ID, 제목을 함께 �
   expect(requestBody).toEqual({
     score: 5,
     comment: '뉴욕통온다..',
+    is_spoiler: false,
     expected_movie_id: 196,
     expected_tmdb_id: 969681,
     expected_title: '스파이더맨: 브랜드 뉴 데이',

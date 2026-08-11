@@ -1,7 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile, status
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.current_user import get_current_user
@@ -11,6 +11,8 @@ from app.core.dependencies import get_db
 from app.schemas.movies import ShowMovies
 from app.schemas.users import AccountProfileUpdateRequest, EmailVerificationConfirmRequest, EmailVerificationRequest, NicknameCheckRequest, OnboardingPreferencesRequest, PreferenceDeleteRequest
 from app.models.tokens import EmailVerificationCode
+from app.models.interactions import MovieRating, MovieWishlist, UserMovieInteraction
+from app.models.movies import Movie
 from app.models.users import User, UserPreferenceScore
 from app.services.interaction_service import delete_liked_movie_result
 from app.services.movies.ai_chat_recommend_service import get_chat_ai_recommended_movies_result
@@ -645,6 +647,129 @@ async def get_my_like(
 
     except Exception:
         return error_response("좋아요 조회 에러")
+
+
+@router.get("/wishlist")
+def get_my_wishlist(
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        rows = db.execute(
+            select(MovieWishlist, Movie)
+            .join(Movie, Movie.id == MovieWishlist.movie_id)
+            .where(MovieWishlist.user_id == current_user["user_id"])
+            .order_by(MovieWishlist.created_at.desc(), MovieWishlist.id.desc())
+        ).all()
+        return {
+            "state": "success",
+            "message": "찜한 영화 조회 성공",
+            "data": [get_movie_result(movie) for _wishlist, movie in rows],
+        }
+    except Exception:
+        return error_response("찜한 영화 조회 에러")
+
+
+# 사용자가 남긴 별점·리뷰를 최신 수정순으로 조회한다.
+# 리뷰 문구가 없는 별점 평가도 마이페이지 활동과 건수에 포함한다.
+@router.get("/reviews")
+def get_my_reviews(
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        user_id = current_user["user_id"]
+        rows = (
+            db.query(MovieRating, Movie)
+            .join(Movie, Movie.id == MovieRating.movie_id)
+            .filter(
+                MovieRating.user_id == user_id,
+            )
+            .order_by(MovieRating.updated_at.desc(), MovieRating.id.desc())
+            .all()
+        )
+        return {
+            "state": "success",
+            "message": "내 리뷰 조회 성공",
+            "data": [
+                {
+                    "id": rating.id,
+                    "score": rating.score,
+                    "comment": rating.comment,
+                    "is_spoiler": bool(rating.is_spoiler),
+                    "created_at": rating.created_at,
+                    "updated_at": rating.updated_at,
+                    "movie": get_movie_result(movie),
+                }
+                for rating, movie in rows
+            ],
+        }
+    except Exception:
+        return error_response("내 리뷰 조회 에러")
+
+
+@router.get("/public/{user_id}/activity")
+def get_public_user_activity(
+    user_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    try:
+        user = db.get(User, user_id)
+        if user is None:
+            raise HTTPException(status_code=404, detail={"state": "failure", "message": "사용자를 찾을 수 없습니다."})
+
+        like_rows = db.execute(
+            select(UserMovieInteraction, Movie)
+            .join(Movie, Movie.id == UserMovieInteraction.movie_id)
+            .where(
+                UserMovieInteraction.user_id == user_id,
+                UserMovieInteraction.action_type == "like",
+            )
+            .order_by(UserMovieInteraction.created_at.desc(), UserMovieInteraction.id.desc())
+        ).all()
+        liked_movies = []
+        seen_movie_ids = set()
+        for _interaction, movie in like_rows:
+            if movie.id in seen_movie_ids:
+                continue
+            seen_movie_ids.add(movie.id)
+            liked_movies.append(get_movie_result(movie))
+
+        rating_rows = (
+            db.query(MovieRating, Movie)
+            .join(Movie, Movie.id == MovieRating.movie_id)
+            .filter(MovieRating.user_id == user_id)
+            .order_by(MovieRating.updated_at.desc(), MovieRating.id.desc())
+            .all()
+        )
+        return {
+            "state": "success",
+            "message": "회원 공개 활동 조회 성공",
+            "data": {
+                "user": {
+                    "id": user.id,
+                    "nickname": user.nickname,
+                    "profile_image": resolve_profile_image_url(user.profile_image, str(request.base_url)),
+                },
+                "liked_movies": liked_movies,
+                "reviews": [
+                    {
+                        "id": rating.id,
+                        "score": rating.score,
+                        "comment": rating.comment,
+                        "is_spoiler": bool(rating.is_spoiler),
+                        "updated_at": rating.updated_at,
+                        "movie": get_movie_result(movie),
+                    }
+                    for rating, movie in rating_rows
+                ],
+            },
+        }
+    except HTTPException:
+        raise
+    except Exception:
+        return error_response("회원 공개 활동 조회 에러")
     
 
 # 좋아요 누른 영화 삭제

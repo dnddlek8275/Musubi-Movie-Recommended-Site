@@ -1419,6 +1419,7 @@ export async function rateMovie(
     expectedMovieId = movieId,
     expectedTmdbId = null,
     expectedTitle = '',
+    isSpoiler = false,
     signal,
   } = {}
 ) {
@@ -1428,6 +1429,7 @@ export async function rateMovie(
     body: JSON.stringify({
       score: clampNumber(score, 1, 5, 1),
       comment,
+      is_spoiler: Boolean(isSpoiler),
       expected_movie_id: expectedMovieId,
       expected_tmdb_id: expectedTmdbId,
       expected_title: expectedTitle || null,
@@ -1984,6 +1986,64 @@ export async function fetchLikedMovies(signal) {
   }
 
   return getArrayPayload(data, 'movies', 'liked_movies');
+}
+
+// 로그인 사용자가 남긴 별점·리뷰 목록을 최신 수정순으로 조회한다.
+export async function fetchMyReviews(signal) {
+  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/user/reviews`, { signal });
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok || getResponseState(data) === 'error') {
+    throw new Error(getErrorMessage(data, `내 리뷰를 불러오지 못했습니다. (${response.status})`));
+  }
+
+  return getArrayPayload(data, 'reviews');
+}
+
+export async function fetchWishlistMovies(signal) {
+  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/user/wishlist`, { signal });
+  const data = await response.json().catch(() => null);
+  if (!response.ok || getResponseState(data) === 'error') {
+    throw new Error(getErrorMessage(data, `찜한 영화를 불러오지 못했습니다. (${response.status})`));
+  }
+  return getArrayPayload(data, 'movies', 'wishlist');
+}
+
+export async function addWishlistMovie(movieId, signal) {
+  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/movies/${movieId}/wishlist`, {
+    method: 'POST',
+    signal,
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok || isFailureResponse(data)) {
+    throw new Error(getErrorMessage(data, `영화 찜 저장 실패 (${response.status})`));
+  }
+  return data?.data || {};
+}
+
+export async function removeWishlistMovie(movieId, signal) {
+  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/movies/${movieId}/wishlist`, {
+    method: 'DELETE',
+    signal,
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok || getResponseState(data) === 'error') {
+    throw new Error(getErrorMessage(data, `영화 찜 삭제 실패 (${response.status})`));
+  }
+  return data?.data || {};
+}
+
+export async function fetchPublicUserActivity(userId, signal) {
+  const response = await fetch(`${BACKEND_BASE_URL}/user/public/${encodeURIComponent(userId)}/activity`, {
+    credentials: 'include',
+    cache: 'no-store',
+    signal,
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok || isFailureResponse(data)) {
+    throw new Error(getErrorMessage(data, `회원 활동을 불러오지 못했습니다. (${response.status})`));
+  }
+  return data?.data || { user: {}, liked_movies: [], reviews: [] };
 }
 
 // 최근 본 영화 조회 (GET /user/recently-viewed?limit=5) — 인증 필요.

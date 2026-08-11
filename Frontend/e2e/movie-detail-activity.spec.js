@@ -1,0 +1,104 @@
+import { expect, test } from '@playwright/test';
+
+const detail = {
+  id: 196,
+  movie_id: 196,
+  tmdb_id: 969681,
+  title: '스파이더맨: 브랜드 뉴 데이',
+  overview: '테스트 줄거리',
+  genres: ['액션'],
+  cast: [],
+  reviews: [{
+    id: 31,
+    user_id: 4,
+    nickname: 'zeusqoi',
+    score: 4,
+    comment: '결말에 대한 이야기',
+    is_spoiler: true,
+    is_mine: false,
+    updated_at: '2026-08-11T00:00:00Z',
+  }],
+  rating_count: 1,
+  musubi_rating: 4,
+};
+
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.clear();
+    localStorage.setItem('auth_user', JSON.stringify({ user_id: 3, nickname: '영화러버' }));
+    localStorage.setItem('access_token', 'e2e-token');
+  });
+  await page.route('**/api/**', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ state: 'success', data: [] }),
+  }));
+  await page.route('**/api/movies/196?**', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ state: 'success', data: detail }),
+  }));
+  await page.route('**/api/movies/196/similar?**', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ state: 'success', data: [{ movie_id: 197, title: '추천 영화', genres: ['액션'] }] }),
+    });
+  });
+  await page.route('**/api/user/public/4/activity', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      state: 'success',
+      data: {
+        user: { id: 4, nickname: 'zeusqoi' },
+        liked_movies: [{ movie_id: 197, title: '추천 영화', genres: ['액션'] }],
+        reviews: [{ id: 32, score: 5, comment: '재미있어요', movie: { movie_id: 197, title: '추천 영화' } }],
+      },
+    }),
+  }));
+});
+
+test('추천 로딩 스켈레톤을 표시하고 찜을 저장한다', async ({ page }) => {
+  let wishlistRequested = false;
+  await page.route('**/api/movies/196/wishlist', async (route) => {
+    if (route.request().method() === 'POST') wishlistRequested = true;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ state: 'success', data: { movie_id: 196, wishlisted: true } }),
+    });
+  });
+
+  await page.goto('/movies/196');
+  await expect(page.locator('.movie-detail__similar-skeleton')).toHaveCount(6);
+  await page.getByRole('button', { name: '찜하기' }).click();
+  await expect(page.getByRole('button', { name: '찜 해제' })).toBeVisible();
+  expect(wishlistRequested).toBe(true);
+  await expect(page.getByText('추천 영화', { exact: true })).toBeVisible();
+});
+
+test('스포일러 평가를 저장하고 다른 회원 활동을 연다', async ({ page }) => {
+  let ratingBody;
+  await page.route('**/api/movies/196/rating', async (route) => {
+    ratingBody = route.request().postDataJSON();
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ state: 'success', data: { my_rating: 5, my_comment: '스포일러 리뷰', my_is_spoiler: true, reviews: detail.reviews } }),
+    });
+  });
+
+  await page.goto('/movies/196');
+  await page.getByRole('button', { name: '평가하기' }).click();
+  await page.getByRole('button', { name: '5점' }).click();
+  await page.getByPlaceholder('이 영화에 대한 생각을 남겨주세요.').fill('스포일러 리뷰');
+  await page.getByLabel('스포일러가 포함된 리뷰예요').check();
+  await page.getByRole('button', { name: '평가 및 리뷰 등록' }).click();
+  expect(ratingBody.is_spoiler).toBe(true);
+
+  await page.getByRole('button', { name: 'zeusqoi의 활동 보기' }).click();
+  await expect(page.getByRole('dialog', { name: 'zeusqoi의 영화 활동' })).toContainText('추천 영화');
+  await expect(page.getByRole('dialog', { name: 'zeusqoi의 영화 활동' })).toContainText('재미있어요');
+});
