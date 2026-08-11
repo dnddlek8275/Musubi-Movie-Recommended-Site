@@ -1,0 +1,93 @@
+name: Build and Push Images
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type PUBLISH to build and push immutable images
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: image-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate publish settings
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      FRONTEND_IMAGE_REPOSITORY: ${{ vars.FRONTEND_IMAGE_REPOSITORY }}
+      BACKEND_IMAGE_REPOSITORY: ${{ vars.BACKEND_IMAGE_REPOSITORY }}
+      BUILD_PLATFORMS: ${{ vars.BUILD_PLATFORMS }}
+      REGISTRY_HOST: ${{ vars.REGISTRY_HOST }}
+      REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+      REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+    steps:
+      - name: Require explicit confirmation and registry settings
+        run: |
+          test "${{ inputs.confirmation }}" = "PUBLISH"
+          test -n "${FRONTEND_IMAGE_REPOSITORY}"
+          test -n "${BACKEND_IMAGE_REPOSITORY}"
+          test -n "${BUILD_PLATFORMS}"
+          test -n "${REGISTRY_HOST}"
+          test -n "${REGISTRY_USERNAME}"
+          test -n "${REGISTRY_PASSWORD}"
+
+  publish:
+    name: Publish ${{ matrix.service }} image
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: production
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: frontend
+            context: Frontend
+            repository_variable: FRONTEND_IMAGE_REPOSITORY
+          - service: backend
+            context: Backend
+            repository_variable: BACKEND_IMAGE_REPOSITORY
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve immutable image name
+        id: image
+        env:
+          FRONTEND_IMAGE_REPOSITORY: ${{ vars.FRONTEND_IMAGE_REPOSITORY }}
+          BACKEND_IMAGE_REPOSITORY: ${{ vars.BACKEND_IMAGE_REPOSITORY }}
+          MATRIX_REPOSITORY_VARIABLE: ${{ matrix.repository_variable }}
+        run: |
+          repository="${!MATRIX_REPOSITORY_VARIABLE}"
+          test -n "${repository}"
+          echo "name=${repository}:${GITHUB_SHA}" >> "${GITHUB_OUTPUT}"
+        shell: bash
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.REGISTRY_HOST }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Build and push immutable image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          platforms: ${{ vars.BUILD_PLATFORMS }}
+          tags: ${{ steps.image.outputs.name }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+      - name: Publish image name to workflow summary
+        run: echo '`${{ steps.image.outputs.name }}`' >> "${GITHUB_STEP_SUMMARY}"
