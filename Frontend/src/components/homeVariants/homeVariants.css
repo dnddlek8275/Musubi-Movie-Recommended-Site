@@ -374,14 +374,6 @@
 }
 
 /* Main /home — cinematic navigation banner followed by a ChatGPT-like opening prompt */
-.page:has(.home3-page) {
-  padding-top: 0;
-}
-
-.page:has(.home3-page) > .site-header {
-  display: none;
-}
-
 .home3-cinema-hero {
   width: 100%;
   aspect-ratio: 2059 / 764;

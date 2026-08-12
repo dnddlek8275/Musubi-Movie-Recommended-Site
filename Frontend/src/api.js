@@ -1802,9 +1802,11 @@ export async function fetchUserProfile(signal) {
     throw new Error(getErrorMessage(data, `프로필 정보를 불러오지 못했습니다. (${response.status})`));
   }
 
+  // 서버 프로필을 마지막에 병합해 오래된 브라우저 캐시가 새 프로필 이미지를
+  // 덮어쓰지 않도록 한다.
   return {
-    ...(data?.data || data || {}),
     ...(localProfile || {}),
+    ...(data?.data || data || {}),
   };
 }
 
@@ -1923,7 +1925,15 @@ export async function updateProfileImage(file, signal) {
     throw new Error(getErrorMessage(data, `이미지 수정 실패 (${response.status})`));
   }
 
-  return data?.data || {};
+  const updated = data?.data || {};
+  const profileImage = updated.user_profile || updated.profile_image || '';
+  const stored = getStoredAuthUser() || {};
+  localStorage.setItem('auth_user', JSON.stringify({ ...stored, profile_image: profileImage }));
+  writeLocalJson(LOCAL_PROFILE_KEY, {
+    ...(readLocalJson(LOCAL_PROFILE_KEY, {}) || {}),
+    profile_image: profileImage,
+  });
+  return updated;
 }
 
 // 프로필 이미지 삭제 (DELETE /user/delete/profile_image) — 인증 필요.
@@ -1942,6 +1952,12 @@ export async function deleteProfileImage(signal) {
     throw new Error(getErrorMessage(data, `이미지 삭제 실패 (${response.status})`));
   }
 
+  const stored = getStoredAuthUser() || {};
+  localStorage.setItem('auth_user', JSON.stringify({ ...stored, profile_image: '' }));
+  writeLocalJson(LOCAL_PROFILE_KEY, {
+    ...(readLocalJson(LOCAL_PROFILE_KEY, {}) || {}),
+    profile_image: '',
+  });
   return data || {};
 }
 

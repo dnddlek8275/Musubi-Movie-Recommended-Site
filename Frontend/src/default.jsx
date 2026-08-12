@@ -5,7 +5,7 @@ function DefaultLayout({ authUser, children, footer, isHomeArriving = false, nav
   const isHome = window.location.pathname === '/home';
   return (
     <div className={`app-shell${isHomeArriving ? ' is-arriving-from-onboarding' : ''}`}>
-      <div className="page">
+      <div className={`page ${isHome ? 'has-home-nav' : 'has-cinema-nav'}`}>
         <CinemaNav authUser={authUser} onLogout={onLogout} overlay={isHome} />
 
         {children}

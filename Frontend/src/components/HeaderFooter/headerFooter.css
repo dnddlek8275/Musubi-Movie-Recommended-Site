@@ -663,12 +663,8 @@
 }
 
 /* 배너가 없는 주요 페이지에서도 /home과 같은 시네마 내비게이션을 사용한다. */
-.page:has(.cinema-nav-page) {
+.page.has-cinema-nav {
   padding-top: 0;
-}
-
-.page:has(.cinema-nav-page) > .site-header {
-  display: none;
 }
 
 .cinema-page-nav.home3-cinema-nav {

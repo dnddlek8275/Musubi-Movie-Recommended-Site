@@ -96,8 +96,8 @@
 .mypage-account-card > div { min-height: 64px; border-bottom: 1px solid var(--panel-border); display: grid; grid-template-columns: 120px 1fr; align-items: center; }
 .mypage-account-card span { color: var(--muted); font-size: 14px; }
 .mypage-account-card strong { font-size: 16px; }
-.mypage-account-card__avatar { width: 52px; height: 52px; border: 2px solid color-mix(in srgb, var(--accent) 55%, white); border-radius: 50%; overflow: hidden; display: block; background: var(--panel-deep); }
-.mypage-account-card__avatar img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.mypage-account-card__avatar { width: 52px; height: 52px; border: 2px solid color-mix(in srgb, var(--accent) 55%, white); border-radius: 50%; overflow: hidden; display: block; background: #fff; }
+.mypage-account-card__avatar img { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center top; }
 .mypage-account-card > button { min-height: 36px; margin: 18px 0 0 auto; padding: 0; border: 0; display: block; background: transparent; color: var(--muted); font-weight: 750; cursor: pointer; }
 .mypage-account-card > button:hover,
 .mypage-account-card > button:focus-visible { color: var(--text); text-decoration: underline; text-underline-offset: 4px; outline: none; }
@@ -176,8 +176,8 @@
 .mypage-account-editor > header h3 { margin: 8px 0 0; font-size: 26px; line-height: 1.3; }
 .mypage-account-editor form { padding-top: 24px; display: grid; gap: 17px; }
 .mypage-account-image-field { padding-bottom: 20px; border-bottom: 1px solid var(--panel-border); position: relative; display: flex; align-items: center; gap: 18px; }
-.mypage-account-image-preview { width: 86px; height: 86px; flex: 0 0 auto; border: 3px solid color-mix(in srgb, var(--accent) 60%, white); border-radius: 50%; overflow: hidden; display: block; background: var(--panel-deep); }
-.mypage-account-image-preview img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.mypage-account-image-preview { width: 86px; height: 86px; flex: 0 0 auto; border: 3px solid color-mix(in srgb, var(--accent) 60%, white); border-radius: 50%; overflow: hidden; display: block; background: #fff; }
+.mypage-account-image-preview img { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center top; }
 .mypage-account-image-field > div { display: grid; gap: 6px; }
 .mypage-account-image-field > div > strong { color: var(--text); font-size: 15px; }
 .mypage-account-image-field > div > small { color: var(--muted); font-size: 12px; font-weight: 600; }

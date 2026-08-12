@@ -75,6 +75,12 @@ textarea {
   padding: 25px 0 46px;
 }
 
+/* 홈 내비게이션의 절대 좌표 기준을 지연 로딩되는 홈 CSS보다 먼저 확정한다. */
+.page.has-home-nav {
+  padding-top: 0;
+  position: relative;
+}
+
 .app-shell.is-arriving-from-onboarding .site-header > :not(.site-logo),
 .app-shell.is-arriving-from-onboarding .page > :not(.site-header) {
   animation: homeContentArrive 520ms 90ms ease-out both;

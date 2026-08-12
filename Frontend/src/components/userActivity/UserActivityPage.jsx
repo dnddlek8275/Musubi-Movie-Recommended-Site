@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import {
   addLikedMovie,
@@ -23,8 +23,53 @@ function formatDate(value) {
 }
 
 function UserMovieGrid({ authUser, movies, likedIds, onToggleLike }) {
+  const railRef = useRef(null);
+
+  const startDrag = (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    if (event.pointerType !== 'mouse' || event.button !== 0 || target?.closest('button')) return;
+    const rail = railRef.current;
+    if (!rail || rail.scrollWidth <= rail.clientWidth) return;
+    rail.dataset.dragging = 'true';
+    rail.dataset.moved = 'false';
+    rail.dataset.startX = String(event.clientX);
+    rail.dataset.startScroll = String(rail.scrollLeft);
+    rail.setPointerCapture(event.pointerId);
+  };
+
+  const moveDrag = (event) => {
+    const rail = railRef.current;
+    if (!rail || rail.dataset.dragging !== 'true') return;
+    const distance = event.clientX - Number(rail.dataset.startX || event.clientX);
+    if (Math.abs(distance) > 4) rail.dataset.moved = 'true';
+    rail.scrollLeft = Number(rail.dataset.startScroll || 0) - distance;
+  };
+
+  const stopDrag = (event) => {
+    const rail = railRef.current;
+    if (!rail || rail.dataset.dragging !== 'true') return;
+    rail.dataset.dragging = 'false';
+    if (rail.hasPointerCapture(event.pointerId)) rail.releasePointerCapture(event.pointerId);
+  };
+
+  const blockClickAfterDrag = (event) => {
+    const rail = railRef.current;
+    if (rail?.dataset.moved !== 'true') return;
+    event.preventDefault();
+    event.stopPropagation();
+    rail.dataset.moved = 'false';
+  };
+
   return (
-    <div className="user-activity__movie-grid">
+    <div
+      className="user-activity__movie-grid"
+      onClickCapture={blockClickAfterDrag}
+      onPointerCancel={stopDrag}
+      onPointerDown={startDrag}
+      onPointerMove={moveDrag}
+      onPointerUp={stopDrag}
+      ref={railRef}
+    >
       {movies.map((movie) => {
         const id = getInternalMovieId(movie);
         const poster = resolveMovieImage(movie.poster_path || movie.poster_url || movie.poster);
@@ -33,7 +78,7 @@ function UserMovieGrid({ authUser, movies, likedIds, onToggleLike }) {
           <article key={id}>
             <div>
               <a href={`/movies/${id}`} aria-label={`${movie.title || '영화'} 상세 보기`} />
-              {poster ? <img src={poster} alt="" loading="lazy" /> : <span>NO POSTER</span>}
+              {poster ? <img src={poster} alt="" draggable="false" loading="lazy" /> : <span>NO POSTER</span>}
               {authUser ? <button className={liked ? 'is-liked' : ''} type="button" onClick={() => onToggleLike(movie)} aria-label={`${movie.title || '영화'} 좋아요 ${liked ? '취소' : '추가'}`}>{liked ? '♥' : '♡'}</button> : null}
             </div>
             <a className="user-activity__movie-title" href={`/movies/${id}`}>{movie.title || '영화'}</a>
