@@ -30,6 +30,7 @@ import { normalizeMovie } from '../index/RecommendationRow.jsx';
 import { PanelSkeleton, PosterRowSkeleton, SkeletonBlock } from '../common/LoadingSkeleton.jsx';
 import { getKeywordLabel } from '../../utils/keywordLabels.js';
 import { getInternalMovieId } from '../../utils/movieIdentity.js';
+import TastePreferenceModal from './TastePreferenceModal.jsx';
 import './mypage.css';
 
 const TABS = [
@@ -492,7 +493,7 @@ function MyPage({ authUser, onLogout, onUserUpdate }) {
   const [reviews, setReviews] = useState([]);
   const [unlikeBusy, setUnlikeBusy] = useState('');
   const [tasteBusy, setTasteBusy] = useState(false);
-  const [directEditing, setDirectEditing] = useState(false);
+  const [tasteModalOpen, setTasteModalOpen] = useState(false);
   const [preferenceInsights, setPreferenceInsights] = useState({});
   const [insightsRequested, setInsightsRequested] = useState(false);
   const [insightsLoading, setInsightsLoading] = useState(false);
@@ -638,16 +639,8 @@ function MyPage({ authUser, onLogout, onUserUpdate }) {
     } catch (error) { setStatus(error.message); }
   };
 
-  const addDirectTaste = (category, value) => {
-    setPreferences((current) => ({ ...current, [category]: uniqueText([...(current[category] || []), value]) }));
-  };
-
   const removeTaste = async (category, preferenceType, value, mode) => {
     if (tasteBusy) return;
-    if (mode === 'direct') {
-      setPreferences((current) => ({ ...current, [category]: uniqueText(current[category]).filter((item) => item !== value) }));
-      return;
-    }
     setTasteBusy(true); setStatus('');
     try {
       await deletePreference(preferenceType, value);
@@ -656,25 +649,29 @@ function MyPage({ authUser, onLogout, onUserUpdate }) {
     finally { setTasteBusy(false); }
   };
 
-  const saveDirectTaste = async () => {
+  const saveDirectTaste = async (nextPreferences) => {
+    const nextDirect = {
+      genres: uniqueText(nextPreferences?.genres),
+      actors: uniqueText(nextPreferences?.actors),
+      keywords: uniqueText(nextPreferences?.keywords),
+    };
     setTasteBusy(true); setStatus('');
     try {
-      await updateUserPreferences({ genres: direct.genres, actors: direct.actors, keywords: direct.keywords });
+      await updateUserPreferences(nextDirect);
+      setPreferences(nextDirect);
       setCombined({
-        genres: uniqueText([...direct.genres, ...learnedTaste.genres]),
-        actors: uniqueText([...direct.actors, ...learnedTaste.actors]),
-        keywords: uniqueText([...direct.keywords, ...learnedTaste.keywords]),
+        genres: uniqueText([...nextDirect.genres, ...learnedTaste.genres]),
+        actors: uniqueText([...nextDirect.actors, ...learnedTaste.actors]),
+        keywords: uniqueText([...nextDirect.keywords, ...learnedTaste.keywords]),
       });
-      setDirectEditing(false);
+      setTasteModalOpen(false);
       setStatus('직접 선택한 취향을 수정했습니다.');
     }
-    catch (error) { setStatus(error.message); }
+    catch (error) {
+      setStatus(error.message);
+      throw error;
+    }
     finally { setTasteBusy(false); }
-  };
-
-  const handleDirectEdit = () => {
-    if (directEditing) saveDirectTaste();
-    else setDirectEditing(true);
   };
 
   const handleResetLearnedTaste = async () => {
@@ -739,7 +736,7 @@ function MyPage({ authUser, onLogout, onUserUpdate }) {
         </div> : null}
 
         {activeTab === 'taste' ? <section className="mypage-tab-page"><header><span>TASTE CONTROL</span><h2>나의 영화 취향</h2><p>직접 선택한 취향과 활동을 통해 발견한 취향을 한눈에 확인해보세요.</p></header><div className="mypage-taste-columns">
-          <article className="mypage-panel mypage-taste-editor is-direct"><header><div><h3>직접 선택한 취향</h3><p>추천에 바로 반영되는 취향입니다. 취향을 바꾸고 싶다면 직접 수정할 수 있어요.</p></div><button disabled={tasteBusy} type="button" onClick={handleDirectEdit}>{directEditing ? '수정 완료' : '수정하기'}</button></header>{TASTE_TYPES.map(([category, type, label]) => <EditableTasteRow key={category} category={category} preferenceType={type} label={label} values={direct[category]} mode="direct" editable={directEditing} busy={tasteBusy} onAdd={addDirectTaste} onRemove={(...args) => removeTaste(...args, 'direct')} />)}</article>
+          <article className="mypage-panel mypage-taste-editor is-direct"><header><div><h3>직접 선택한 취향</h3><p>추천에 바로 반영되는 취향입니다. 장르, 배우, 키워드를 순서대로 다시 선택할 수 있어요.</p></div><button disabled={tasteBusy} type="button" onClick={() => setTasteModalOpen(true)}>수정하기</button></header>{TASTE_TYPES.map(([category, type, label]) => <EditableTasteRow key={category} category={category} preferenceType={type} label={label} values={direct[category]} mode="direct" busy={tasteBusy} onAdd={() => {}} onRemove={() => {}} />)}</article>
           <article className="mypage-panel mypage-taste-editor is-learned"><header><div><h3>활동에서 발견한 취향</h3><p>조회·좋아요·검색 활동을 바탕으로 무무가 발견한 취향입니다.</p></div><button className="is-reset" disabled={tasteBusy} type="button" onClick={() => setResetConfirmOpen(true)}>초기화</button></header>{TASTE_TYPES.map(([category, type, label]) => <EditableTasteRow key={category} category={category} preferenceType={type} label={label} values={learnedTaste[category]} mode="learned" insight={preferenceInsights[category]} insightLoading={insightsLoading} busy={tasteBusy} onAdd={() => {}} onRemove={(...args) => removeTaste(...args, 'learned')} />)}</article>
         </div></section> : null}
 
@@ -751,6 +748,7 @@ function MyPage({ authUser, onLogout, onUserUpdate }) {
 
         {activeTab === 'account' ? <section className="mypage-tab-page"><header><span>ACCOUNT</span><h2>계정 설정</h2><p>프로필과 로그인 정보를 확인합니다.</p></header>{accountOpen ? <AccountEditor profile={profile} authUser={authUser} onCancel={() => setAccountOpen(false)} onDeleteRequest={() => setAccountDeleteConfirmOpen(true)} onSaved={(updated, options = {}) => { const next = { ...profile, ...updated }; setProfile(next); onUserUpdate?.({ ...authUser, ...updated }); if (!options.keepOpen) setAccountOpen(false); }} /> : <article className="mypage-panel mypage-account-card"><div><span>프로필</span><span className="mypage-account-card__avatar"><img src={avatar} alt="" onError={(event) => { event.currentTarget.src = DEFAULT_AVATAR; }} /></span></div><div><span>닉네임</span><strong>{displayName}</strong></div><div><span>이메일</span><strong>{profile.email || authUser?.email || '-'}</strong></div><button type="button" onClick={() => setAccountOpen(true)}>계정 정보 입력 / 수정</button></article>}</section> : null}
       </div>
+      {tasteModalOpen ? <TastePreferenceModal initialPreferences={direct} saving={tasteBusy} onClose={() => { if (!tasteBusy) setTasteModalOpen(false); }} onSave={saveDirectTaste} /> : null}
       {resetConfirmOpen ? <div className="mypage-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !tasteBusy) setResetConfirmOpen(false); }}><section className="mypage-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="taste-reset-title"><span>TASTE RESET</span><h2 id="taste-reset-title">활동에서 발견한 취향을 초기화할까요?</h2><p>조회·좋아요·검색으로 학습한 취향 점수만 삭제됩니다.<br />직접 선택한 취향은 그대로 유지됩니다.</p><footer><button disabled={tasteBusy} type="button" onClick={() => setResetConfirmOpen(false)}>취소</button><button disabled={tasteBusy} type="button" onClick={handleResetLearnedTaste}>{tasteBusy ? '초기화 중…' : '초기화'}</button></footer></section></div> : null}
       {accountDeleteConfirmOpen ? <div className="mypage-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !accountDeleteBusy) setAccountDeleteConfirmOpen(false); }}><section className="mypage-confirm-modal is-account-delete" role="dialog" aria-modal="true" aria-labelledby="account-delete-title"><span>ACCOUNT DELETE</span><h2 id="account-delete-title">정말 계정을 탈퇴하시겠어요?</h2><p>탈퇴하면 계정 정보와 좋아요, 영화 활동, 취향 및 대화 기록이 삭제되며 되돌릴 수 없습니다.</p><footer><button disabled={accountDeleteBusy} type="button" onClick={() => setAccountDeleteConfirmOpen(false)}>취소</button><button disabled={accountDeleteBusy} type="button" onClick={handleDeleteAccount}>{accountDeleteBusy ? '탈퇴 처리 중…' : '계정 탈퇴'}</button></footer></section></div> : null}
     </main>

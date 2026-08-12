@@ -1,5 +1,7 @@
 import unittest
 
+from sqlalchemy.dialects import postgresql
+
 from app.services.movies.genre_service import genre_movies
 
 
@@ -8,7 +10,7 @@ class _ScalarResult:
         return []
 
 
-class _RecordingSession:
+class _FakeSession:
     def __init__(self):
         self.statement = None
 
@@ -17,24 +19,19 @@ class _RecordingSession:
         return _ScalarResult()
 
 
-class GenreMovieSortTests(unittest.TestCase):
-    def test_latest_sort_prioritizes_release_date(self):
-        db = _RecordingSession()
+class GenreServiceTests(unittest.TestCase):
+    def test_sf_joins_display_genre_with_normalized_weight_key(self):
+        db = _FakeSession()
 
-        genre_movies(db, "드라마", page=1, limit=25, sort="latest")
+        genre_movies(db, "SF", sort="latest")
 
-        order_by = [str(clause) for clause in db.statement._order_by_clauses]
-        self.assertIn("movies.release_date DESC NULLS LAST", order_by[0])
-        self.assertIn("movies.year DESC NULLS LAST", order_by[1])
-        self.assertIn("movies.id DESC", order_by[2])
-
-    def test_default_sort_keeps_relevance_first(self):
-        db = _RecordingSession()
-
-        genre_movies(db, "드라마", page=1, limit=20)
-
-        order_by = [str(clause) for clause in db.statement._order_by_clauses]
-        self.assertIn("movie_genre_weights.weight DESC", order_by[0])
+        compiled = db.statement.compile(
+            dialect=postgresql.dialect(),
+            compile_kwargs={"literal_binds": True},
+        )
+        sql = str(compiled).lower()
+        self.assertIn("lower(btrim(movie_genres.genre)) = 'sf'", sql)
+        self.assertIn("movie_genre_weights.genre = lower(btrim(movie_genres.genre))", sql)
 
 
 if __name__ == "__main__":

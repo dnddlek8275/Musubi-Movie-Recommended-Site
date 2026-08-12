@@ -34,6 +34,20 @@ test.beforeEach(async ({ page }) => {
     contentType: 'application/json',
     body: JSON.stringify({ state: 'success', data: [movie] }),
   }));
+  await page.route('**/api/user/chatai-recommended-movies?**', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      state: 'success',
+      data: [{
+        movie_id: 4451,
+        tmdb_id: 933260,
+        title: '서브스턴스',
+        genres: ['공포'],
+        poster_path: '/substance.jpg',
+      }],
+    }),
+  }));
 });
 
 test('아카이브 리뷰 수에서 내 활동으로 이동하고 영화 상세 링크를 제공한다', async ({ page }) => {
@@ -62,4 +76,86 @@ test('아카이브 최근 본 영화에서 영화 활동으로 이동하고 찜 
   await expect(page.getByRole('heading', { name: '찜한 영화' })).toBeVisible();
   await expect(page.getByText('아직 찜한 영화가 없습니다.')).toBeVisible();
   await expect(page.locator('#recent-movies')).toContainText('스파이더맨: 브랜드 뉴 데이');
+});
+
+test('영화 활동의 채팅 추천 영화를 상세 페이지로 연결한다', async ({ page }) => {
+  await page.goto('/mypage?tab=activity');
+
+  const recommendedSection = page.locator('#chat-recommended-movies');
+  await expect(recommendedSection).toContainText('서브스턴스');
+  await expect(recommendedSection.getByRole('link', { name: '서브스턴스 상세 보기' }))
+    .toHaveAttribute('href', '/movies/4451');
+  await expect(recommendedSection.getByRole('link', { name: '서브스턴스', exact: true }))
+    .toHaveAttribute('href', '/movies/4451');
+});
+
+test('직접 선택한 취향을 장르, 배우, 키워드 순서로 수정한다', async ({ page }) => {
+  let savedPreferences = null;
+  await page.route('**/api/user/preferences', async (route) => {
+    if (route.request().method() === 'PATCH') {
+      savedPreferences = route.request().postDataJSON();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ state: 'success', data: savedPreferences }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        state: 'success',
+        data: {
+          explicit_preferences: { genres: ['드라마'], actors: [], keywords: [] },
+          learned_preferences: { genres: [], actors: [], keywords: [] },
+          combined_preferences: { genres: ['드라마'], actors: [], keywords: [] },
+        },
+      }),
+    });
+  });
+  await page.route('**/api/movies/preference-options', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      state: 'success',
+      data: { genres: ['드라마', 'SF'], keywords: ['우정', '복수'] },
+    }),
+  }));
+  await page.route('**/api/movies/actors?**', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      state: 'success',
+      data: [{ actor_id: 1, actor_name: '황정민', profile_path: '' }],
+    }),
+  }));
+
+  await page.goto('/mypage?tab=taste');
+  await page.locator('.mypage-taste-editor.is-direct').getByRole('button', { name: '수정하기' }).click();
+
+  const dialog = page.getByRole('dialog', { name: '직접 선택한 취향 수정' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('heading', { name: '좋아하는 장르를 골라주세요' })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: /배우/ })).toBeDisabled();
+  await dialog.getByRole('button', { name: 'SF', exact: true }).click();
+  await dialog.getByRole('button', { name: '다음' }).click();
+
+  await expect(dialog.getByRole('heading', { name: '좋아하는 배우를 선택해 주세요' })).toBeVisible();
+  await dialog.locator('.mypage-taste-modal__choices.is-actors > button', { hasText: '황정민' }).click();
+  await dialog.getByRole('button', { name: '다음' }).click();
+
+  await expect(dialog.getByRole('heading', { name: '끌리는 이야기 키워드를 골라주세요' })).toBeVisible();
+  await dialog.getByRole('button', { name: '#우정', exact: true }).click();
+  await dialog.getByRole('button', { name: '취향 저장' }).click();
+
+  await expect(dialog).toBeHidden();
+  expect(savedPreferences).toEqual({
+    genres: ['드라마', 'SF'],
+    actors: ['황정민'],
+    keywords: ['우정'],
+    onboarding_completed: true,
+  });
+  await expect(page.locator('.mypage-taste-editor.is-direct')).toContainText('황정민');
+  await expect(page.locator('.mypage-taste-editor.is-direct')).toContainText('우정');
 });

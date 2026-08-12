@@ -170,6 +170,53 @@
 .mypage-confirm-modal button:disabled, .mypage-taste-editor button:disabled { opacity: .5; cursor: wait; }
 
 .mypage-modal-backdrop { position: fixed; inset: 0; z-index: 300; display: grid; place-items: center; padding: 24px; background: rgba(0,0,0,.58); backdrop-filter: blur(7px); }
+.mypage-taste-modal-backdrop { z-index: 320; }
+.mypage-taste-modal { width: min(840px, 100%); height: min(720px, calc(100vh - 48px)); padding: 30px 30px 92px; border: 1px solid var(--panel-border); border-radius: 24px; box-sizing: border-box; position: relative; display: grid; grid-template-rows: auto auto auto auto auto minmax(160px, 1fr) auto; gap: 14px; overflow: hidden; background: var(--panel); box-shadow: 0 28px 90px rgba(0, 0, 0, .38); }
+.mypage-taste-modal__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.mypage-taste-modal__header > div > span { color: var(--accent); font-size: 10px; font-weight: 900; letter-spacing: .16em; }
+.mypage-taste-modal__header h2 { margin: 8px 0 0; color: var(--text); font-size: 27px; letter-spacing: -.04em; }
+.mypage-taste-modal__header > button { width: 38px; height: 38px; padding: 0; border: 1px solid var(--panel-border); border-radius: 50%; background: transparent; color: var(--muted); font-size: 25px; line-height: 1; cursor: pointer; }
+.mypage-taste-modal__header > button:hover { border-color: var(--muted); color: var(--text); }
+.mypage-taste-modal__steps { border-bottom: 1px solid var(--panel-border); display: grid; grid-template-columns: repeat(3, 1fr); }
+.mypage-taste-modal__steps button { min-height: 48px; padding: 0 10px 14px; border: 0; position: relative; display: flex; align-items: center; justify-content: center; background: transparent; color: var(--muted); cursor: pointer; }
+.mypage-taste-modal__steps button::after { height: 2px; position: absolute; right: 0; bottom: -1px; left: 0; background: transparent; content: ''; }
+.mypage-taste-modal__steps button strong { font-size: 14px; }
+.mypage-taste-modal__steps button.is-current { color: var(--text); }
+.mypage-taste-modal__steps button.is-current::after { background: var(--accent); }
+.mypage-taste-modal__steps button:disabled { cursor: default; opacity: .48; }
+.mypage-taste-modal__steps button.is-current:disabled { opacity: 1; }
+.mypage-taste-modal__copy { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
+.mypage-taste-modal__copy > div > span { color: var(--accent); font-size: 10px; font-weight: 900; letter-spacing: .14em; }
+.mypage-taste-modal__copy h3 { margin: 7px 0 6px; color: var(--text); font-size: 20px; letter-spacing: -.02em; }
+.mypage-taste-modal__copy p { margin: 0; color: var(--muted); font-size: 13px; }
+.mypage-taste-modal__copy > strong { flex: 0 0 auto; color: var(--accent); font-size: 13px; }
+.mypage-taste-modal__selected { min-height: 35px; display: flex; gap: 7px; overflow-x: auto; scrollbar-width: thin; }
+.mypage-taste-modal__selected.is-empty { display: none; }
+.mypage-taste-modal__selected button { flex: 0 0 auto; padding: 7px 11px; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--panel-border)); border-radius: 999px; background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--text); font-size: 12px; cursor: pointer; }
+.mypage-taste-modal__selected button span { margin-left: 4px; color: var(--accent); }
+.mypage-taste-modal__search { height: 46px; padding: 0 14px; border: 1px solid var(--panel-border); border-radius: 12px; display: flex; align-items: center; gap: 10px; background: var(--bg); }
+.mypage-taste-modal__search-slot { height: 46px; }
+.mypage-taste-modal__search-slot:empty { display: none; }
+.mypage-taste-modal__search:focus-within { border-color: var(--accent); }
+.mypage-taste-modal__search svg { width: 19px; height: 19px; fill: none; stroke: var(--muted); stroke-width: 1.7; }
+.mypage-taste-modal__search input { min-width: 0; height: 100%; flex: 1; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; }
+.mypage-taste-modal__choices { min-height: 160px; padding-right: 5px; align-content: start; display: grid; gap: 10px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--muted) 35%, transparent) transparent; }
+.mypage-taste-modal__choices > p { margin: 0; grid-column: 1 / -1; place-self: center; color: var(--muted); font-size: 13px; }
+.mypage-taste-modal__choices.is-genres,
+.mypage-taste-modal__choices.is-keywords { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.mypage-taste-modal__choices.is-actors { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.mypage-taste-modal__choices > button { min-height: 46px; padding: 9px 14px; border: 1px solid var(--panel-border); border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 10px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 750; cursor: pointer; }
+.mypage-taste-modal__choices.is-actors > button { justify-content: flex-start; text-align: left; }
+.mypage-taste-modal__choices > button:hover { border-color: color-mix(in srgb, var(--accent) 42%, var(--panel-border)); color: var(--text); }
+.mypage-taste-modal__choices > button.is-selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--text); }
+.mypage-taste-modal__actor-photo { width: 36px; height: 36px; flex: 0 0 auto; border-radius: 50%; overflow: hidden; display: grid; place-items: center; background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--muted); }
+.mypage-taste-modal__actor-photo img { width: 100%; height: 100%; object-fit: cover; }
+.mypage-taste-modal__status { margin: -10px 0 0; color: #e45d5d; font-size: 13px; }
+.mypage-taste-modal__status.is-empty { display: none; }
+.mypage-taste-modal__actions { position: absolute; right: 30px; bottom: 30px; display: flex; justify-content: flex-end; gap: 9px; }
+.mypage-taste-modal__actions button { min-width: 108px; height: 44px; padding: 0 18px; border: 1px solid var(--panel-border); border-radius: 11px; background: transparent; color: var(--text); font-weight: 850; cursor: pointer; }
+.mypage-taste-modal__actions button:last-child { min-width: 138px; border-color: var(--accent); background: var(--accent); color: #15120d; }
+.mypage-taste-modal button:disabled { cursor: wait; }
 .mypage-account-editor { width: min(760px, 100%); }
 .mypage-account-editor > header { padding-bottom: 20px; border-bottom: 1px solid var(--panel-border); }
 .mypage-account-editor > header span { color: var(--muted); font-size: 12px; font-weight: 900; letter-spacing: .14em; }
@@ -226,6 +273,9 @@
   .mypage-chat-columns { grid-template-columns: 1fr; }
   .mypage-movie-strip { grid-auto-columns: minmax(150px, 150px); }
   .mypage-movie-card { width: 150px; min-width: 150px; max-width: 150px; }
+  .mypage-taste-modal__choices.is-genres,
+  .mypage-taste-modal__choices.is-keywords { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .mypage-taste-modal__choices.is-actors { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 560px) {
@@ -244,4 +294,19 @@
   .mypage-review-card { grid-template-columns: 54px minmax(0, 1fr); gap: 13px; }
   .mypage-review-card__poster { width: 54px; }
   .mypage-review-card > b { display: none; }
+  .mypage-modal-backdrop { padding: 12px; }
+  .mypage-taste-modal { height: calc(100vh - 24px); padding: 21px 18px 82px; border-radius: 18px; gap: 12px; }
+  .mypage-taste-modal__header h2 { font-size: 22px; }
+  .mypage-taste-modal__steps button { padding-right: 3px; padding-left: 3px; }
+  .mypage-taste-modal__steps button strong { font-size: 12px; }
+  .mypage-taste-modal__copy { align-items: flex-start; }
+  .mypage-taste-modal__copy h3 { font-size: 18px; }
+  .mypage-taste-modal__copy p { display: none; }
+  .mypage-taste-modal__choices.is-genres,
+  .mypage-taste-modal__choices.is-keywords,
+  .mypage-taste-modal__choices.is-actors { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mypage-taste-modal__choices > button { padding-right: 9px; padding-left: 9px; }
+  .mypage-taste-modal__actions { right: 18px; bottom: 20px; left: 18px; display: grid; grid-template-columns: 1fr 1.25fr; }
+  .mypage-taste-modal__actions button,
+  .mypage-taste-modal__actions button:last-child { min-width: 0; width: 100%; }
 }

@@ -1,6 +1,6 @@
 
 # 장르 종류
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.movies import Movie, MovieGenre, MovieGenreWeight
@@ -13,6 +13,7 @@ def genre_movies (
         limit : int = 20,
         sort: str = "relevance",
 ) :
+    normalized_genre = str(genre or "").strip().casefold()
     # 장르 관련 영화
     statement = (
         select(Movie)
@@ -20,9 +21,14 @@ def genre_movies (
         .join(
             MovieGenreWeight,
             (MovieGenreWeight.movie_id == Movie.id)
-            & (MovieGenreWeight.genre == MovieGenre.genre),
+            # 가중치 장르명은 casefold된 값으로 저장된다. 표시용 장르명
+            # "SF"와 가중치 키 "sf"도 같은 장르로 조인해야 한다.
+            & (
+                MovieGenreWeight.genre
+                == func.lower(func.btrim(MovieGenre.genre))
+            ),
         )
-        .where(MovieGenre.genre == genre)
+        .where(func.lower(func.btrim(MovieGenre.genre)) == normalized_genre)
         .where(MovieGenreWeight.weight >= GENRE_RELEVANCE_MINIMUM)
     )
     if sort == "latest":
