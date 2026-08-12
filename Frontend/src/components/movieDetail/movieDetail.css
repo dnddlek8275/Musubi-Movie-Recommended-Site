@@ -113,8 +113,9 @@
 .movie-detail__actions button { min-width: 150px; height: 48px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text); cursor: pointer; font-weight: 800; }
 .movie-detail__heart { width: 21px; height: 21px; margin-right: 5px; display: inline-grid; place-items: center; font-family: Arial, sans-serif; font-size: 19px; line-height: 1; vertical-align: -3px; }
 .movie-detail__heart.is-liked { color: #f44343; font-size: 25px; }
-.movie-detail__bookmark { margin-right: 6px; color: var(--accent); font-size: 22px; line-height: 1; vertical-align: -2px; }
+.movie-detail__bookmark { margin-right: 6px; color: #fff; font-size: 22px; line-height: 1; vertical-align: -2px; text-shadow: 0 1px 5px rgba(0, 0, 0, .55); }
 .movie-detail__actions button.is-wishlisted { border-color: var(--accent); }
+.movie-detail__actions button.is-wishlisted .movie-detail__bookmark { color: var(--accent); text-shadow: none; }
 .movie-detail__rating-panel { margin-top: 14px; padding: 16px 18px; border: 1px solid var(--panel-border); border-radius: 14px; display: flex; align-items: center; flex-wrap: wrap; gap: 14px 18px; background: var(--panel); }
 .movie-detail__rating-panel > strong { margin-right: auto; font-size: 14px; }
 .movie-detail__rating-stars { display: flex; gap: 3px; }

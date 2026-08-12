@@ -9,7 +9,6 @@ import {
   removeLikedMovie,
 } from '../../api.js';
 import { normalizeMovie } from '../index/RecommendationRow.jsx';
-import CinemaNav from '../HeaderFooter/CinemaNav.jsx';
 import MovieCard from '../movieCard/MovieCard.jsx';
 import { getKeywordLabel } from '../../utils/keywordLabels.js';
 import './recomendation.css';
@@ -327,7 +326,6 @@ function Recommendation({ authUser, onLogout }) {
 
   return (
     <main className="recommendation cinema-nav-page">
-      <CinemaNav authUser={authUser} onLogout={onLogout} />
       {status ? <p className="recommendation__status" role="status">{status}</p> : null}
 
       <div className="recommendation__sections">

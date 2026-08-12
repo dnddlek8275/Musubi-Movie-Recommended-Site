@@ -2043,7 +2043,7 @@ export async function fetchPublicUserActivity(userId, signal) {
   if (!response.ok || isFailureResponse(data)) {
     throw new Error(getErrorMessage(data, `회원 활동을 불러오지 못했습니다. (${response.status})`));
   }
-  return data?.data || { user: {}, liked_movies: [], reviews: [] };
+  return data?.data || { user: {}, liked_movies: [], wishlisted_movies: [], reviews: [] };
 }
 
 // 최근 본 영화 조회 (GET /user/recently-viewed?limit=5) — 인증 필요.

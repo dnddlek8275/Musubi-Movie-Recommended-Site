@@ -292,7 +292,7 @@ function App() {
     >
       <LazyPage>
         {userActivityMatch ? (
-          <UserActivityPage userId={userActivityMatch[1]} />
+          <UserActivityPage authUser={authUser} userId={userActivityMatch[1]} />
         ) : personMatch ? (
           <PersonFilmographyPage
             authUser={authUser}

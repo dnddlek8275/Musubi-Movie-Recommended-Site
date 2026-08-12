@@ -8,7 +8,6 @@ import {
   getLocalPreferences,
   removeLikedMovie,
 } from '../../api.js';
-import CinemaNav from '../HeaderFooter/CinemaNav.jsx';
 import MiddlePanels from '../index/MiddlePanels.jsx';
 import PromoBanner from '../index/PromoBanner.jsx';
 import PosterArt from '../index/PosterArt.jsx';
@@ -700,7 +699,6 @@ function HomePage({ authUser, onLogout }) {
     <main className="home-variant home3-page">
       <section className="home3-cinema-hero" aria-label="Musubi 주요 영화">
         <div className="home3-cinema-hero__banner"><PromoBanner highResolution /></div>
-        <CinemaNav authUser={authUser} onLogout={onLogout} overlay />
       </section>
 
       <section

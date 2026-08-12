@@ -13,7 +13,6 @@ import {
 } from '../../api.js';
 
 import './chat.css';
-import CinemaNav from '../HeaderFooter/CinemaNav.jsx';
 import PosterArt from '../index/PosterArt.jsx';
 import GuestChatNotice from './GuestChatNotice.jsx';
 import { rankCharactersForRecommendation } from '../../utils/characterRecommendation.js';
@@ -1507,8 +1506,6 @@ function GroupChatPage({ authUser, onLogout }) {
 
   return (
     <main className="home-variant home3-page group-chat-home-page" aria-label="캐릭터와 대화">
-      <CinemaNav authUser={authUser} onLogout={onLogout} />
-
       <div className="group-character-recommended">
         <CharacterDiscoveryRow
           title="추천 캐릭터"

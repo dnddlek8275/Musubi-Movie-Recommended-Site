@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   checkAccountNicknameAvailability,
   confirmAccountEmailVerification,
   deleteChatRoom,
   deleteMyAccount,
+  deleteProfileImage,
   deletePreference,
   fetchChatRecommendedMovies,
   fetchChatRoomMessages,
@@ -22,9 +23,9 @@ import {
   resolveMovieImage,
   updateAccountProfile,
   updateChatRoomTitle,
+  updateProfileImage,
   updateUserPreferences,
 } from '../../api.js';
-import CinemaNav from '../HeaderFooter/CinemaNav.jsx';
 import { normalizeMovie } from '../index/RecommendationRow.jsx';
 import { PanelSkeleton, PosterRowSkeleton, SkeletonBlock } from '../common/LoadingSkeleton.jsx';
 import { getKeywordLabel } from '../../utils/keywordLabels.js';
@@ -329,6 +330,9 @@ function AccountEditor({ profile, authUser, onCancel, onSaved, onDeleteRequest }
   const [nicknameCheck, setNicknameCheck] = useState({ checkedNickname: '', available: false });
   const [emailVerificationSent, setEmailVerificationSent] = useState(false);
   const [emailVerified, setEmailVerified] = useState(false);
+  const [profileImage, setProfileImage] = useState(profile.profile_image || authUser?.profile_image || '');
+  const [imageBusy, setImageBusy] = useState(false);
+  const fileInputRef = useRef(null);
   const normalizedNickname = nickname.trim();
   const nicknameChanged = normalizedNickname.toLocaleLowerCase('ko-KR') !== initialNickname.trim().toLocaleLowerCase('ko-KR');
   const nicknameWasChecked = !nicknameChanged || (
@@ -391,6 +395,41 @@ function AccountEditor({ profile, authUser, onCancel, onSaved, onDeleteRequest }
     } finally { setBusy(false); }
   };
 
+  const selectProfileImage = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setMessage('JPG, PNG, WEBP 이미지만 업로드할 수 있습니다.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setMessage('프로필 이미지는 5MB 이하만 업로드할 수 있습니다.');
+      return;
+    }
+    setImageBusy(true); setMessage('');
+    try {
+      const result = await updateProfileImage(file);
+      const nextImage = result.user_profile || result.profile_image || '';
+      setProfileImage(nextImage);
+      onSaved({ profile_image: nextImage }, { keepOpen: true });
+      setMessage('프로필 이미지를 변경했습니다.');
+    } catch (error) { setMessage(error.message); }
+    finally { setImageBusy(false); }
+  };
+
+  const removeProfileImage = async () => {
+    if (!profileImage || imageBusy) return;
+    setImageBusy(true); setMessage('');
+    try {
+      await deleteProfileImage();
+      setProfileImage('');
+      onSaved({ profile_image: '' }, { keepOpen: true });
+      setMessage('프로필 이미지를 삭제했습니다.');
+    } catch (error) { setMessage(error.message); }
+    finally { setImageBusy(false); }
+  };
+
   const submit = async (event) => {
     event.preventDefault();
     const nextNickname = nickname.trim();
@@ -412,6 +451,13 @@ function AccountEditor({ profile, authUser, onCancel, onSaved, onDeleteRequest }
     <section className="mypage-panel mypage-account-editor" aria-labelledby="account-editor-title">
       <header><span>ACCOUNT EDIT</span><h3 id="account-editor-title">계정 정보 입력 / 수정</h3></header>
       <form noValidate onSubmit={submit}>
+        <div className="mypage-account-image-field">
+          <span className="mypage-account-image-preview">
+            <img src={profileImage || DEFAULT_AVATAR} alt="현재 프로필" onError={(event) => { event.currentTarget.src = DEFAULT_AVATAR; }} />
+          </span>
+          <div><strong>프로필 이미지</strong><small>JPG, PNG, WEBP · 최대 5MB</small><span><button disabled={imageBusy} type="button" onClick={() => fileInputRef.current?.click()}>{imageBusy ? '처리 중…' : '이미지 선택'}</button>{profileImage ? <button disabled={imageBusy} type="button" onClick={removeProfileImage}>삭제</button> : null}</span></div>
+          <input ref={fileInputRef} className="mypage-account-image-input" type="file" accept="image/jpeg,image/png,image/webp" onChange={selectProfileImage} />
+        </div>
         <label>닉네임<span className="mypage-account-field-row"><input value={nickname} onChange={(event) => { setNickname(event.target.value); setNicknameCheck({ checkedNickname: '', available: false }); setMessage(''); }} maxLength={50} /><button disabled={busy || !nicknameChanged || nicknameWasChecked} type="button" onClick={checkNickname}>{nicknameWasChecked && nicknameChanged ? '확인 완료' : '중복확인'}</button></span></label>
         <label>이메일<span className="mypage-account-field-row"><input type="email" value={email} onChange={(event) => { setEmail(event.target.value); setCode(''); setSeconds(0); setEmailVerificationSent(false); setEmailVerified(false); setMessage(''); }} /><button disabled={busy || !emailChanged} type="button" onClick={sendCode}>{emailVerificationSent ? '재전송' : '인증 전송'}</button></span></label>
         {emailChanged ? <label>인증번호<span className="mypage-account-field-row mypage-account-code-row"><span className="mypage-account-code"><input disabled={!emailVerificationSent || emailVerified} inputMode="numeric" maxLength={6} value={code} onChange={(event) => { setCode(event.target.value.replace(/\D/g, '')); setEmailVerified(false); }} placeholder="6자리 인증번호" />{seconds && !emailVerified ? <time>{timerText}</time> : null}</span><button disabled={busy || !emailVerificationSent || emailVerified || code.length !== 6} type="button" onClick={confirmEmail}>{emailVerified ? '인증 완료' : '인증 확인'}</button></span></label> : null}
@@ -660,12 +706,11 @@ function MyPage({ authUser, onLogout, onUserUpdate }) {
   };
 
   if (loading) {
-    return <main className="mypage cinema-nav-page" aria-busy="true"><CinemaNav authUser={authUser} onLogout={onLogout} /><section className="mypage-shell mypage-skeleton" aria-hidden="true"><SkeletonBlock className="mypage-skeleton__hero" /><PanelSkeleton lines={3} /><PosterRowSkeleton count={6} /></section></main>;
+    return <main className="mypage cinema-nav-page" aria-busy="true"><section className="mypage-shell mypage-skeleton" aria-hidden="true"><SkeletonBlock className="mypage-skeleton__hero" /><PanelSkeleton lines={3} /><PosterRowSkeleton count={6} /></section></main>;
   }
 
   return (
     <main className="mypage cinema-nav-page">
-      <CinemaNav authUser={authUser} onLogout={onLogout} />
       <div className="mypage-shell">
         {status ? <p className="mypage-status">{status}</p> : null}
         <section className="mypage-profile-hero">
@@ -701,7 +746,7 @@ function MyPage({ authUser, onLogout, onUserUpdate }) {
 
         {activeTab === 'reviews' ? <section className="mypage-tab-page"><header><span>MY ACTIVITY</span><h2>내 활동</h2><p>내가 남긴 리뷰를 확인하고 해당 영화 상세페이지로 이동할 수 있어요.</p></header><ReviewList reviews={reviews} /></section> : null}
 
-        {activeTab === 'account' ? <section className="mypage-tab-page"><header><span>ACCOUNT</span><h2>계정 설정</h2><p>프로필과 로그인 정보를 확인합니다.</p></header>{accountOpen ? <AccountEditor profile={profile} authUser={authUser} onCancel={() => setAccountOpen(false)} onDeleteRequest={() => setAccountDeleteConfirmOpen(true)} onSaved={(updated) => { const next = { ...profile, ...updated }; setProfile(next); onUserUpdate?.({ ...authUser, ...updated }); setAccountOpen(false); setStatus('계정 정보가 수정되었습니다.'); }} /> : <article className="mypage-panel mypage-account-card"><div><span>닉네임</span><strong>{displayName}</strong></div><div><span>이메일</span><strong>{profile.email || authUser?.email || '-'}</strong></div><button type="button" onClick={() => setAccountOpen(true)}>계정 정보 입력 / 수정</button></article>}</section> : null}
+        {activeTab === 'account' ? <section className="mypage-tab-page"><header><span>ACCOUNT</span><h2>계정 설정</h2><p>프로필과 로그인 정보를 확인합니다.</p></header>{accountOpen ? <AccountEditor profile={profile} authUser={authUser} onCancel={() => setAccountOpen(false)} onDeleteRequest={() => setAccountDeleteConfirmOpen(true)} onSaved={(updated, options = {}) => { const next = { ...profile, ...updated }; setProfile(next); onUserUpdate?.({ ...authUser, ...updated }); if (!options.keepOpen) { setAccountOpen(false); setStatus('계정 정보가 수정되었습니다.'); } }} /> : <article className="mypage-panel mypage-account-card"><div><span>프로필</span><span className="mypage-account-card__avatar"><img src={avatar} alt="" onError={(event) => { event.currentTarget.src = DEFAULT_AVATAR; }} /></span></div><div><span>닉네임</span><strong>{displayName}</strong></div><div><span>이메일</span><strong>{profile.email || authUser?.email || '-'}</strong></div><button type="button" onClick={() => setAccountOpen(true)}>계정 정보 입력 / 수정</button></article>}</section> : null}
       </div>
       {resetConfirmOpen ? <div className="mypage-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !tasteBusy) setResetConfirmOpen(false); }}><section className="mypage-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="taste-reset-title"><span>TASTE RESET</span><h2 id="taste-reset-title">활동에서 발견한 취향을 초기화할까요?</h2><p>조회·좋아요·검색으로 학습한 취향 점수만 삭제됩니다.<br />직접 선택한 취향은 그대로 유지됩니다.</p><footer><button disabled={tasteBusy} type="button" onClick={() => setResetConfirmOpen(false)}>취소</button><button disabled={tasteBusy} type="button" onClick={handleResetLearnedTaste}>{tasteBusy ? '초기화 중…' : '초기화'}</button></footer></section></div> : null}
       {accountDeleteConfirmOpen ? <div className="mypage-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !accountDeleteBusy) setAccountDeleteConfirmOpen(false); }}><section className="mypage-confirm-modal is-account-delete" role="dialog" aria-modal="true" aria-labelledby="account-delete-title"><span>ACCOUNT DELETE</span><h2 id="account-delete-title">정말 계정을 탈퇴하시겠어요?</h2><p>탈퇴하면 계정 정보와 좋아요, 영화 활동, 취향 및 대화 기록이 삭제되며 되돌릴 수 없습니다.</p><footer><button disabled={accountDeleteBusy} type="button" onClick={() => setAccountDeleteConfirmOpen(false)}>취소</button><button disabled={accountDeleteBusy} type="button" onClick={handleDeleteAccount}>{accountDeleteBusy ? '탈퇴 처리 중…' : '계정 탈퇴'}</button></footer></section></div> : null}

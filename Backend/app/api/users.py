@@ -736,6 +736,13 @@ def get_public_user_activity(
             seen_movie_ids.add(movie.id)
             liked_movies.append(get_movie_result(movie))
 
+        wishlist_rows = db.execute(
+            select(MovieWishlist, Movie)
+            .join(Movie, Movie.id == MovieWishlist.movie_id)
+            .where(MovieWishlist.user_id == user_id)
+            .order_by(MovieWishlist.created_at.desc(), MovieWishlist.id.desc())
+        ).all()
+
         rating_rows = (
             db.query(MovieRating, Movie)
             .join(Movie, Movie.id == MovieRating.movie_id)
@@ -753,6 +760,7 @@ def get_public_user_activity(
                     "profile_image": resolve_profile_image_url(user.profile_image, str(request.base_url)),
                 },
                 "liked_movies": liked_movies,
+                "wishlisted_movies": [get_movie_result(movie) for _wishlist, movie in wishlist_rows],
                 "reviews": [
                     {
                         "id": rating.id,
