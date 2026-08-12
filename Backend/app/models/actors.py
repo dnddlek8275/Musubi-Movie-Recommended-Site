@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, Column, DateTime, ForeignKey, Integer, String, UniqueConstraint, func
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Integer, String, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 
 from app.core.base import Base
@@ -14,6 +14,11 @@ class Actor(Base):
     tmdb_actor_id = Column(Integer, unique=True, index=True, nullable=True)
     # 배우 이름
     name = Column(String(100), index=True, nullable=False)
+    # TMDB 원문 이름과 검증된 한국어 이름을 분리해 화면마다 표기가 바뀌지 않게 한다.
+    original_name = Column(String(100), nullable=True)
+    korean_name = Column(String(100), nullable=True)
+    # TMDB에는 국적 필드가 없으므로 근거가 충분할 때만 True/False, 미확인은 NULL이다.
+    is_korean = Column(Boolean, nullable=True, index=True)
     # 배우 프로필 이미지 경로
     profile_path = Column(String(300), nullable=True)
     # 배우 row 생성 시간

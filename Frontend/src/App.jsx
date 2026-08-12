@@ -79,7 +79,7 @@ function LegacyPasswordResetRedirect() {
 function App() {
   const [authUser, setAuthUser] = useState(() => getStoredAuthUser());
   const [isArrivingHome] = useState(
-    () => window.sessionStorage.getItem('musubi-home-arrive') === 'onboarding'
+    () => ['login', 'onboarding'].includes(window.sessionStorage.getItem('musubi-home-arrive'))
   );
 
   // 모든 페이지는 새로고침하거나 새 문서로 이동할 때 이전 스크롤 위치를
@@ -201,7 +201,6 @@ function App() {
     }
 
     window.sessionStorage.removeItem('musubi-onboarding-arrive');
-    window.sessionStorage.removeItem('musubi-home-arrive');
     window.location.replace('/home');
   };
 

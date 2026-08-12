@@ -63,8 +63,11 @@ function LoginForm({ onGuest, onLogin, onPasswordReset }) {
           intro.classList.add('is-leaving-for-member-onboarding');
           if (user.onboardingCompleted === false) {
             window.sessionStorage.setItem('musubi-onboarding-arrive', 'login');
+            window.sessionStorage.removeItem('musubi-home-arrive');
           } else {
             window.sessionStorage.removeItem('musubi-onboarding-arrive');
+            // 새 문서로 열리는 /home이 로그인 화면의 로고 위치를 이어받도록 한다.
+            window.sessionStorage.setItem('musubi-home-arrive', 'login');
           }
           window.setTimeout(() => onLogin(user), 680);
         } else {

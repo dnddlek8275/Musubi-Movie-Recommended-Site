@@ -540,10 +540,10 @@
 
 .intro.is-leaving-for-guest-onboarding:has(.intro-entry__login:not(.intro-entry__login--signup)) .intro-skip-logo--final,
 .intro.is-leaving-for-member-onboarding:has(.intro-entry__login:not(.intro-entry__login--signup)) .intro-skip-logo--final {
-  width: 180px;
-  height: 48px;
-  top: 28px;
-  left: 32px;
+  width: 9.375vw;
+  height: 2.291667vw;
+  top: 1.145833vw;
+  left: 9.895833vw;
   transform: none;
   transition-duration: 620ms;
 }
@@ -937,10 +937,10 @@
 @media (max-width: 600px) {
   .intro.is-leaving-for-guest-onboarding:has(.intro-entry__login:not(.intro-entry__login--signup)) .intro-skip-logo--final,
   .intro.is-leaving-for-member-onboarding:has(.intro-entry__login:not(.intro-entry__login--signup)) .intro-skip-logo--final {
-    width: 130px;
-    height: 36px;
-    top: 18px;
-    left: 18px;
+    width: 126px;
+    height: 34px;
+    top: 27px;
+    left: 16px;
   }
 
   .intro:has(.intro-entry__login:not(.intro-entry__login--signup)) .intro-skip-logo--final {

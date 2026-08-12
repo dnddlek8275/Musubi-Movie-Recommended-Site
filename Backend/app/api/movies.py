@@ -2,7 +2,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.ai_client.recommend import request_ai_recommend
@@ -27,6 +27,7 @@ from app.services.user_service import user_like_actor
 from app.services.preference_service import CURATED_LEARNABLE_KEYWORD_ORDER, toggle_person_preference
 from app.models.interactions import MovieRating, MovieWishlist
 from app.models.actors import Actor, MovieActor
+from app.services.actor_name_policy import actor_display_name
 from app.models.movies import Movie, MovieGenre
 from app.models.users import User
 
@@ -118,7 +119,7 @@ def get_movie_cast_details(db: Session, movie_id: int) -> list[MovieCastData]:
     return [
         MovieCastData(
             actor_id=actor.id,
-            name=actor.name,
+            name=actor_display_name(actor),
             character_name=character_name,
             profile_path=tmdb_image_url(actor.profile_path),
         )
@@ -207,7 +208,7 @@ def get_actors(
             "data" : [
                 {
                     "actor_id" : actor.id,
-                    "actor_name" : actor.name,
+                    "actor_name" : actor_display_name(actor),
                     "profile_path": tmdb_image_url(actor.profile_path),
                 }for actor in actors_result
             ],
@@ -374,11 +375,15 @@ def get_actor_filmography(
     else:
         actor = db.scalar(
             select(Actor)
-            .where(func.lower(Actor.name) == identifier.strip().lower())
+            .where(or_(
+                func.lower(Actor.name) == identifier.strip().lower(),
+                func.lower(Actor.korean_name) == identifier.strip().lower(),
+                func.lower(Actor.original_name) == identifier.strip().lower(),
+            ))
             .order_by(Actor.id.asc())
         )
 
-    person_name = actor.name if actor is not None else identifier.strip()
+    person_name = actor_display_name(actor) if actor is not None else identifier.strip()
     if not person_name:
         raise HTTPException(status_code=404, detail="배우 정보를 찾을 수 없습니다.")
 
@@ -498,7 +503,11 @@ def toggle_actor_like(
     else:
         actor = db.scalar(
             select(Actor)
-            .where(func.lower(Actor.name) == identifier.strip().lower())
+            .where(or_(
+                func.lower(Actor.name) == identifier.strip().lower(),
+                func.lower(Actor.korean_name) == identifier.strip().lower(),
+                func.lower(Actor.original_name) == identifier.strip().lower(),
+            ))
             .order_by(Actor.id.asc())
         )
     if actor is None:
@@ -514,7 +523,7 @@ def toggle_actor_like(
         return {
             "state": "success",
             "message": "배우 좋아요가 반영되었습니다.",
-            "data": {"is_liked": is_liked, "name": actor.name, "role": "actor"},
+            "data": {"is_liked": is_liked, "name": actor_display_name(actor), "role": "actor"},
         }
     except Exception:
         db.rollback()

@@ -83,6 +83,7 @@ function MovieDetailPage({ authUser, movieId }) {
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(true);
   const [recommendedLoading, setRecommendedLoading] = useState(true);
+  const [posterFailed, setPosterFailed] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -179,6 +180,11 @@ function MovieDetailPage({ authUser, movieId }) {
     .filter(Boolean);
   const visibleReviews = showAllReviews ? reviews : reviews.slice(0, 6);
   const poster = resolveMovieImage(detail?.poster_path || '');
+
+  useEffect(() => {
+    setPosterFailed(false);
+  }, [poster]);
+
   const trailerVideos = Array.isArray(detail?.trailer_videos) && detail.trailer_videos.length
     ? detail.trailer_videos
     : detail?.trailer_url
@@ -359,7 +365,26 @@ function MovieDetailPage({ authUser, movieId }) {
     <main className="movie-detail">
       <section className="movie-detail__hero">
         <div className="movie-detail__poster">
-          {poster ? <img src={poster} alt={`${detail.title} 포스터`} decoding="async" fetchPriority="high" /> : <span>NO POSTER</span>}
+          {poster && !posterFailed ? (
+            <img
+              src={poster}
+              alt={`${detail.title} 포스터`}
+              decoding="async"
+              fetchPriority="high"
+              onError={() => setPosterFailed(true)}
+            />
+          ) : (
+            <div
+              className="movie-detail__poster-placeholder"
+              role="img"
+              aria-label={`${detail.title} 포스터 준비 중`}
+            >
+              <span className="movie-detail__poster-placeholder-mark" aria-hidden="true">M</span>
+              <span className="movie-detail__poster-placeholder-brand">MUSUBI</span>
+              <strong>{detail.title}</strong>
+              <small>포스터 준비 중</small>
+            </div>
+          )}
         </div>
 
         <div className="movie-detail__story">

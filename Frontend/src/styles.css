@@ -81,8 +81,8 @@ textarea {
   position: relative;
 }
 
-.app-shell.is-arriving-from-onboarding .site-header > :not(.site-logo),
-.app-shell.is-arriving-from-onboarding .page > :not(.site-header) {
+.app-shell.is-arriving-from-onboarding .home3-cinema-nav > :not(.home3-cinema-nav__logo),
+.app-shell.is-arriving-from-onboarding .page > :not(.home3-cinema-nav) {
   animation: homeContentArrive 520ms 90ms ease-out both;
 }
 
@@ -92,8 +92,8 @@ textarea {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .app-shell.is-arriving-from-onboarding .site-header > :not(.site-logo),
-  .app-shell.is-arriving-from-onboarding .page > :not(.site-header) {
+  .app-shell.is-arriving-from-onboarding .home3-cinema-nav > :not(.home3-cinema-nav__logo),
+  .app-shell.is-arriving-from-onboarding .page > :not(.home3-cinema-nav) {
     animation: none;
   }
 }

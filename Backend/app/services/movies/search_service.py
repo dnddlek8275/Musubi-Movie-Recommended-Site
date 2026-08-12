@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.models.actors import Actor, MovieActor
 from app.models.movies import Movie, MovieGenre, MovieGenreWeight
 from app.models.users import User
+from app.services.actor_name_policy import actor_display_name
 from app.services.movies.genre_relevance import (
     GENRE_KEYWORD_SIGNALS,
     GENRE_RELEVANCE_MINIMUM,
@@ -180,13 +181,19 @@ def search_movie_sections_result(
     director_expr = normalize_search_expr(Movie.director)
     overview_expr = normalize_search_expr(Movie.overview)
     actor_name_expr = normalize_search_expr(Actor.name)
+    actor_korean_name_expr = normalize_search_expr(Actor.korean_name)
+    actor_original_name_expr = normalize_search_expr(Actor.original_name)
 
     title_condition = title_expr.ilike(pattern)
     title_exact = db.scalar(select(Movie.id).where(title_expr == normalized_query).limit(1)) is not None
 
     matched_actors = db.scalars(
         select(Actor)
-        .where(actor_name_expr.ilike(pattern))
+        .where(or_(
+            actor_name_expr.ilike(pattern),
+            actor_korean_name_expr.ilike(pattern),
+            actor_original_name_expr.ilike(pattern),
+        ))
         .order_by(
             case((actor_name_expr == normalized_query, 0), else_=1),
             Actor.name.asc(),
@@ -198,7 +205,14 @@ def search_movie_sections_result(
         Movie.id.in_(select(MovieActor.movie_id).where(MovieActor.actor_id.in_(actor_ids)))
         if actor_ids else None
     )
-    actor_exact = any(_normalized_text(actor.name) == normalized_query for actor in matched_actors)
+    actor_exact = any(
+        normalized_query in {
+            _normalized_text(actor.name),
+            _normalized_text(actor.korean_name),
+            _normalized_text(actor.original_name),
+        }
+        for actor in matched_actors
+    )
 
     matched_directors = db.scalars(
         select(Movie.director)
@@ -253,7 +267,7 @@ def search_movie_sections_result(
             "type": "actor", "title": f"{raw_keyword} 출연 영화", "condition": actor_condition,
             "exact": actor_exact,
             "matches": [
-                {"id": actor.id, "tmdb_actor_id": actor.tmdb_actor_id, "name": actor.name,
+                {"id": actor.id, "tmdb_actor_id": actor.tmdb_actor_id, "name": actor_display_name(actor),
                  "profile_path": actor.profile_path}
                 for actor in matched_actors
             ],
@@ -344,7 +358,11 @@ def search_movies_result(
         None,
     )
     exact_actor = db.scalar(
-        select(Actor).where(normalize_search_expr(Actor.name) == normalized_query).limit(1)
+        select(Actor).where(or_(
+            normalize_search_expr(Actor.name) == normalized_query,
+            normalize_search_expr(Actor.korean_name) == normalized_query,
+            normalize_search_expr(Actor.original_name) == normalized_query,
+        )).limit(1)
     )
     exact_director = db.scalar(
         select(Movie.director)
