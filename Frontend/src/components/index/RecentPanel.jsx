@@ -36,7 +36,7 @@ function RecentPanel({ authUser }) {
     <article className="index-info-card recent-card">
       <div className="index-card-header">
         <h3>최근 본 영화</h3>
-        <a href="/mypage">더보기 ›</a>
+        <a href="/mypage?tab=activity">더보기 ›</a>
       </div>
 
       <div className="index-recent-row">

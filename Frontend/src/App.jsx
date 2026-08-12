@@ -3,6 +3,7 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useState } fro
 import DefaultLayout from './default.jsx';
 import LoginPage from './components/login/LoginPage.jsx';
 import IntroPage from './components/intro/IntroPage.jsx';
+import Recommendation from './components/recomendation/recomendation.jsx';
 
 import {
   clearStoredAuth,
@@ -22,7 +23,6 @@ const MovieDetailPage = lazy(() => import('./components/movieDetail/MovieDetailP
 const MyPage = lazy(() => import('./components/mypage/MyPage.jsx'));
 const OnboardingPage = lazy(() => import('./components/onboarding/OnboardingPage.jsx'));
 const PersonFilmographyPage = lazy(() => import('./components/person/PersonFilmographyPage.jsx'));
-const Recommendation = lazy(() => import('./components/recomendation/recomendation.jsx'));
 const SignupPage = lazy(() => import('./components/signup/SignupPage.jsx'));
 const UserActivityPage = lazy(() => import('./components/userActivity/UserActivityPage.jsx'));
 

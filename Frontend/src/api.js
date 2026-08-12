@@ -1264,6 +1264,32 @@ export async function fetchMovies(
   return getArrayPayload(data, 'movies', 'results', 'items');
 }
 
+export async function fetchSearchSections(signal, keyword, { limit = 20, searchType = '' } = {}) {
+  const searchKeyword = String(keyword ?? '').trim();
+  if (!searchKeyword) return [];
+
+  const params = new URLSearchParams({
+    keyword: searchKeyword,
+    limit: String(clampNumber(limit, 1, 40, 20)),
+  });
+  if (searchType) params.set('type', searchType);
+  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/movies/search/grouped?${params}`, {
+    method: 'GET',
+    signal,
+  });
+  const data = await response.json().catch(() => null);
+
+  if (getResponseState(data) === 'failure') return [];
+  if (!response.ok || getResponseState(data) === 'error') {
+    throw new Error(getErrorMessage(data, `카테고리별 영화 검색 요청 실패 (${response.status})`));
+  }
+
+  const sections = data?.data?.sections || data?.sections || [];
+  return Array.isArray(sections)
+    ? sections.filter((section) => Array.isArray(section?.movies) && section.movies.length > 0)
+    : [];
+}
+
 export async function fetchSearchSuggestions(signal, keyword, limit = 8) {
   const searchKeyword = String(keyword ?? '').trim();
   if (!searchKeyword) return [];

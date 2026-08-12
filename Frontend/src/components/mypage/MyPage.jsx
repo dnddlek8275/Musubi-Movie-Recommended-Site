@@ -474,7 +474,10 @@ function AccountEditor({ profile, authUser, onCancel, onSaved, onDeleteRequest }
 }
 
 function MyPage({ authUser, onLogout, onUserUpdate }) {
-  const [activeTab, setActiveTab] = useState('overview');
+  const requestedTab = new URLSearchParams(window.location.search).get('tab');
+  const [activeTab, setActiveTab] = useState(
+    () => TABS.some(([key]) => key === requestedTab) ? requestedTab : 'overview'
+  );
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState('');
   const [profile, setProfile] = useState({});

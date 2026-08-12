@@ -16,7 +16,11 @@ from app.services.movies.genre_service import genre_movies
 from app.services.movies.ranking_service import movie_detail, realtime_movie_ranking_result
 from app.services.movies.discovery_section_service import get_discovery_sections_result
 from app.services.interaction_service import detail_movie_result, like_movie_result
-from app.services.movies.search_service import search_movies_result, search_suggestions_result
+from app.services.movies.search_service import (
+    search_movie_sections_result,
+    search_movies_result,
+    search_suggestions_result,
+)
 from app.services.movies.recommendation_service import get_guest_recommend_movies_result, get_recommend_movies_result, get_recommend_today_movie_result, get_similar_movies_result, get_user_recommend_movies_result
 from app.services.movies.tmdb_trailer_service import get_movie_trailer_videos
 from app.services.user_service import user_like_actor
@@ -280,6 +284,20 @@ async def search_suggestions(
 
 
 # 영화 검색 GET /movies/search
+@router.get("/search/grouped")
+async def search_movies_grouped(
+    keyword: str = Query(..., min_length=1),
+    limit: int = Query(20, ge=1, le=40),
+    search_type: str | None = Query(None, alias="type"),
+    db: Session = Depends(get_db),
+):
+    try:
+        return search_movie_sections_result(db, keyword, limit, search_type)
+    except Exception:
+        return error_response("카테고리별 영화 검색 에러")
+
+
+# 기존 단일 목록 검색은 다른 호출부와의 호환을 위해 유지한다.
 @router.get("/search")
 async def search_movies(
     keyword: str = Query(..., min_length=1),

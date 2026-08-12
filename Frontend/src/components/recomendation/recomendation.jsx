@@ -4,7 +4,7 @@ import {
   addLikedMovie,
   fetchDiscoverySections,
   fetchLikedMovies,
-  fetchMovies,
+  fetchSearchSections,
   getLocalPreferences,
   removeLikedMovie,
 } from '../../api.js';
@@ -43,7 +43,7 @@ function sectionTitle(section, displayName) {
   return `${displayName}님의 ${label} 취향까지 놓치지 않았어요`;
 }
 
-function MovieSection({ section, displayName, likedMovies, onToggleLike }) {
+function MovieSection({ section, displayName, likedMovies, onToggleLike, source = '' }) {
   const rowRef = useRef(null);
   const movies = section.movies.map(normalizeMovie);
   const title = sectionTitle(section, displayName);
@@ -96,7 +96,7 @@ function MovieSection({ section, displayName, likedMovies, onToggleLike }) {
                 isLiked={likedMovies.includes(movie.title)}
                 movie={movie}
                 onToggleLike={onToggleLike}
-                onSelect={(selected) => { window.location.href = `/movies/${selected.id}`; }}
+                onSelect={(selected) => { window.location.href = `/movies/${selected.id}${source ? `?source=${source}` : ''}`; }}
               />
             </div>
           ))}
@@ -141,61 +141,33 @@ function SearchResultsSkeleton() {
   );
 }
 
-function SearchResults({ query, movies, likedMovies, onToggleLike, hasMore, loadingMore, onLoadMore }) {
-  const normalizedMovies = movies.map(normalizeMovie);
-  const loadMoreRef = useRef(null);
-
-  useEffect(() => {
-    const target = loadMoreRef.current;
-    if (!target || !hasMore || loadingMore) return undefined;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) onLoadMore();
-      },
-      { rootMargin: '500px 0px' },
-    );
-    observer.observe(target);
-    return () => observer.disconnect();
-  }, [hasMore, loadingMore, onLoadMore]);
-
+function SearchResults({ query, sections, likedMovies, onToggleLike }) {
   return (
     <section className="recommendation-search" aria-label={`${query} 검색 결과`}>
       <header className="recommendation-search__header">
-        <h1><span>“{query}”</span> 관련 영화</h1>
-        <p>{movies.length > 0 ? '검색어와 관련된 영화를 관련도순으로 모았어요' : '일치하는 영화를 찾지 못했어요'}</p>
+        <h1><span>“{query}”</span> 검색 결과</h1>
+        <p>{sections.length > 0 ? '검색 필드별 결과를 최신 개봉일순으로 모았어요' : '일치하는 영화를 찾지 못했어요'}</p>
       </header>
 
-      {normalizedMovies.length > 0 ? (
-        <div className="recommendation-search__grid">
-          {normalizedMovies.map((movie, index) => (
-            <MovieCard
-              index={index}
-              isLiked={likedMovies.includes(movie.title)}
-              key={movie.id ?? `${movie.title}-${index}`}
-              movie={movie}
-              onToggleLike={onToggleLike}
-              onSelect={(selected) => { window.location.href = `/movies/${selected.id}?source=search`; }}
-            />
-          ))}
-        </div>
-      ) : null}
-
-      {hasMore ? (
-        <div className="recommendation-search__loader" ref={loadMoreRef} role="status">
-          {loadingMore ? '검색 결과를 이어서 불러오는 중…' : ''}
-        </div>
-      ) : null}
+      <div className="recommendation-search__sections">
+        {sections.map((section) => (
+          <MovieSection
+            key={section.key || section.type}
+            section={section}
+            displayName=""
+            likedMovies={likedMovies}
+            onToggleLike={onToggleLike}
+            source="search"
+          />
+        ))}
+      </div>
     </section>
   );
 }
 
 function Recommendation({ authUser, onLogout }) {
   const [sections, setSections] = useState([]);
-  const [searchResults, setSearchResults] = useState([]);
-  const [searchPage, setSearchPage] = useState(1);
-  const [hasMoreSearchResults, setHasMoreSearchResults] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const [searchSections, setSearchSections] = useState([]);
   const [likedMovies, setLikedMovies] = useState([]);
   const [status, setStatus] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -217,21 +189,18 @@ function Recommendation({ authUser, onLogout }) {
     const controller = new AbortController();
     setIsLoading(true);
     setStatus('');
-    setSearchPage(1);
 
     const request = query
-      ? fetchMovies(controller.signal, query, { page: 1, limit: 80, searchType }).then((movies) => {
+      ? fetchSearchSections(controller.signal, query, { limit: 20, searchType }).then((groupedSections) => {
           setSections([]);
-          setSearchResults(movies);
-          setHasMoreSearchResults(movies.length === 80);
+          setSearchSections(groupedSections);
         })
       : fetchDiscoverySections(
           controller.signal,
           authUser ? null : getLocalPreferences(),
           25,
         ).then((sectionData) => {
-          setSearchResults([]);
-          setHasMoreSearchResults(false);
+          setSearchSections([]);
           setSections(sectionData.filter((section) => Array.isArray(section.movies) && section.movies.length > 0));
         });
 
@@ -246,30 +215,6 @@ function Recommendation({ authUser, onLogout }) {
 
     return () => controller.abort();
   }, [authUser, query, searchType]);
-
-  const loadMoreSearchResults = async () => {
-    if (!query || loadingMore || !hasMoreSearchResults) return;
-    const nextPage = searchPage + 1;
-    setLoadingMore(true);
-    setStatus('');
-    try {
-      const movies = await fetchMovies(undefined, query, {
-        page: nextPage,
-        limit: 80,
-        searchType,
-      });
-      setSearchResults((current) => {
-        const knownIds = new Set(current.map((movie) => movie.movie_id ?? movie.id));
-        return [...current, ...movies.filter((movie) => !knownIds.has(movie.movie_id ?? movie.id))];
-      });
-      setSearchPage(nextPage);
-      setHasMoreSearchResults(movies.length === 80);
-    } catch (error) {
-      setStatus(error.message);
-    } finally {
-      setLoadingMore(false);
-    }
-  };
 
   useEffect(() => {
     if (!authUser) return undefined;
@@ -334,12 +279,9 @@ function Recommendation({ authUser, onLogout }) {
         ) : query ? (
           <SearchResults
             query={query}
-            movies={searchResults}
+            sections={searchSections}
             likedMovies={likedMovies}
             onToggleLike={handleToggleLike}
-            hasMore={hasMoreSearchResults}
-            loadingMore={loadingMore}
-            onLoadMore={loadMoreSearchResults}
           />
         ) : displayedSections.map((section) => (
             <MovieSection

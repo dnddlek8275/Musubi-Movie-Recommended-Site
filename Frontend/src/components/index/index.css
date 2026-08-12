@@ -531,9 +531,32 @@
   gap: 7px;
 }
 
-.keyword-preference-row > strong {
+.keyword-preference-row__heading {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.keyword-preference-row__heading > strong {
   font-size: 17px;
   line-height: 1.15;
+}
+
+.keyword-preference-row__heading > a {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.keyword-preference-row__heading > a:hover,
+.keyword-preference-row__heading > a:focus-visible {
+  color: var(--accent);
+  outline: none;
 }
 
 .keyword-preference-values {
