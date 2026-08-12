@@ -1499,10 +1499,15 @@ export async function deleteMovieRating(
   return data?.data || {};
 }
 
-export async function fetchMoviesByGenre(genre, signal, { page = 1, limit = 20 } = {}) {
+export async function fetchMoviesByGenre(
+  genre,
+  signal,
+  { page = 1, limit = 20, sort = 'relevance' } = {}
+) {
   const params = new URLSearchParams({
     page: String(clampNumber(page, 1, Number.MAX_SAFE_INTEGER, 1)),
     limit: String(clampNumber(limit, 1, 50, 20)),
+    sort: sort === 'latest' ? 'latest' : 'relevance',
   });
   const response = await fetch(
     `${BACKEND_BASE_URL}/movies/genre/${encodeURIComponent(genre)}?${params}`,

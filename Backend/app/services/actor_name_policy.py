@@ -12,6 +12,12 @@ KOREAN_BIRTHPLACE_TERMS = (
     "대한민국",
 )
 
+# 데이터 제공처의 표기가 계속 영문으로 내려오는 검증된 예외만 내부 배우 ID로 고정한다.
+# 이름 문자열 전체를 치환하지 않아 동명이인에게 영향을 주지 않는다.
+ACTOR_DISPLAY_NAME_OVERRIDES_BY_ID = {
+    10199: "노영학",
+}
+
 
 def contains_hangul(value: object) -> bool:
     return bool(HANGUL_PATTERN.search(str(value or "")))
@@ -57,6 +63,9 @@ def infer_is_korean(
 
 
 def actor_display_name(actor) -> str:
+    override = ACTOR_DISPLAY_NAME_OVERRIDES_BY_ID.get(getattr(actor, "id", None))
+    if override:
+        return override
     if actor.is_korean is True:
         return clean_person_name(actor.korean_name) or clean_person_name(actor.name) or "이름 미상"
     if actor.is_korean is False:

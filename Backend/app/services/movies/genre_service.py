@@ -11,9 +11,10 @@ def genre_movies (
         genre:str,
         page : int = 1,
         limit : int = 20,
+        sort: str = "relevance",
 ) :
     # 장르 관련 영화
-    genre_movies = db.scalars(
+    statement = (
         select(Movie)
         .join(MovieGenre, Movie.id == MovieGenre.movie_id)
         .join(
@@ -23,11 +24,22 @@ def genre_movies (
         )
         .where(MovieGenre.genre == genre)
         .where(MovieGenreWeight.weight >= GENRE_RELEVANCE_MINIMUM)
-        .order_by(
+    )
+    if sort == "latest":
+        statement = statement.order_by(
+            Movie.release_date.desc().nulls_last(),
+            Movie.year.desc().nulls_last(),
+            Movie.id.desc(),
+        )
+    else:
+        statement = statement.order_by(
             MovieGenreWeight.weight.desc(),
             Movie.vote_count.desc().nulls_last(),
             Movie.vote_average.desc().nulls_last(),
         )
+
+    genre_movies = db.scalars(
+        statement
         .offset((page -1) * limit)
         .limit(limit)
     ).all()

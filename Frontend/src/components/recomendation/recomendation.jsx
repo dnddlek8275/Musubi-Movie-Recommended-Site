@@ -4,6 +4,7 @@ import {
   addLikedMovie,
   fetchDiscoverySections,
   fetchLikedMovies,
+  fetchMoviesByGenre,
   fetchSearchSections,
   getLocalPreferences,
   removeLikedMovie,
@@ -12,6 +13,100 @@ import { normalizeMovie } from '../index/RecommendationRow.jsx';
 import MovieCard from '../movieCard/MovieCard.jsx';
 import { getKeywordLabel } from '../../utils/keywordLabels.js';
 import './recomendation.css';
+
+const ROTATING_GENRES = [
+  '드라마', '코미디', '스릴러', '액션', '공포', '로맨스', '범죄', '모험',
+  '애니메이션', 'SF', '가족', '판타지', '미스터리', '다큐멘터리', '음악',
+  '역사', '전쟁',
+];
+const GENRE_ROTATION_KEY = 'musubi.recommendationGenreRotation';
+
+function GenreSelector({ value, onChange }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const selectorRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const closeOnOutsideClick = (event) => {
+      if (!selectorRef.current?.contains(event.target)) setIsOpen(false);
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setIsOpen(false);
+    };
+
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [isOpen]);
+
+  return (
+    <span className="recommendation-genre-select" ref={selectorRef}>
+      <button
+        type="button"
+        className="recommendation-genre-select__trigger"
+        aria-label="장르 선택"
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((current) => !current)}
+      >
+        <span>{value}</span>
+        <span className="recommendation-genre-select__arrow" aria-hidden="true">⌄</span>
+      </button>
+      {isOpen && (
+        <span className="recommendation-genre-select__menu" role="listbox" aria-label="장르 목록">
+          {ROTATING_GENRES.map((genre) => (
+            <button
+              type="button"
+              role="option"
+              aria-selected={genre === value}
+              className={genre === value ? 'is-selected' : ''}
+              onClick={() => {
+                onChange(genre);
+                setIsOpen(false);
+              }}
+              key={genre}
+            >
+              {genre}
+            </button>
+          ))}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function shuffledGenres() {
+  const genres = [...ROTATING_GENRES];
+  for (let index = genres.length - 1; index > 0; index -= 1) {
+    const target = Math.floor(Math.random() * (index + 1));
+    [genres[index], genres[target]] = [genres[target], genres[index]];
+  }
+  return genres;
+}
+
+function nextRotatingGenre() {
+  try {
+    const stored = JSON.parse(window.sessionStorage.getItem(GENRE_ROTATION_KEY) || 'null');
+    const validQueue = Array.isArray(stored?.queue)
+      && stored.queue.length === ROTATING_GENRES.length
+      && ROTATING_GENRES.every((genre) => stored.queue.includes(genre));
+    const queue = validQueue && Number(stored.index) < stored.queue.length
+      ? stored.queue
+      : shuffledGenres();
+    const index = validQueue && Number(stored.index) < stored.queue.length
+      ? Math.max(Number(stored.index), 0)
+      : 0;
+    const genre = queue[index];
+    window.sessionStorage.setItem(GENRE_ROTATION_KEY, JSON.stringify({ queue, index: index + 1 }));
+    return genre;
+  } catch {
+    return ROTATING_GENRES[Math.floor(Math.random() * ROTATING_GENRES.length)];
+  }
+}
 
 function sectionTitle(section, displayName) {
   if (section.key === 'for-you') {
@@ -43,7 +138,7 @@ function sectionTitle(section, displayName) {
   return `${displayName}님의 ${label} 취향까지 놓치지 않았어요`;
 }
 
-function MovieSection({ section, displayName, likedMovies, onToggleLike, source = '' }) {
+function MovieSection({ section, displayName, likedMovies, onToggleLike, source = '', titleContent = null }) {
   const rowRef = useRef(null);
   const movies = section.movies.map(normalizeMovie);
   const title = sectionTitle(section, displayName);
@@ -77,7 +172,7 @@ function MovieSection({ section, displayName, likedMovies, onToggleLike, source 
     <section className="recommendation-row" aria-label={title}>
       <header className="recommendation-row__header">
         <div>
-          <h3>{title}</h3>
+          <h3>{titleContent || title}</h3>
         </div>
       </header>
 
@@ -171,6 +266,9 @@ function Recommendation({ authUser, onLogout }) {
   const [likedMovies, setLikedMovies] = useState([]);
   const [status, setStatus] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedGenre, setSelectedGenre] = useState(nextRotatingGenre);
+  const [genreMovies, setGenreMovies] = useState([]);
+  const [genreLoading, setGenreLoading] = useState(true);
   const query = new URLSearchParams(window.location.search).get('keyword')?.trim() || '';
   const searchType = new URLSearchParams(window.location.search).get('type')?.trim() || '';
   const displayName = authUser?.nickname
@@ -215,6 +313,26 @@ function Recommendation({ authUser, onLogout }) {
 
     return () => controller.abort();
   }, [authUser, query, searchType]);
+
+  useEffect(() => {
+    if (query) {
+      setGenreMovies([]);
+      setGenreLoading(false);
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    setGenreLoading(true);
+    fetchMoviesByGenre(selectedGenre, controller.signal, { limit: 25, sort: 'latest' })
+      .then(setGenreMovies)
+      .catch((error) => {
+        if (error.name !== 'AbortError') setStatus(error.message);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setGenreLoading(false);
+      });
+    return () => controller.abort();
+  }, [query, selectedGenre]);
 
   useEffect(() => {
     if (!authUser) return undefined;
@@ -269,6 +387,25 @@ function Recommendation({ authUser, onLogout }) {
     }
   };
 
+  const genreTitle = (
+    <span className="recommendation-genre-title">
+      <GenreSelector value={selectedGenre} onChange={setSelectedGenre} />
+      <span>영화만 모아봤어요.</span>
+    </span>
+  );
+
+  const genreSection = {
+    key: 'rotating-genre',
+    title: `${selectedGenre} 영화만 모아봤어요.`,
+    movies: genreMovies,
+  };
+
+  const sectionsWithGenre = displayedSections.flatMap((section) => (
+    section.key === 'box-office'
+      ? [section, genreSection]
+      : [section]
+  ));
+
   return (
     <main className="recommendation cinema-nav-page">
       {status ? <p className="recommendation__status" role="status">{status}</p> : null}
@@ -283,14 +420,30 @@ function Recommendation({ authUser, onLogout }) {
             likedMovies={likedMovies}
             onToggleLike={handleToggleLike}
           />
-        ) : displayedSections.map((section) => (
+        ) : sectionsWithGenre.map((section) => (
+            section.key === 'rotating-genre' && genreLoading ? (
+              <section className="recommendation-row recommendation-row--skeleton" aria-hidden="true" key={section.key}>
+                <div className="recommendation-skeleton__heading" />
+                <div className="recommendation-skeleton__movies">
+                  {Array.from({ length: 8 }, (_, index) => (
+                    <div className="recommendation-skeleton__card" key={index}>
+                      <div className="recommendation-skeleton__poster" />
+                      <div className="recommendation-skeleton__line is-title" />
+                      <div className="recommendation-skeleton__line" />
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : (
             <MovieSection
               key={section.key}
               section={section}
               displayName={displayName}
               likedMovies={likedMovies}
               onToggleLike={handleToggleLike}
+              titleContent={section.key === 'rotating-genre' ? genreTitle : null}
             />
+            )
           ))}
       </div>
     </main>

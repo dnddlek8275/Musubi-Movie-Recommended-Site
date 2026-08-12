@@ -1,4 +1,5 @@
 import logging
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
@@ -878,10 +879,11 @@ def get_genre_movies(
     genre : str,
     page : int = Query(1, ge=1),
     limit : int = Query(20, ge=1, le=50),
+    sort: Literal["relevance", "latest"] = Query("relevance"),
     db : Session = Depends(get_db),
 ):
     try:
-        movies_result = genre_movies(db, genre, page, limit)
+        movies_result = genre_movies(db, genre, page, limit, sort)
         if movies_result is None:
             return {
                 "state" : "failure",
@@ -897,6 +899,9 @@ def get_genre_movies(
                     "title" : movie.title,
                     "poster_path": movie.poster_path,
                     "vote_average": movie.vote_average,
+                    "genres": movie.genres or [],
+                    "year": movie.year,
+                    "release_date": movie.release_date,
                 }for movie in movies_result
             ]
         }

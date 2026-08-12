@@ -1,6 +1,8 @@
 import unittest
+from types import SimpleNamespace
 
 from app.services.actor_name_policy import (
+    actor_display_name,
     infer_is_korean,
     resolved_actor_name,
     select_korean_name,
@@ -8,6 +10,16 @@ from app.services.actor_name_policy import (
 
 
 class ActorNamePolicyTests(unittest.TestCase):
+    def test_verified_actor_id_uses_manual_display_name(self):
+        actor = SimpleNamespace(
+            id=10199,
+            name="Noh Young-hak",
+            original_name="Noh Young-hak",
+            korean_name=None,
+            is_korean=None,
+        )
+        self.assertEqual(actor_display_name(actor), "노영학")
+
     def test_korean_alias_is_selected_for_korean_actor(self):
         self.assertEqual(
             select_korean_name("Noh Young-hak", ["노영학", "Noh Yeong Hak"]),
@@ -29,7 +41,7 @@ class ActorNamePolicyTests(unittest.TestCase):
         self.assertIs(
             infer_is_korean(
                 place_of_birth="Baltimore, Maryland, USA",
-                korean_name="마크 롤스턴",
+                korean_name="  ",
                 korean_credit_count=0,
                 total_credit_count=12,
             ),

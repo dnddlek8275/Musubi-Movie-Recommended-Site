@@ -690,6 +690,16 @@
   background: color-mix(in srgb, var(--text) 6%, transparent);
 }
 
+.home3-prompt-menu .home3-prompt-menu__image {
+  position: relative;
+}
+
+.home3-prompt-menu .home3-prompt-menu__image::after {
+  right: auto;
+  bottom: calc(100% + 7px);
+  left: 0;
+}
+
 .home3-prompt-menu span {
   height: 1px;
   margin: 5px 4px;

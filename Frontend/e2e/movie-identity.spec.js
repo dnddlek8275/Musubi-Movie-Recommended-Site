@@ -27,9 +27,15 @@ test('URL과 상세 응답의 내부 영화 ID가 다르면 화면을 차단한�
 
 test('리뷰 저장 요청에 검증된 내부 ID와 TMDB ID, 제목을 함께 보낸다', async ({ page }) => {
   await page.addInitScript(() => {
+    localStorage.clear();
     localStorage.setItem('auth_user', JSON.stringify({ user_id: 4, nickname: 'zeusqoi' }));
     localStorage.setItem('access_token', 'e2e-token');
   });
+  await page.route('**/api/**', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ state: 'success', data: [] }),
+  }));
   await page.route('**/api/movies/196?**', (route) => route.fulfill({
     status: 200,
     contentType: 'application/json',

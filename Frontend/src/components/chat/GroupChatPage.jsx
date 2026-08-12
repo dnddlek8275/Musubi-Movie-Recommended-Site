@@ -1805,7 +1805,12 @@ function GroupChatPage({ authUser, onLogout }) {
                   <button type="button" onClick={() => { window.location.href = '/home'; }}>무무와 새 채팅</button>
                   <button type="button" onClick={returnToCharacterSearch}>캐릭터와 새 채팅</button>
                   <button type="button" onClick={() => { setHistoryOpen(true); setPromptMenuOpen(false); }}>대화 기록</button>
-                  <button type="button" onClick={() => { photoInputRef.current?.click(); setPromptMenuOpen(false); }}>사진 첨부</button>
+                  <button
+                    type="button"
+                    className="home3-prompt-menu__image"
+                    data-tooltip="이미지 첨부 기능은 준비중이에요."
+                    onClick={() => { photoInputRef.current?.click(); setPromptMenuOpen(false); }}
+                  >이미지 첨부</button>
                 </div>
               ) : null}
               <input className="home3-photo-input" type="file" accept="image/*" ref={photoInputRef} onChange={(event) => setPhotoName(event.target.files?.[0]?.name || '')} />

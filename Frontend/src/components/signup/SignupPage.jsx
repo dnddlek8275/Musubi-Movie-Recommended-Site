@@ -8,6 +8,7 @@ import {
   requestEmailVerification,
 } from '../../api.js';
 import IntroPage from '../intro/IntroPage.jsx';
+import { getPasswordChecks } from '../../utils/passwordPolicy.js';
 import '../login/login.css';
 import './signup.css';
 
@@ -21,16 +22,6 @@ const initialForm = {
 
 const EMAIL_DOMAINS = ['naver.com', 'gmail.com', 'daum.net', 'kakao.com', 'outlook.com'];
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-
-function getPasswordChecks(password) {
-  return {
-    length: password.length >= 10,
-    letter: /[A-Za-z]/.test(password),
-    number: /\d/.test(password),
-    special: /[^A-Za-z0-9\s]/.test(password),
-    noSpace: !/\s/.test(password),
-  };
-}
 
 function SignupPage() {
   const [isArrivingFromLogin] = useState(() => {

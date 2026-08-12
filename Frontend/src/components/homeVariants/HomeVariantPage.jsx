@@ -418,7 +418,12 @@ function Home3Prompt({ chat, promptRef, onBeforeSend, onNewChat, onOpenHistory }
             <button type="button" onClick={() => { onNewChat(); setMenuOpen(false); }}>무무와 새 채팅</button>
             <button type="button" onClick={() => { window.location.href = '/chat/group'; }}>캐릭터와 새 채팅</button>
             <button type="button" onClick={() => { onOpenHistory(); setMenuOpen(false); }}>대화 기록</button>
-            <button type="button" onClick={() => { photoInputRef.current?.click(); setMenuOpen(false); }}>사진 첨부</button>
+            <button
+              type="button"
+              className="home3-prompt-menu__image"
+              data-tooltip="이미지 첨부 기능은 준비중이에요."
+              onClick={() => { photoInputRef.current?.click(); setMenuOpen(false); }}
+            >이미지 첨부</button>
           </div>
         ) : null}
         <input

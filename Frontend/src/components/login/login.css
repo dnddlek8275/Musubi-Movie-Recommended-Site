@@ -286,6 +286,27 @@
   gap: 14px;
 }
 
+.password-reset-inline__rules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 10px;
+}
+
+.password-reset-inline__rules small {
+  color: color-mix(in srgb, var(--muted) 68%, transparent);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.password-reset-inline__rules small::before {
+  content: "•";
+  margin-right: 4px;
+}
+
+.password-reset-inline__rules small.is-valid {
+  color: var(--accent);
+}
+
 .password-reset-inline__back {
   width: fit-content;
   margin: 0 auto;

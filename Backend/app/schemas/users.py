@@ -3,11 +3,13 @@ from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
+from app.core.password_policy import MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, validate_password_policy
+
 class RegisterRequest(BaseModel):
     # 사용자 이메일
     email: EmailStr
     # 사용자 비밀번호
-    password: str = Field(min_length=10, max_length=128)
+    password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=MAX_PASSWORD_LENGTH)
     # 사용자 닉네임
     nickname: str = Field(min_length=2, max_length=50)
     verification_code : str = Field(
@@ -23,15 +25,7 @@ class RegisterRequest(BaseModel):
     @field_validator("password")
     @classmethod
     def validate_password_strength(cls, value: str) -> str:
-        if not any(character.isalpha() and character.isascii() for character in value):
-            raise ValueError("비밀번호에 영문을 포함해 주세요.")
-        if not any(character.isdigit() for character in value):
-            raise ValueError("비밀번호에 숫자를 포함해 주세요.")
-        if not any(not character.isalnum() and not character.isspace() for character in value):
-            raise ValueError("비밀번호에 특수문자를 포함해 주세요.")
-        if any(character.isspace() for character in value):
-            raise ValueError("비밀번호에는 공백을 사용할 수 없습니다.")
-        return value
+        return validate_password_policy(value)
 
 
 class NicknameCheckRequest(BaseModel):
@@ -99,4 +93,9 @@ class PasswordResetConfirmRequest(BaseModel):
     # 이메일 링크에 들어 있던 원본 토큰
     token : str = Field(min_length=32, max_length=512)
     # 사용자가 새로 사용할 비밀번호
-    new_password : str = Field(min_length=8, max_length=128)
+    new_password: str = Field(min_length=MIN_PASSWORD_LENGTH, max_length=MAX_PASSWORD_LENGTH)
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password_strength(cls, value: str) -> str:
+        return validate_password_policy(value)

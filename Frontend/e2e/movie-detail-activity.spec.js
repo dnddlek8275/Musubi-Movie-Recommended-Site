@@ -78,8 +78,12 @@ test('추천 로딩 스켈레톤을 표시하고 찜을 저장한다', async ({ 
   await page.getByRole('button', { name: '좋아요' }).click();
   await expect(heart).toHaveClass(/is-liked/);
   await expect(heart).toHaveCSS('font-size', '25px');
-  await page.getByRole('button', { name: '찜하기' }).click();
-  await expect(page.getByRole('button', { name: '찜 해제' })).toBeVisible();
+  const wishlistButton = page.getByRole('button', { name: '찜하기' });
+  await wishlistButton.click();
+  // 활성화 후에도 문구와 버튼 외형은 유지하고 별만 노란색으로 바뀐다.
+  await expect(wishlistButton).toBeVisible();
+  await expect(wishlistButton).toHaveClass(/is-wishlisted/);
+  await expect(wishlistButton.locator('.movie-detail__bookmark')).toHaveText('★');
   expect(wishlistRequested).toBe(true);
   await expect(page.getByText('추천 영화', { exact: true })).toBeVisible();
 });

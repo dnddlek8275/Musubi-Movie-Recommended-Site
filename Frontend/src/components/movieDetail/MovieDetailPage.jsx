@@ -398,7 +398,7 @@ function MovieDetailPage({ authUser, movieId }) {
             </button>
             <button className={wishlisted ? 'is-wishlisted' : ''} type="button" onClick={handleWishlist}>
               <span className="movie-detail__bookmark" aria-hidden="true">{wishlisted ? '★' : '☆'}</span>
-              {wishlisted ? '찜 해제' : '찜하기'}
+              찜하기
             </button>
             <button type="button" onClick={toggleRating}>
               평가하기
