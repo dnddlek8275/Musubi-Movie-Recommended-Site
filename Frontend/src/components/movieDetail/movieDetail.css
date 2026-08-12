@@ -111,7 +111,7 @@
 .movie-detail__story > p { max-width: 850px; margin: 0; color: var(--muted); font-size: 18px; line-height: 1.9; }
 .movie-detail__actions { margin-top: auto; display: flex; gap: 12px; }
 .movie-detail__actions button { min-width: 150px; height: 48px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--text); cursor: pointer; font-weight: 800; }
-.movie-detail__heart { width: 26px; height: 26px; margin-right: 5px; display: inline-grid; place-items: center; font-family: Arial, sans-serif; font-size: 27px; line-height: 1; vertical-align: -5px; }
+.movie-detail__heart { width: 21px; height: 21px; margin-right: 5px; display: inline-grid; place-items: center; font-family: Arial, sans-serif; font-size: 19px; line-height: 1; vertical-align: -3px; }
 .movie-detail__heart.is-liked { color: #f44343; font-size: 25px; }
 .movie-detail__bookmark { margin-right: 6px; color: var(--accent); font-size: 22px; line-height: 1; vertical-align: -2px; }
 .movie-detail__actions button.is-wishlisted { border-color: var(--accent); }
@@ -164,9 +164,10 @@
 .movie-detail__review-score small { color: var(--muted); }
 .movie-detail__review-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .movie-detail__review { min-width: 0; min-height: 154px; padding: 18px; border: 1px solid var(--panel-border); border-radius: 12px; background: var(--panel); }
+.movie-detail__review.is-member-link { cursor: pointer; transition: border-color .18s ease, transform .18s ease; }
+.movie-detail__review.is-member-link:hover, .movie-detail__review.is-member-link:focus-visible { border-color: color-mix(in srgb, var(--accent) 60%, var(--panel-border)); transform: translateY(-2px); }
+.movie-detail__review.is-member-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .movie-detail__review-author { display: block; padding: 0; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 15px; font-weight: 800; text-align: left; }
-.movie-detail__review-author.is-clickable { color: var(--accent); cursor: pointer; }
-.movie-detail__review-author.is-clickable:hover { text-decoration: underline; text-underline-offset: 4px; }
 .movie-detail__review-meta { margin-top: 7px; display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 12px; }
 .movie-detail__review-meta span { color: var(--accent); font-size: 17px; font-weight: 800; }
 .movie-detail__review p { margin: 18px 0 0; display: -webkit-box; overflow: hidden; color: var(--text); font-size: 16px; line-height: 1.72; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
@@ -203,24 +204,6 @@
 .movie-detail__similar-skeleton > .loading-skeleton:nth-child(2) { width: 84%; margin-top: 12px; }
 .movie-detail__similar-skeleton > .loading-skeleton:nth-child(3) { width: 54%; margin-top: 7px; }
 
-.movie-detail__member-backdrop { padding: 28px; position: fixed; inset: 0; z-index: 1200; display: grid; place-items: center; background: rgba(0, 0, 0, .72); }
-.movie-detail__member-modal { width: min(980px, 100%); max-height: min(820px, calc(100vh - 56px)); padding: 30px; border: 1px solid var(--panel-border); border-radius: 22px; overflow-y: auto; background: var(--bg); box-shadow: 0 24px 80px rgba(0, 0, 0, .45); }
-.movie-detail__member-modal > header { margin-bottom: 28px; display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
-.movie-detail__member-modal > header span { color: var(--accent); font-size: 11px; font-weight: 900; letter-spacing: .16em; }
-.movie-detail__member-modal > header h2 { margin: 7px 0 0; }
-.movie-detail__member-modal > header button { width: 38px; height: 38px; padding: 0; border: 1px solid var(--panel-border); border-radius: 50%; background: var(--panel); color: var(--text); cursor: pointer; font-size: 24px; }
-.movie-detail__member-section + .movie-detail__member-section { margin-top: 34px; }
-.movie-detail__member-section h3 { margin: 0 0 15px; }
-.movie-detail__member-section > p { color: var(--muted); }
-.movie-detail__member-movies { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
-.movie-detail__member-movies a { min-width: 0; color: var(--text); text-decoration: none; }
-.movie-detail__member-movies :is(img, span) { width: 100%; aspect-ratio: 2 / 3; border-radius: 9px; display: grid; place-items: center; object-fit: cover; background: var(--panel); color: var(--muted); font-size: 10px; }
-.movie-detail__member-movies strong { margin-top: 8px; display: block; overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
-.movie-detail__member-reviews { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.movie-detail__member-reviews a { padding: 16px; border: 1px solid var(--panel-border); border-radius: 12px; display: grid; grid-template-columns: 1fr auto; gap: 8px 14px; background: var(--panel); color: var(--text); text-decoration: none; }
-.movie-detail__member-reviews span { color: var(--accent); font-weight: 800; }
-.movie-detail__member-reviews p { grid-column: 1 / -1; margin: 0; color: var(--muted); line-height: 1.55; }
-
 @media (max-width: 900px) {
   .movie-detail-skeleton__hero { grid-template-columns: minmax(250px, 38vw) 1fr; gap: 28px; }
   .movie-detail-skeleton__poster { height: 520px; }
@@ -232,7 +215,6 @@
   .movie-detail__metadata div { border-right: 0; }
   .movie-detail__community { grid-template-columns: 1fr; }
   .movie-detail__similar-grid { grid-template-columns: repeat(3, 1fr); }
-  .movie-detail__member-movies { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
 @media (max-width: 600px) {
@@ -259,8 +241,4 @@
   .movie-detail__similar-grid { grid-template-columns: repeat(2, 1fr); }
   .movie-detail__similar-grid a > div { height: 240px; }
   .movie-detail__similar-skeleton > .loading-skeleton:first-child { height: 240px; }
-  .movie-detail__member-backdrop { padding: 14px; }
-  .movie-detail__member-modal { max-height: calc(100vh - 28px); padding: 20px; }
-  .movie-detail__member-movies { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .movie-detail__member-reviews { grid-template-columns: 1fr; }
 }

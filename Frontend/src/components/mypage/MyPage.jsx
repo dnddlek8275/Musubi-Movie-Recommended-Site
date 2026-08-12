@@ -255,6 +255,7 @@ function ReviewList({ reviews }) {
         const id = movieId(movie);
         const poster = moviePoster(movie);
         const title = movie.title || movie.name || '제목 정보 없음';
+        const comment = String(review.comment || '').trim();
         return (
           <a className="mypage-review-card" href={id ? `/movies/${id}` : undefined} key={review.id}>
             <div className="mypage-review-card__poster">
@@ -262,7 +263,7 @@ function ReviewList({ reviews }) {
             </div>
             <div className="mypage-review-card__body">
               <header><strong>{title}</strong><span>★ {review.score}</span></header>
-              <p>{String(review.comment || '').trim() || '별점만 남긴 평가입니다.'}</p>
+              <p className={comment ? '' : 'is-rating-only'}>{comment || '별점만 남긴 평가입니다.'}</p>
               <time dateTime={review.updated_at || review.created_at}>{formatDate(review.updated_at || review.created_at) || '날짜 정보 없음'}</time>
             </div>
             <b aria-hidden="true">›</b>

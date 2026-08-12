@@ -100,7 +100,7 @@
 .mypage-account-card > button:hover,
 .mypage-account-card > button:focus-visible { color: var(--text); text-decoration: underline; text-underline-offset: 4px; outline: none; }
 .mypage-empty { min-height: 100px; margin: 0; display: grid; place-items: center; color: var(--muted); font-size: 14px; }
-.mypage-review-list { display: grid; gap: 14px; }
+.mypage-review-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .mypage-review-card { min-height: 132px; padding: 16px; border: 1px solid var(--panel-border); border-radius: 18px; display: grid; grid-template-columns: 68px minmax(0, 1fr) auto; align-items: center; gap: 18px; background: var(--panel); color: var(--text); text-decoration: none; }
 .mypage-review-card:hover, .mypage-review-card:focus-visible { border-color: color-mix(in srgb, var(--accent) 58%, var(--panel-border)); transform: translateY(-1px); }
 .mypage-review-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
@@ -111,6 +111,7 @@
 .mypage-review-card__body header strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mypage-review-card__body header span { flex: 0 0 auto; color: var(--accent); font-weight: 850; }
 .mypage-review-card__body p { margin: 12px 0 10px; overflow: hidden; display: -webkit-box; color: color-mix(in srgb, var(--text) 86%, var(--muted)); line-height: 1.6; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.mypage-review-card__body p.is-rating-only { color: var(--muted); }
 .mypage-review-card__body time { color: var(--muted); font-size: 12px; }
 .mypage-review-card > b { color: var(--accent); font-size: 22px; }
 .mypage-skeleton { display: grid; gap: 28px; }
@@ -200,6 +201,7 @@
 .mypage-confirm-modal.is-account-delete footer button:last-child { border-color: #b93b3b; background: #b93b3b; color: #fff; }
 
 @media (max-width: 900px) {
+  .mypage-review-list { grid-template-columns: 1fr; }
   .mypage-shell { width: calc(100% - 32px); padding-top: 12px; }
   .mypage-profile-hero { padding: 28px; grid-template-columns: 1fr; }
   .mypage-profile-actions { grid-row: 2; }

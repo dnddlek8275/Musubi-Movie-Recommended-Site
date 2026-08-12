@@ -24,6 +24,7 @@ const OnboardingPage = lazy(() => import('./components/onboarding/OnboardingPage
 const PersonFilmographyPage = lazy(() => import('./components/person/PersonFilmographyPage.jsx'));
 const Recommendation = lazy(() => import('./components/recomendation/recomendation.jsx'));
 const SignupPage = lazy(() => import('./components/signup/SignupPage.jsx'));
+const UserActivityPage = lazy(() => import('./components/userActivity/UserActivityPage.jsx'));
 
 const DESIGN_WIDTH = 1920;
 // 이 폭 이하에서는 캔버스 축소(scale)를 끄고 CSS 반응형 1열 레이아웃으로 전환한다.
@@ -143,6 +144,7 @@ function App() {
   const isOnboardingPage = pathname.startsWith('/onboarding');
   const movieDetailMatch = pathname.match(/^\/movies\/(\d+)\/?$/);
   const personMatch = pathname.match(/^\/people\/(actor|director)\/([^/]+)\/?$/);
+  const userActivityMatch = pathname.match(/^\/users\/(\d+)\/activity\/?$/);
   const isLegacyHomePage = /^\/home[2-5]\/?$/.test(pathname);
 
   // /chat/auto (무무 자동 대화), /chat/group (배우대기실) 은 /chat 보다 먼저 판별한다.
@@ -289,7 +291,9 @@ function App() {
       onLogout={handleLogout}
     >
       <LazyPage>
-        {personMatch ? (
+        {userActivityMatch ? (
+          <UserActivityPage userId={userActivityMatch[1]} />
+        ) : personMatch ? (
           <PersonFilmographyPage
             authUser={authUser}
             identifier={decodeURIComponent(personMatch[2])}

@@ -39,7 +39,7 @@ test.beforeEach(async ({ page }) => {
     body: JSON.stringify({ state: 'success', data: detail }),
   }));
   await page.route('**/api/movies/196/similar?**', async (route) => {
-    await new Promise((resolve) => setTimeout(resolve, 450));
+    await new Promise((resolve) => setTimeout(resolve, 1500));
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -73,13 +73,18 @@ test('추천 로딩 스켈레톤을 표시하고 찜을 저장한다', async ({ 
 
   await page.goto('/movies/196');
   await expect(page.locator('.movie-detail__similar-skeleton')).toHaveCount(6);
+  const heart = page.locator('.movie-detail__heart');
+  await expect(heart).toHaveCSS('font-size', '19px');
+  await page.getByRole('button', { name: '좋아요' }).click();
+  await expect(heart).toHaveClass(/is-liked/);
+  await expect(heart).toHaveCSS('font-size', '25px');
   await page.getByRole('button', { name: '찜하기' }).click();
   await expect(page.getByRole('button', { name: '찜 해제' })).toBeVisible();
   expect(wishlistRequested).toBe(true);
   await expect(page.getByText('추천 영화', { exact: true })).toBeVisible();
 });
 
-test('스포일러 평가를 저장하고 다른 회원 활동을 연다', async ({ page }) => {
+test('스포일러 평가를 저장하고 리뷰 카드에서 다른 회원 활동 페이지로 이동한다', async ({ page }) => {
   let ratingBody;
   await page.route('**/api/movies/196/rating', async (route) => {
     ratingBody = route.request().postDataJSON();
@@ -98,7 +103,12 @@ test('스포일러 평가를 저장하고 다른 회원 활동을 연다', async
   await page.getByRole('button', { name: '평가 및 리뷰 등록' }).click();
   expect(ratingBody.is_spoiler).toBe(true);
 
-  await page.getByRole('button', { name: 'zeusqoi의 활동 보기' }).click();
-  await expect(page.getByRole('dialog', { name: 'zeusqoi의 영화 활동' })).toContainText('추천 영화');
-  await expect(page.getByRole('dialog', { name: 'zeusqoi의 영화 활동' })).toContainText('재미있어요');
+  await expect(page.getByText('zeusqoi', { exact: true })).toBeVisible();
+  await expect(page.getByText('zeusqoi의 활동 보기', { exact: true })).toHaveCount(0);
+  await page.locator('.movie-detail__review.is-member-link').click({ position: { x: 12, y: 12 } });
+  await expect(page).toHaveURL(/\/users\/4\/activity$/);
+  await expect(page.getByRole('heading', { name: 'zeusqoi' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '좋아요 누른 영화' })).toBeVisible();
+  await expect(page.getByText('추천 영화', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('재미있어요', { exact: true })).toBeVisible();
 });

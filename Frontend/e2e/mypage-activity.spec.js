@@ -44,7 +44,13 @@ test('아카이브 리뷰 수에서 내 활동으로 이동하고 영화 상세 
   const review = page.getByRole('link', { name: /스파이더맨: 브랜드 뉴 데이/ });
   await expect(review).toContainText('다시 보고 싶은 영화');
   await expect(review).toHaveAttribute('href', '/movies/196');
-  await expect(page.getByText('별점만 남긴 평가입니다.')).toBeVisible();
+  const ratingOnly = page.getByText('별점만 남긴 평가입니다.');
+  await expect(ratingOnly).toBeVisible();
+  await expect(ratingOnly).toHaveClass(/is-rating-only/);
+  const reviewColumns = await page.locator('.mypage-review-list').evaluate((element) => (
+    getComputedStyle(element).gridTemplateColumns.split(' ').filter(Boolean).length
+  ));
+  expect(reviewColumns).toBe(2);
 });
 
 test('아카이브 최근 본 영화에서 영화 활동으로 이동하고 찜 섹션을 표시한다', async ({ page }) => {
