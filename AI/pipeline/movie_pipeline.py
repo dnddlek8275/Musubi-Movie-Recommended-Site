@@ -1,5 +1,6 @@
 import os
 import re
+import time
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from cineverse_prompt import build_system_prompt, clean_and_truncate, truncate_to_sentences, load_profiles
@@ -195,6 +196,7 @@ class MovieRecommendResult:
     character: str = ""  # 별칭이 들어왔으면 정식 이름으로 변환된 값 (없으면 "")
 
 def run(user_message, character_name=None, history=None, top_k=3, max_tokens=1024, user_context=None):
+    timing_started = time.perf_counter()
     if history is None:
         history = []
     if _ADULT_CONTENT_REQUEST.search(user_message):
@@ -215,6 +217,7 @@ def run(user_message, character_name=None, history=None, top_k=3, max_tokens=102
             character_name = None
     recommendation_context = build_recommendation_context(user_message, history)
     rewritten = rewrite(recommendation_context.search_message)
+    timing_rewrite = time.perf_counter()
     if rewritten.get("genre") in recommendation_context.excluded_genres:
         rewritten["genre"] = None
     search_q = rewritten.get("search_query", user_message)
@@ -260,7 +263,9 @@ def run(user_message, character_name=None, history=None, top_k=3, max_tokens=102
             required_count=top_k,
             quality_weight=quality_weight,
         )
+    timing_retrieve = time.perf_counter()
     movies = prepare_recommendations(movies, recommendation_context.search_message, rewritten, limit=top_k)
+    timing_prepare = time.perf_counter()
     movie_context = format_for_prompt(movies)
     movie_titles  = ", ".join(f"'{m['title']}'" for m in movies)
     profiles = get_profiles()
@@ -381,6 +386,15 @@ def run(user_message, character_name=None, history=None, top_k=3, max_tokens=102
         )
     if not answer:
         answer = "죄송합니다. 추천 결과를 생성하지 못했습니다."
+    timing_answer = time.perf_counter()
+    print(
+        "  [MoviePipelineTiming] "
+        f"rewrite={timing_rewrite - timing_started:.3f}s "
+        f"retrieve={timing_retrieve - timing_rewrite:.3f}s "
+        f"prepare={timing_prepare - timing_retrieve:.3f}s "
+        f"answer={timing_answer - timing_prepare:.3f}s "
+        f"total={timing_answer - timing_started:.3f}s"
+    )
     return MovieRecommendResult(
         answer=answer, movies=to_response(movies),
         search_query=search_q,

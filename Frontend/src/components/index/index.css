@@ -570,6 +570,14 @@
   white-space: nowrap;
 }
 
+.keyword-preference-values > .index-tag {
+  min-width: 0;
+  max-width: 100%;
+  flex: 0 0 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .keyword-preference-values--truncated::after {
   content: '...';
   width: 42px;

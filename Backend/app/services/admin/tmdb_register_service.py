@@ -136,6 +136,7 @@ def extract_display_title(detail: object) -> str | None:
     """TMDB 번역에서 한국어, 영어, 마지막으로 원제 순으로 표시 제목을 고른다."""
     if not isinstance(detail, dict):
         return None
+
     translations_payload = detail.get("translations")
     translations = (
         translations_payload.get("translations")
@@ -145,15 +146,32 @@ def extract_display_title(detail: object) -> str | None:
     if not isinstance(translations, list):
         translations = []
 
-    for language in ("ko", "en"):
-        for translation in translations:
-            if not isinstance(translation, dict) or translation.get("iso_639_1") != language:
-                continue
-            data = translation.get("data")
-            title = data.get("title") if isinstance(data, dict) else None
-            normalized = _truncate(title, 300)
-            if normalized:
-                return normalized
+    for translation in translations:
+        if not isinstance(translation, dict) or translation.get("iso_639_1") != "ko":
+            continue
+        data = translation.get("data")
+        title = data.get("title") if isinstance(data, dict) else None
+        normalized = _truncate(title, 300)
+        if normalized:
+            return normalized
+
+    # 이 함수에는 language=ko-KR로 받은 상세 응답이 전달된다. 한국어 원작이거나
+    # 응답 title에 한글이 있으면 비어 있는 번역 행 뒤의 영어 번역보다 먼저 사용한다.
+    localized_title = _truncate(detail.get("title"), 300)
+    if localized_title and (
+        detail.get("original_language") == "ko"
+        or re.search(r"[가-힣]", localized_title)
+    ):
+        return localized_title
+
+    for translation in translations:
+        if not isinstance(translation, dict) or translation.get("iso_639_1") != "en":
+            continue
+        data = translation.get("data")
+        title = data.get("title") if isinstance(data, dict) else None
+        normalized = _truncate(title, 300)
+        if normalized:
+            return normalized
 
     # 영어 원작은 original_title 자체가 영어이므로 번역 행이 없어도 사용한다.
     if detail.get("original_language") == "en":
@@ -163,7 +181,7 @@ def extract_display_title(detail: object) -> str | None:
 
     # 한국어 요청의 title이 존재하면 TMDB가 제공한 최선의 표시 제목으로 사용한다.
     return (
-        _truncate(detail.get("title"), 300)
+        localized_title
         or _truncate(detail.get("original_title"), 300)
     )
 

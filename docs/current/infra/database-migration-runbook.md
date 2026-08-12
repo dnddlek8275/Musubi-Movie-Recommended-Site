@@ -127,6 +127,20 @@ Migration은 자동으로 downgrade하지 않는다. downgrade에는 테이블·
 - `/api/ready`, `/api/db-test`, `/api/ai-health`, `/api/movies/ranking`,
   `/api/chat/characters`를 3회 연속 검사해 모두 HTTP 200을 확인했고 영화 검색도
   HTTP 200을 확인했다.
+- 2026-08-11: V1 migration 직전
+  `storage-prod-team3/backups/postgresql/cineverse-20260811T051900Z.dump`를 생성했다.
+  크기는 19,363,140 bytes이며 SHA-256 확인, `pg_restore --list`, 분리된 임시 DB
+  복구를 통과했다. 복구 DB는 public 테이블 26개, revision `20260808_0026`, 영화
+  32,309개를 확인한 뒤 제거했다.
+- 2026-08-11: `backend-migration-20260811061013` Job으로 revision을
+  `20260811_0033`까지 적용하고 완료 revision을 재검증했다. 새 Backend·Frontend
+  이미지는 commit SHA `2765f04a4d8d0345996d0b4b2fb18961dce8639a`로 rollout했다.
+- 배포 후 PostgreSQL은 영화 32,309행과 고유한 비어 있지 않은 `tmdb_id`
+  32,308개를 보유한다. Milvus `movies_active` 전체 iterator도 고유 ID 32,308개로,
+  PostgreSQL 대비 누락·초과·중복이 모두 0개다.
+- 배포 후 `/`, `/api/health`, `/api/ready`, `/api/db-test`, `/api/ai-health`가 모두
+  HTTP 200이고 랭킹 10건, 검색 결과, 비회원 추천 5건을 확인했다. 배포 시점의
+  Warning 이벤트와 최근 Backend 오류 로그는 없었다.
 
 아직 추가할 운영 안전장치는 다음과 같다.
 

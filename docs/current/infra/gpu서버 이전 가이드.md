@@ -13,6 +13,24 @@
 - 신규 서버의 서비스·데이터·GPU 성능 검증
 - 장애 발생 시 롤백
 
+## 현재 운영 상태 (2026-08-11)
+
+이전과 트래픽 전환은 완료됐다. 아래 이전 절차는 재구축 및 롤백 참고용으로
+유지하며 현재 운영 기준은 다음과 같다.
+
+| 항목 | 운영 값 |
+|---|---|
+| Bastion Public IP | `210.109.55.27` |
+| GPU VM Private IP | `10.30.2.227` |
+| Backend AI 주소 | `http://10.30.2.227` |
+| AI API / llama-server | `cineverse-api.service` / `cineverse-llama.service` |
+| Milvus 영화 alias | `movies_active` |
+| Milvus 캐릭터 컬렉션 | `characters_verified_v5` |
+
+Backend Kubernetes ConfigMap도 위 사설 AI 주소를 사용한다. 2026-08-11 검증에서
+두 AI systemd 서비스와 Milvus·etcd·MinIO 컨테이너가 정상이고, PostgreSQL과
+Milvus의 고유 `tmdb_id` 32,308개가 누락·초과·중복 없이 일치했다.
+
 ## Milvus v2.4.0 반복 경고 운영 예외
 
 다음 경고는 현재 사용 중인 `milvusdb/milvus:v2.4.0`의 버전 코드 오류로 인해 지속적으로 발생한다.
@@ -191,8 +209,13 @@ SSH 22번을 `0.0.0.0/0`에 개방하지 않는다.
 
 ### 7.1 서버 접속
 
+이 절은 이전 당시 원본 서버를 위한 역사적 절차다. 현재 운영 GPU 서버 접속은
+다음 Bastion 경유 명령을 사용한다.
+
 ```bash
-ssh -i Team3-Key.pem ubuntu@210.109.15.251
+ssh -i Team3-Key.pem \
+  -o 'ProxyCommand=ssh -i "Team3-Key.pem" -W %h:%p ubuntu@210.109.55.27' \
+  ubuntu@10.30.2.227
 ```
 
 ### 7.2 사전 상태 기록
@@ -663,6 +686,7 @@ curl http://NEW_GPU_PRIVATE_IP/health
 
 ---
 
-작성 기준일: 2026-07-29  
+최초 작성 기준일: 2026-07-29
+운영 상태 갱신일: 2026-08-11
 대상: KakaoCloud Musubi GPU 서버
 주의: 이 문서는 현재 확인된 서버 구성을 기준으로 작성되었다. 실제 이전 전에 콘솔의 인스턴스 유형, GPU 가용 수량, 커스텀 이미지 선택 가능 여부와 네트워크 CIDR을 다시 확인한다.

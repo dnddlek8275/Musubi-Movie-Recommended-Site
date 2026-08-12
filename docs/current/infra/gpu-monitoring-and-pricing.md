@@ -81,28 +81,23 @@ Backend에는 `ai_usage_events` 테이블과 ASGI middleware를 추가한다. �
 계측 데이터도 함께 삭제되도록 FK CASCADE를 사용한다. 계측 DB 저장 실패는 실제
 채팅 응답에 영향을 주지 않는다.
 
-현재 로컬 구현 파일은 다음과 같다.
+현재 구현 파일은 다음과 같다.
 
 - `Backend/app/models/ai_usage.py`
 - `Backend/app/services/ai_usage_service.py`
 - `Backend/alembic/versions/20260811_0033_create_ai_usage_events.py`
 
-### 배포 보류 사유
+### V1 배포 결과
 
-2026-08-11 확인 시 운영 Backend 이미지와 DB의 Alembic revision은
-`20260808_0026`이다. 로컬 작업 트리는 사용자 정지, 인증 요청 감사, 문의 기능 등
-`0027`~`0032` 변경을 포함하고 있으며 운영 이미지와 차이가 크다. 계측 기능만을
-위해 로컬 Backend 전체를 배포하면 미완성 변경이 함께 배포될 수 있으므로 현재
-운영에는 반영하지 않는다.
+2026-08-11 V1 릴리스에서 migration Job으로 운영 DB를
+`20260808_0026`에서 `20260811_0033`으로 올리고 Backend를 롤링 배포했다.
+`ai_usage_events` 테이블 생성과 계측 저장을 확인했으며, 확인 시점에 성공·실패를
+포함한 이벤트 9건이 저장돼 있었다. 계측 저장 실패가 실제 채팅 응답을 실패시키지
+않는 기존 정책은 유지한다.
 
-다음 정식 Backend 릴리스에서 아래 순서로 함께 반영한다.
-
-1. 로컬 변경 전체 테스트 및 릴리스 범위 확정
-2. DB 변경 직전 Object Storage 백업
-3. migration Job으로 `alembic upgrade head`
-4. Backend rolling update
-5. 채팅 요청 1건 실행 후 `ai_usage_events` 저장 확인
-6. 오류율과 Pod restart 확인
+운영 이미지는 Git commit SHA `2765f04a4d8d0345996d0b4b2fb18961dce8639a`를
+사용한다. 배포 직후 Backend·Frontend rollout, DB·AI health, 랭킹·검색·추천 API,
+Pod 재시작과 Warning 이벤트를 확인했고 차단 오류는 없었다.
 
 ## 요금제 산정 절차
 
@@ -112,6 +107,11 @@ KakaoCloud 공식 요금표 기준 `gn1i.4xlarge`는 T4 1개, vCPU 16개,
 인스턴스 본체 비용은 427,392원(VAT 별도)으로 계산한다. 실제 정산에는 Billing의
 예상 청구 금액과 프로젝트 크레딧 적용 여부를 사용하며 임의 가격은 사용하지
 않는다.
+
+위 사양과 가격은 2026-08-11
+[KakaoCloud Virtual Machine 요금표](https://kakaocloud.com/services/virtual-machine/pricing)와
+[GPU 인스턴스 사양](https://docs.kakaocloud.com/service/bcs/bcs-specifications/accelerated-computing/gpu-instance)에서
+재확인했다. 이후 가격 산정 시에는 같은 공식 페이지와 실제 Billing을 다시 확인한다.
 
 ```text
 월 AI 고정비

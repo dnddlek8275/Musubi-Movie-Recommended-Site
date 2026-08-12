@@ -12,11 +12,15 @@
 ## 아키텍처
 
 ```
-프론트엔드
-    ↓ (HTTP)
-백엔드 서버 (JWT 인증, 히스토리 관리, DB 저장)
-    ↓ (HTTP)
-AI API 서버 (210.109.15.251:80)  ← FastAPI + uvicorn
+사용자 브라우저
+    ↓ HTTPS 443
+Public Load Balancer → ingress-nginx
+    ├─ `/`    → Frontend Service → Frontend Pod
+    └─ `/api` → Backend Service  → Backend Pod
+                                      ↓ 사설망 HTTP
+                              AI API 서버 (10.30.2.227:80)
+                                      ↓
+                              FastAPI + uvicorn
     ↓
 ┌─────────────────────────────────┐
 │  인텐트 분류기 (pipeline/intent) │
@@ -123,7 +127,8 @@ llama-server:8081  Milvus:19530 (벡터 검색)
 | 포맷 | GGUF Q4_K_M |
 | 서버 | llama-server (포트 8081) |
 | GPU | Tesla T4 15GB |
-| 컨텍스트 | 4096 토큰 |
+| 컨텍스트 | llama-server `--ctx-size 20480` |
+| 병렬 슬롯 | llama-server `-np 5` |
 | 응답 토큰 | 1:1 대화 512, 그룹 1라운드 512, 그룹 2라운드 256 |
 
 ---
@@ -135,7 +140,7 @@ llama-server:8081  Milvus:19530 (벡터 검색)
 | 그룹 채팅 캐릭터 수 | 2~5명 |
 | 응답 길이 | 1~3문장 |
 | 타임아웃 | 30초 이상 권장 |
-| 동시 요청 | 1 (llama-server np=1) |
+| 동시 요청 | llama-server 병렬 슬롯 5개. 실제 처리량은 부하 테스트로 별도 판단 |
 
 ---
 
