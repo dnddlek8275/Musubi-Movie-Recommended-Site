@@ -12,6 +12,7 @@ import {
 import { normalizeMovie } from '../index/RecommendationRow.jsx';
 import MovieCard from '../movieCard/MovieCard.jsx';
 import { getKeywordLabel } from '../../utils/keywordLabels.js';
+import { navigateTo } from '../../navigation.js';
 import './recomendation.css';
 
 const ROTATING_GENRES = [
@@ -191,7 +192,7 @@ function MovieSection({ section, displayName, likedMovies, onToggleLike, source 
                 isLiked={likedMovies.includes(movie.title)}
                 movie={movie}
                 onToggleLike={onToggleLike}
-                onSelect={(selected) => { window.location.href = `/movies/${selected.id}${source ? `?source=${source}` : ''}`; }}
+                onSelect={(selected) => navigateTo(`/movies/${selected.id}${source ? `?source=${source}` : ''}`)}
               />
             </div>
           ))}

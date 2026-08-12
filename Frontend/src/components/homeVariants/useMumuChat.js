@@ -12,6 +12,7 @@ import {
 } from '../../api.js';
 
 const STORAGE_KEY = 'cineverse.autochat.conversations';
+const ACTIVE_CONVERSATION_KEY = 'cineverse.autochat.activeConversation';
 
 function readStoredConversations() {
   try {
@@ -20,6 +21,10 @@ function readStoredConversations() {
   } catch (error) {
     return [];
   }
+}
+
+function readStoredActiveId() {
+  return String(window.localStorage.getItem(ACTIVE_CONVERSATION_KEY) || '');
 }
 
 function createConversation(roomId = '') {
@@ -73,9 +78,17 @@ export default function useMumuChat(authUser) {
     const meaningfulStored = stored.filter((item) => (
       Boolean(item.roomId) || (Array.isArray(item.messages) && item.messages.length > 0)
     ));
+    const storedActiveId = readStoredActiveId();
     let conversation = roomId
       ? meaningfulStored.find((item) => String(item.roomId) === String(roomId))
-      : null;
+      : meaningfulStored.find((item) => item.id === storedActiveId)
+        || meaningfulStored
+          .slice()
+          .sort((left, right) => (
+            new Date(right.updatedAt || right.createdAt || 0)
+            - new Date(left.updatedAt || left.createdAt || 0)
+          ))[0]
+        || null;
 
     if (!conversation) conversation = createConversation(roomId);
     const nextConversations = meaningfulStored.some((item) => item.id === conversation.id)
@@ -183,6 +196,11 @@ export default function useMumuChat(authUser) {
     if (!authUser) return;
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
   }, [authUser, conversations]);
+
+  useEffect(() => {
+    if (!authUser || !activeId) return;
+    window.localStorage.setItem(ACTIVE_CONVERSATION_KEY, activeId);
+  }, [activeId, authUser]);
 
   useEffect(() => {
     if (!authUser) return;

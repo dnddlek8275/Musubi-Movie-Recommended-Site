@@ -5,6 +5,7 @@ metadata:
   namespace: cineverse
 data:
   AI_BASE_URL: http://10.30.2.227
+  AI_CHAT_TIMEOUT_SECONDS: "60"
   AI_SYNC_TIMEOUT_SECONDS: "180"
   OBJECT_STORAGE_ENDPOINT: https://objectstorage.kr-central-2.kakaocloud.com
   OBJECT_STORAGE_REGION: kr-central-2

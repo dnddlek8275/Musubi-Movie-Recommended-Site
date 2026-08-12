@@ -12,6 +12,7 @@ import json
 import re
 
 from llm.client import chat_json
+from pipeline.topic_grounding import build_topic_search_query, interpret_topic
 
 # ── 1단계: 빠른 regex 추출 ──────────────────────────────────────
 
@@ -97,6 +98,7 @@ def _regex_extract(text: str) -> dict:
         # 인지도가 낮은 작품이 튀기 쉽다. 검색 단계에서 품질 비중을 높이기
         # 위한 내부 신호이며 LLM이 임의로 만들 수 없도록 regex로만 정한다.
         "quality_priority": "mood" if _MOOD_HINT_PATTERN.search(text) else None,
+        "topic": None,
     }
 
     # 배우
@@ -145,6 +147,13 @@ def _regex_extract(text: str) -> dict:
     m = _LANG_PATTERN.search(text)
     if m:
         result["language"] = _LANG_MAP.get(m.group(1))
+
+    # 장르 필드가 없는 명시적 주제는 구성 파일 또는 사용자 원문으로 해석한다.
+    # 모르는 주제는 동의어를 지어내지 않고 원문 토큰만 보존한다.
+    topic = interpret_topic(text)
+    if topic:
+        result["topic"] = topic.to_dict()
+        result["search_query"] = build_topic_search_query(text, topic)
 
     return result
 
@@ -276,7 +285,12 @@ def rewrite(user_message: str) -> dict:
     # 검증 가드(_validate_against_text)가 regex 근거 없는 LLM 값은 어차피 버리기 때문에,
     # 이 경우 LLM 호출은 실질적 가치 없이 2~5초만 더 든다. regex가 아무것도 못 찾은
     # 애매한 자유 발화일 때만 LLM으로 보완한다.
-    if pre["sort_latest"] or _MOOD_HINT_PATTERN.search(user_message) or any(pre.get(f) is not None for f in _PRE_FIELDS):
+    if (
+        pre["sort_latest"]
+        or _MOOD_HINT_PATTERN.search(user_message)
+        or pre.get("topic") is not None
+        or any(pre.get(f) is not None for f in _PRE_FIELDS)
+    ):
         return pre
     if _is_generic_recommendation_request(user_message):
         # '대중적인' 한 단어는 줄거리 안의 표현과 과도하게 매칭됐다.

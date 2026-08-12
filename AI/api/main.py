@@ -22,6 +22,8 @@ from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from api.admission import AIAdmissionMiddleware
+
 from pipeline.intent import classify, Intent
 from pipeline.character_pipeline import (
     run as character_run,
@@ -35,6 +37,10 @@ from pipeline.movie_pipeline import run as movie_run
 from pipeline.web_search_pipeline import run as web_search_run
 
 app = FastAPI(title="Musubi AI API", version="2.0.0")
+
+# A single T4 serves five llama.cpp slots.  Bound both running work and the
+# waiting room so a traffic spike cannot turn into unbounded GPU contention.
+app.add_middleware(AIAdmissionMiddleware)
 
 
 @app.on_event("startup")

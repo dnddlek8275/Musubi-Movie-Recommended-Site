@@ -22,9 +22,16 @@ from rag.movie_quality import (
     prefer_evidenced_candidates,
     prefer_well_received_candidates,
 )
+from pipeline.topic_grounding import filter_topic_candidates
 
 MILVUS_URI      = "http://localhost:19530"
 COLLECTION_NAME = os.getenv("MOVIE_COLLECTION_NAME", "movies_active")
+RERANK_CANDIDATE_MULTIPLIER = max(
+    1, int(os.getenv("RERANK_CANDIDATE_MULTIPLIER", "2"))
+)
+RERANK_CANDIDATE_MINIMUM = max(
+    1, int(os.getenv("RERANK_CANDIDATE_MINIMUM", "18"))
+)
 
 OUTPUT_FIELDS = [
     "title", "text", "overview", "genres", "genres_list",
@@ -82,6 +89,7 @@ def retrieve(
     exclude_titles: set[str] | None = None,
     required_count: int | None = None,
     quality_weight: float = 0.30,
+    topic: dict | None = None,
 ) -> list[dict]:
     """
     영화를 하이브리드 검색 후 CrossEncoder로 재순위.
@@ -137,20 +145,39 @@ def retrieve(
     excluded = {str(title).strip() for title in (exclude_titles or set()) if str(title).strip()}
     candidates = [h["entity"] for h in hits if str(h["entity"].get("title") or "").strip() not in excluded]
     required = required_count or top_k
+    # Explicit topics are hard constraints. Validate metadata before the GPU
+    # CrossEncoder so false candidates neither consume rerank time nor leak out.
+    candidates = filter_topic_candidates(candidates, topic)
+    if topic and not candidates:
+        return []
     if not sort_latest:
         candidates = apply_query_preferences(query, candidates, required=required)
         candidates = prefer_evidenced_candidates(candidates, required=required)
         candidates = prefer_well_received_candidates(query, candidates, required=required)
 
-    # CrossEncoder 리랭킹
-    ranked = rerank(effective_query, candidates, text_key="text", top_k=fetch_limit)
-
     if sort_latest:
+        # The final result is ordered only by release date, so CrossEncoder scores
+        # would be discarded immediately. Skip that expensive GPU pass entirely.
+        ranked = candidates
         today = date.today().isoformat()
         ranked = [m for m in ranked if not m.get("release_date") or m["release_date"] <= today]
         ranked.sort(key=lambda m: m.get("release_date") or "", reverse=True)
         ranked = ranked[:top_k]
     else:
+        # Keep the wide Milvus pool for recall, but only send the strongest RRF
+        # candidates to the GPU CrossEncoder. For the production top_k=9 path this
+        # reduces 90 pair evaluations to 18 without changing the final output size.
+        rerank_limit = max(
+            RERANK_CANDIDATE_MINIMUM,
+            top_k * RERANK_CANDIDATE_MULTIPLIER,
+        )
+        rerank_candidates = candidates[:rerank_limit]
+        ranked = rerank(
+            effective_query,
+            rerank_candidates,
+            text_key="text",
+            top_k=rerank_limit,
+        )
         ranked = blend_semantic_and_quality(
             ranked,
             top_k=top_k,

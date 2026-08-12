@@ -1,3 +1,5 @@
+import { optimizeImageUrl } from '../../utils/imagePerformance.js';
+
 const POSTER_BASE_URL =
   import.meta.env.VITE_TMDB_IMAGE_BASE_URL || 'https://image.tmdb.org/t/p/w500';
 
@@ -11,7 +13,7 @@ function toPosterUrl(value) {
 
 function PosterArt({ movie, compact = false }) {
   const className = compact ? 'index-mini-poster' : 'index-poster-art';
-  const posterUrl = toPosterUrl(
+  const posterUrl = optimizeImageUrl(toPosterUrl(
     movie.posterUrl ||
       movie.poster_url ||
       movie.poster_path ||
@@ -19,7 +21,7 @@ function PosterArt({ movie, compact = false }) {
       movie.image_url ||
       movie.image ||
       ''
-  );
+  ), 'w342');
 
   return (
     <div className={className}>

@@ -10,7 +10,8 @@ from pipeline.recommendation_context import is_movie_recommendation_followup
 
 # 영화 추천 관련 키워드
 _MOVIE_PATTERNS = re.compile(
-    r"영화\s*추천|영화.{0,30}(?:골라|뽑아)\s*줘|뭐\s*볼까|볼만한|추천해\s*줘|추천\s*좀|"
+    r"영화\s*추천|영화.{0,30}(?:골라|뽑아)\s*줘|뭐\s*볼까|볼만한|"
+    r"추천해\s*(?:줘|주세요|줄래|줄\s*수\s*있|주실\s*수\s*있)|추천\s*좀|"
     r"비슷한\s*영화|장르|감독|배우|개봉|평점|"
     r"액션|로맨스|공포|코미디|스릴러|SF|판타지|애니|다큐|"
     r"넷플|왓챠|티빙|OTT|스트리밍|"

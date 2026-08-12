@@ -10,11 +10,14 @@ import {
 } from '../../api.js';
 import MiddlePanels from '../index/MiddlePanels.jsx';
 import PromoBanner from '../index/PromoBanner.jsx';
-import PosterArt from '../index/PosterArt.jsx';
 import RecommendationRow from '../index/RecommendationRow.jsx';
 import GuestChatNotice from '../chat/GuestChatNotice.jsx';
+import ChatMovieRecommendations from '../chat/ChatMovieRecommendations.jsx';
+import DeferredRender from '../common/DeferredRender.jsx';
 import { rankCharactersForRecommendation } from '../../utils/characterRecommendation.js';
+import { optimizeImageUrl } from '../../utils/imagePerformance.js';
 import useMumuChat from './useMumuChat.js';
+import { navigateTo } from '../../navigation.js';
 import '../index/index.css';
 import './homeVariants.css';
 
@@ -41,11 +44,11 @@ const CHAT_HISTORY_DATE_FORMATTER = new Intl.DateTimeFormat('ko-KR', {
 });
 
 const MUMU_EMOTION_IMAGES = {
-  default: '/images/character/mu/upper-body/mu-upper-default-v1.png',
-  joy: '/images/character/mu/upper-body/mu-upper-joy-v1.png',
-  thinking: '/images/character/mu/upper-body/mu-upper-thinking-v1.png',
-  searching: '/images/character/mu/upper-body/mu-upper-searching-v1.png',
-  sorry: '/images/character/mu/upper-body/mu-upper-sorry-v1.png',
+  default: '/images/character/mu/upper-body/mu-upper-default-v1.webp',
+  joy: '/images/character/mu/upper-body/mu-upper-joy-v1.webp',
+  thinking: '/images/character/mu/upper-body/mu-upper-thinking-v1.webp',
+  searching: '/images/character/mu/upper-body/mu-upper-searching-v1.webp',
+  sorry: '/images/character/mu/upper-body/mu-upper-sorry-v1.webp',
 };
 
 function getMumuEmotionImage(emotion) {
@@ -65,7 +68,7 @@ function movieLikeKey(movie) {
   return title ? `title:${title}` : '';
 }
 
-function MockChatMessages({ messages, compact = false, dragScroll = false }) {
+function MockChatMessages({ messages, compact = false }) {
   const messagesRef = useRef(null);
 
   useEffect(() => {
@@ -73,40 +76,10 @@ function MockChatMessages({ messages, compact = false, dragScroll = false }) {
     if (element) element.scrollTo({ top: element.scrollHeight, behavior: 'smooth' });
   }, [messages.length]);
 
-  const startDrag = (event) => {
-    const element = messagesRef.current;
-    if (!dragScroll || event.pointerType !== 'mouse' || event.button !== 0 || !element) return;
-    if (element.scrollHeight <= element.clientHeight) return;
-    element.dataset.dragging = 'true';
-    element.dataset.dragStartY = String(event.clientY);
-    element.dataset.dragStartScroll = String(element.scrollTop);
-    element.setPointerCapture(event.pointerId);
-    event.preventDefault();
-  };
-
-  const moveDrag = (event) => {
-    const element = messagesRef.current;
-    if (!element || element.dataset.dragging !== 'true') return;
-    const startY = Number(element.dataset.dragStartY || event.clientY);
-    const startScroll = Number(element.dataset.dragStartScroll || 0);
-    element.scrollTop = startScroll + startY - event.clientY;
-  };
-
-  const stopDrag = (event) => {
-    const element = messagesRef.current;
-    if (!element || element.dataset.dragging !== 'true') return;
-    element.dataset.dragging = 'false';
-    if (element.hasPointerCapture(event.pointerId)) element.releasePointerCapture(event.pointerId);
-  };
-
   return (
     <div
-      className={`home-variant-chat__messages${compact ? ' is-compact' : ''}${dragScroll ? ' is-drag-scroll' : ''}`}
+      className={`home-variant-chat__messages${compact ? ' is-compact' : ''}`}
       aria-live="polite"
-      onPointerDown={startDrag}
-      onPointerMove={moveDrag}
-      onPointerUp={stopDrag}
-      onPointerCancel={stopDrag}
       ref={messagesRef}
     >
       {messages.map((message) => (
@@ -116,7 +89,7 @@ function MockChatMessages({ messages, compact = false, dragScroll = false }) {
         >
           {message.role === 'assistant' ? (
             <span className="home-variant-message__avatar">
-              <img src={getMumuEmotionImage(message.pending ? 'searching' : message.emotion)} alt="" />
+              <img src={getMumuEmotionImage(message.pending ? 'searching' : message.emotion)} alt="" decoding="async" />
             </span>
           ) : null}
           <div className="home-variant-message__body">
@@ -136,28 +109,7 @@ function MockChatMessages({ messages, compact = false, dragScroll = false }) {
             ) : (
               <p>{message.text || message.content}</p>
             )}
-            {Array.isArray(message.movies) && message.movies.length ? (
-              <div className="home-variant-message__movies" aria-label="추천 영화">
-                {message.movies.slice(0, 3).map((movie, index) => {
-                  const movieId = movie.movie_id || movie.id;
-                  const title = movie.title || movie.movie || `추천 영화 ${index + 1}`;
-                  return (
-                    <button
-                      type="button"
-                      key={movieId || `${title}-${index}`}
-                      onClick={() => {
-                        if (movieId) window.location.href = `/movies/${movieId}`;
-                      }}
-                    >
-                                <PosterArt movie={{ ...movie, title }} compact />
-                                {movie.recommendation_role ? <small className="home-variant-message__movie-role">{movie.recommendation_role}</small> : null}
-                                <strong>{title}</strong>
-                                {movie.recommendation_reason ? <span className="home-variant-message__movie-reason">{movie.recommendation_reason}</span> : null}
-                              </button>
-                  );
-                })}
-              </div>
-            ) : null}
+            <ChatMovieRecommendations movies={message.movies} />
             {Array.isArray(message.sources) && message.sources.length ? (
               <div className="home-variant-message__sources" aria-label="웹 검색 출처">
                 <strong>웹 검색 출처</strong>
@@ -298,7 +250,7 @@ function CharacterPicker({
     : Array.from({ length: limit || 7 }, (_, index) => ({
         id: `preview-${index}`,
         name: `캐릭터 ${String(index + 1).padStart(2, '0')}`,
-        image: `/images/characters/character-${String(index + 1).padStart(2, '0')}.png`,
+        image: `/images/characters/character-${String(index + 1).padStart(2, '0')}.webp`,
       }));
 
   // 브라우저가 가로 스크롤 위치를 복원하거나 취향 데이터가 비동기로 갱신돼도
@@ -343,12 +295,12 @@ function CharacterPicker({
           {displayCharacters.map((character, index) => {
             const name = character.name || character.character || `캐릭터 ${index + 1}`;
             const image = character.image || character.image_url || character.avatar_url
-              || `/images/characters/character-${String(index + 1).padStart(2, '0')}.png`;
+              || `/images/characters/character-${String(index + 1).padStart(2, '0')}.webp`;
             const movieTitle = String(character.movie_title || character.movieTitle || '').trim()
               || '출연 영화 정보 없음';
             return (
               <button type="button" key={character.id || name} onClick={() => onSelect(character)}>
-                <span><img src={image} alt="" /></span>
+                <span><img src={optimizeImageUrl(image)} alt="" decoding="async" loading="lazy" /></span>
                 <div className="home-variant-character-card__info">
                   <b>{name}</b>
                   <span className="home-variant-character-card__movie">{movieTitle}</span>
@@ -416,7 +368,7 @@ function Home3Prompt({ chat, promptRef, onBeforeSend, onNewChat, onOpenHistory }
         {menuOpen ? (
           <div className="home3-prompt-menu" ref={promptMenuRef}>
             <button type="button" onClick={() => { onNewChat(); setMenuOpen(false); }}>무무와 새 채팅</button>
-            <button type="button" onClick={() => { window.location.href = '/chat/group'; }}>캐릭터와 새 채팅</button>
+            <button type="button" onClick={() => navigateTo('/chat/group')}>캐릭터와 새 채팅</button>
             <button type="button" onClick={() => { onOpenHistory(); setMenuOpen(false); }}>대화 기록</button>
             <button
               type="button"
@@ -573,7 +525,7 @@ function HomePage({ authUser, onLogout }) {
     } else if (character?.name) {
       params.set('characterName', character.name);
     }
-    window.location.href = `/chat/group${params.toString() ? `?${params.toString()}` : ''}`;
+    navigateTo(`/chat/group${params.toString() ? `?${params.toString()}` : ''}`);
   };
 
   const toggleHistoryPin = (conversation) => {
@@ -598,7 +550,7 @@ function HomePage({ authUser, onLogout }) {
 
   const selectHistory = (conversation) => {
     if (conversation.href) {
-      window.location.href = conversation.href;
+      navigateTo(conversation.href);
       return;
     }
     chat.selectConversation(conversation.id);
@@ -780,7 +732,7 @@ function HomePage({ authUser, onLogout }) {
           <p>{welcomeMessage.subtitle}</p>
         </header>
         <div className="home3-chat-stage__conversation">
-          {chat.messages.length > 0 ? <MockChatMessages messages={chat.messages} dragScroll /> : null}
+          {chat.messages.length > 0 ? <MockChatMessages messages={chat.messages} /> : null}
           {chat.roomLoading ? <p className="home3-chat-loading">이전 대화를 불러오는 중…</p> : null}
           <Home3Prompt
             chat={chat}
@@ -803,20 +755,26 @@ function HomePage({ authUser, onLogout }) {
         </div>
       </section>
 
-      <div className="home3-character-lounge">
-        <CharacterPicker
-          authUser={authUser}
-          eyebrow=""
-          title="💬 영화 속 캐릭터와 대화하기"
-          description=""
-          limit={0}
-          slider
-          onSelect={startCharacterChat}
-        />
-      </div>
+      <DeferredRender minHeight={420}>
+        <div className="home3-character-lounge">
+          <CharacterPicker
+            authUser={authUser}
+            eyebrow=""
+            title="💬 영화 속 캐릭터와 대화하기"
+            description=""
+            limit={0}
+            slider
+            onSelect={startCharacterChat}
+          />
+        </div>
+      </DeferredRender>
 
-      <div className="home3-existing-recommendation"><VariantRecommendations authUser={authUser} /></div>
-      <MiddlePanels authUser={authUser} />
+      <DeferredRender minHeight={520}>
+        <div className="home3-existing-recommendation"><VariantRecommendations authUser={authUser} /></div>
+      </DeferredRender>
+      <DeferredRender minHeight={520}>
+        <MiddlePanels authUser={authUser} />
+      </DeferredRender>
     </main>
   );
 }

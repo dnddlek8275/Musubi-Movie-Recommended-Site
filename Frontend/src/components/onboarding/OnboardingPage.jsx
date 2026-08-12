@@ -20,7 +20,7 @@ const STEPS = [
     title: '어떤 장르를 좋아하세요?',
     titleLines: ['어떤 장르를', '좋아하세요?'],
     description: '여러 개 선택할수록 취향에 가까운 영화를 찾기 쉬워져요.',
-    mascot: '/images/character/mu/upper-body/mu-upper-thinking-v1.png',
+    mascot: '/images/character/mu/upper-body/mu-upper-thinking-v1.webp',
   },
   {
     key: 'actors',
@@ -28,7 +28,7 @@ const STEPS = [
     title: '좋아하는 배우가 있나요?',
     titleLines: ['좋아하는', '배우가 있나요?'],
     description: '관심 있는 배우를 검색하고 선택해 주세요.',
-    mascot: '/images/character/mu/upper-body/mu-upper-searching-v1.png',
+    mascot: '/images/character/mu/upper-body/mu-upper-searching-v1.webp',
   },
   {
     key: 'keywords',
@@ -36,18 +36,18 @@ const STEPS = [
     title: '어떤 이야기에 끌리세요?',
     titleLines: ['어떤 이야기에', '끌리세요?'],
     description: '마음이 가는 영화 키워드를 골라주세요.',
-    mascot: '/images/character/mu/upper-body/mu-upper-joy-v1.png',
+    mascot: '/images/character/mu/upper-body/mu-upper-joy-v1.webp',
     mascotClass: 'onboarding-step-mu--keyword',
   },
 ];
 
 const MUMU_WALK_FRAMES = [
-  '/images/character/mu/walk/mumu-walk-1-v1.png',
-  '/images/character/mu/walk/mumu-walk-2-v1.png',
-  '/images/character/mu/walk/mumu-walk-3-v1.png',
+  '/images/character/mu/walk/mumu-walk-1-v1.webp',
+  '/images/character/mu/walk/mumu-walk-2-v1.webp',
+  '/images/character/mu/walk/mumu-walk-3-v1.webp',
 ];
 
-const MUMU_SUCCESS_IMAGE = '/images/character/mu/mu-success-cutout-v2.png';
+const MUMU_SUCCESS_IMAGE = '/images/character/mu/mu-success-cutout-v2.webp';
 
 function toggleValue(values, value, limit) {
   if (values.includes(value)) return values.filter((item) => item !== value);
@@ -249,8 +249,8 @@ function OnboardingPage({ authUser, isGuest, onComplete }) {
       >
         <header className="onboarding-header">
           <span className="onboarding-logo" aria-label="Musubi">
-            <img className="onboarding-logo__dark" src="/images/brand/musubi-logo-dark.png" alt="Musubi" />
-            <img className="onboarding-logo__light" src="/images/brand/musubi-logo.png" alt="Musubi" />
+            <img className="onboarding-logo__dark" src="/images/brand/musubi-logo-dark.webp" alt="Musubi" decoding="async" />
+            <img className="onboarding-logo__light" src="/images/brand/musubi-logo.webp" alt="Musubi" decoding="async" />
           </span>
         </header>
         <div className="onboarding-theme-toggle">
@@ -298,8 +298,8 @@ function OnboardingPage({ authUser, isGuest, onComplete }) {
       </div>
       <header className="onboarding-header">
         <a href="/?scene=4" aria-label="Musubi 로그인 화면으로 이동" className="onboarding-logo">
-          <img className="onboarding-logo__dark" src="/images/brand/musubi-logo-dark.png" alt="Musubi" />
-          <img className="onboarding-logo__light" src="/images/brand/musubi-logo.png" alt="Musubi" />
+          <img className="onboarding-logo__dark" src="/images/brand/musubi-logo-dark.webp" alt="Musubi" decoding="async" />
+          <img className="onboarding-logo__light" src="/images/brand/musubi-logo.webp" alt="Musubi" decoding="async" />
         </a>
       </header>
       <div className="onboarding-theme-toggle">
@@ -321,9 +321,9 @@ function OnboardingPage({ authUser, isGuest, onComplete }) {
               <img
                 src={leavingWelcome
                   ? walkSettled
-                    ? '/images/character/mu/mu-thinking-v1.png'
+                    ? '/images/character/mu/mu-thinking-v1.webp'
                     : MUMU_WALK_FRAMES[walkFrame]
-                  : '/images/character/mu/mu-onboarding-hi-v1.png?v=20260804-1'}
+                  : '/images/character/mu/mu-onboarding-hi-v1.webp?v=20260812-1'}
                 alt={leavingWelcome ? '' : '손을 흔들며 인사하는 Musubi 마스코트 무무'}
               />
             </div>

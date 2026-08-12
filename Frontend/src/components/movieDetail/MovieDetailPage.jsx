@@ -13,6 +13,7 @@ import {
   removeWishlistMovie,
   resolveMovieImage,
 } from '../../api.js';
+import { navigateTo } from '../../navigation.js';
 import { normalizeMovie } from '../index/RecommendationRow.jsx';
 import { SkeletonBlock } from '../common/LoadingSkeleton.jsx';
 import {
@@ -326,7 +327,7 @@ function MovieDetailPage({ authUser, movieId }) {
 
   const openMemberActivityPage = (review) => {
     if (!review?.user_id || review.is_mine) return;
-    window.location.href = `/users/${encodeURIComponent(review.user_id)}/activity`;
+    navigateTo(`/users/${encodeURIComponent(review.user_id)}/activity`);
   };
 
   if (loading) {

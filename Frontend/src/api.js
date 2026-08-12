@@ -1,4 +1,5 @@
 import { getInternalMovieId } from './utils/movieIdentity.js';
+import { optimizeImageUrl } from './utils/imagePerformance.js';
 
 // 기본값은 동일 출처의 /api 프록시이며, 개발 환경에서는 Vite가 백엔드로 전달한다.
 const BACKEND_BASE_URL = (
@@ -23,6 +24,46 @@ const CHAT_CACHE_KEYS = [
   RECOMMENDED_MOVIES_KEY, // 채팅에서 추천받은 영화 목록
 ];
 const ACCOUNT_CACHE_KEYS = [LOCAL_PROFILE_KEY, LOCAL_PREFERENCES_KEY];
+const memoryRequestCache = new Map();
+
+function cachedRequest(key, ttlMs, signal, loader) {
+  const now = Date.now();
+  let entry = memoryRequestCache.get(key);
+  if (entry?.value !== undefined && entry.expiresAt > now) return Promise.resolve(entry.value);
+
+  if (!entry?.promise) {
+    const promise = Promise.resolve()
+      .then(loader)
+      .then((value) => {
+        memoryRequestCache.set(key, { value, expiresAt: Date.now() + ttlMs });
+        return value;
+      })
+      .catch((error) => {
+        memoryRequestCache.delete(key);
+        throw error;
+      });
+    entry = { promise, expiresAt: 0 };
+    memoryRequestCache.set(key, entry);
+  }
+
+  if (!signal) return entry.promise;
+  if (signal.aborted) return Promise.reject(new DOMException('Aborted', 'AbortError'));
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(new DOMException('Aborted', 'AbortError'));
+    signal.addEventListener('abort', abort, { once: true });
+    entry.promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', abort));
+  });
+}
+
+function accountCacheKey(name) {
+  return `${name}:${localStorage.getItem(AUTH_SESSION_KEY) || 'guest'}`;
+}
+
+function clearMemoryRequestCache(prefix = '') {
+  for (const key of memoryRequestCache.keys()) {
+    if (!prefix || key.startsWith(prefix)) memoryRequestCache.delete(key);
+  }
+}
 
 function clearChatCaches() {
   CHAT_CACHE_KEYS.forEach((key) => localStorage.removeItem(key));
@@ -82,13 +123,16 @@ const FALLBACK_GENRES = [
 const TMDB_IMAGE_BASE_URL =
   import.meta.env.VITE_TMDB_IMAGE_BASE_URL || 'https://image.tmdb.org/t/p/w500';
 
-export function resolveMovieImage(path) {
+export function resolveMovieImage(path, size = 'w500') {
   const value = String(path || '').trim();
 
   if (!value) return '';
-  if (/^(https?:|data:|blob:)/i.test(value)) return value;
+  if (/^(https?:|data:|blob:)/i.test(value)) return optimizeImageUrl(value, size);
 
-  return `${TMDB_IMAGE_BASE_URL}${value.startsWith('/') ? value : `/${value}`}`;
+  return optimizeImageUrl(
+    `${TMDB_IMAGE_BASE_URL}${value.startsWith('/') ? value : `/${value}`}`,
+    size,
+  );
 }
 
 function readLocalJson(key, fallback = null) {
@@ -346,6 +390,7 @@ export function clearStoredAuth() {
   // 로그아웃 시 브라우저에 남는 대화 로그/캐시도 함께 삭제한다.
   clearChatCaches();
   clearAccountCaches();
+  clearMemoryRequestCache();
 }
 
 // 이미 로그인/회원가입/비밀번호 관련 화면이면 리다이렉트하지 않는다(루프 방지).
@@ -999,6 +1044,33 @@ export async function fetchChatRoomMessages(roomId, signal) {
   return data?.data || [];
 }
 
+export async function resolveChatMovieId(movie, signal) {
+  const explicitMovieId = Number(movie?.movie_id);
+  if (Number.isInteger(explicitMovieId) && explicitMovieId > 0) return explicitMovieId;
+
+  const params = new URLSearchParams();
+  const tmdbId = Number(movie?.tmdb_id);
+  const title = String(movie?.title || movie?.name || movie?.movie || '').trim();
+  const year = Number(movie?.year);
+
+  if (Number.isInteger(tmdbId) && tmdbId > 0) params.set('tmdb_id', String(tmdbId));
+  if (title) params.set('title', title);
+  if (Number.isInteger(year) && year >= 1880 && year <= 2200) params.set('year', String(year));
+  if (!params.size) throw new Error('영화 식별 정보가 없습니다.');
+
+  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/movies/resolve?${params}`, { signal });
+  const data = await response.json().catch(() => null);
+  if (!response.ok || isFailureResponse(data)) {
+    throw new Error(getErrorMessage(data, '영화 상세 정보를 찾지 못했습니다.'));
+  }
+
+  const resolvedId = Number(data?.data?.movie_id);
+  if (!Number.isInteger(resolvedId) || resolvedId <= 0) {
+    throw new Error('영화 상세 정보를 찾지 못했습니다.');
+  }
+  return resolvedId;
+}
+
 export async function fetchChatRooms(signal) {
   const response = await fetchWithAuth(`${BACKEND_BASE_URL}/chat/rooms`, { signal });
   const data = await response.json().catch(() => null);
@@ -1051,8 +1123,8 @@ export async function deleteChatRoom(roomId, signal) {
   return data || {};
 }
 
-export async function fetchCharacters(signal) {
-  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/chat/characters`, { signal });
+async function loadCharacters() {
+  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/chat/characters`);
   const data = await response.json().catch(() => null);
 
   if (!response.ok || isFailureResponse(data)) {
@@ -1075,6 +1147,10 @@ export async function fetchCharacters(signal) {
         character.avatar_url ||
         '',
     }));
+}
+
+export function fetchCharacters(signal) {
+  return cachedRequest('characters', 5 * 60 * 1000, signal, loadCharacters);
 }
 
 // 캐릭터 단건 조회 (GET /chatcharacter/{character_name}) — 인증 없음.
@@ -1687,15 +1763,10 @@ export async function likeMovie(movieId, signal) {
   return data;
 }
 
-export async function fetchUserPreferences(signal) {
+async function loadUserPreferences() {
   const localPreferences = readLocalJson(LOCAL_PREFERENCES_KEY, null);
   // 실제 경로는 /user/preferences (기존 /users/me/preferences 아님)
-  const response = await fetchWithAuth(
-    `${BACKEND_BASE_URL}/user/preferences`,
-    {
-      signal,
-    }
-  );
+  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/user/preferences`);
 
   const data = await response.json().catch(() => null);
 
@@ -1756,6 +1827,15 @@ export async function fetchUserPreferences(signal) {
   };
 }
 
+export function fetchUserPreferences(signal) {
+  return cachedRequest(
+    accountCacheKey('user-preferences'),
+    30 * 1000,
+    signal,
+    loadUserPreferences,
+  );
+}
+
 export async function fetchPreferenceInsights(signal) {
   const response = await fetchWithAuth(`${BACKEND_BASE_URL}/user/preferences/insights`, { signal });
   const data = await response.json().catch(() => null);
@@ -1779,6 +1859,7 @@ export async function resetLearnedPreferences(signal) {
   if (!response.ok || isFailureResponse(data)) {
     throw new Error(getErrorMessage(data, `학습 취향 초기화 실패 (${response.status})`));
   }
+  clearMemoryRequestCache('user-preferences:');
   return data?.data || {};
 }
 
@@ -1996,6 +2077,7 @@ export async function updateUserPreferences(preferences, signal) {
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   writeLocalJson(LOCAL_PREFERENCES_KEY, preferences);
+  clearMemoryRequestCache('user-preferences:');
 
   // 비회원은 브라우저에만 저장하고, 로그인 회원은 서버 추천 프로필도 함께
   // 갱신한다. 기존 구현은 로컬 저장만 해 회원 추천에 변경값이 반영되지 않았다.

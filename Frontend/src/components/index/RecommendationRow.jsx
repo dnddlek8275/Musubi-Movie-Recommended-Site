@@ -6,6 +6,7 @@ import MovieCard from '../movieCard/MovieCard.jsx';
 import { PosterRowSkeleton } from '../common/LoadingSkeleton.jsx';
 import SectionHeader from './SectionHeader.jsx';
 import { getInternalMovieId } from '../../utils/movieIdentity.js';
+import { navigateTo } from '../../navigation.js';
 
 const POSTER_BASE_URL =
   import.meta.env.VITE_TMDB_IMAGE_BASE_URL || 'https://image.tmdb.org/t/p/w500';
@@ -143,7 +144,7 @@ function RecommendationRow({ authUser, likedMovieKeys = [], onToggleLike }) {
               isLiked={likedMovieKeys.includes(movieLikeKey(movie))}
               movie={movie}
               onToggleLike={onToggleLike}
-              onSelect={(movie) => { window.location.href = `/movies/${movie.id}`; }}
+              onSelect={(movie) => navigateTo(`/movies/${movie.id}`)}
               key={movie.id}
             />
           ))}

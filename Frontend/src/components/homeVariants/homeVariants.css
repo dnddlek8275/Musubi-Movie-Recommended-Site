@@ -154,7 +154,11 @@
 .home-variant-message__movies {
   margin-top: 10px;
   display: flex;
-  gap: 10px;
+  align-items: stretch;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 3px;
+  scrollbar-width: thin;
 }
 
 .home-variant-message__sources {
@@ -178,15 +182,27 @@
 }
 
 .home-variant-message__movies button {
-  width: 92px;
+  width: 132px;
+  flex: 0 0 132px;
   padding: 0;
   border: 1px solid var(--panel-border);
-  border-radius: 9px;
+  border-radius: 12px;
   overflow: hidden;
   background: var(--panel);
   color: var(--text);
   cursor: pointer;
   text-align: left;
+  transition: border-color .18s ease, transform .18s ease;
+}
+
+.home-variant-message__movies button:hover,
+.home-variant-message__movies button:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 72%, var(--panel-border));
+  transform: translateY(-2px);
+}
+
+.home-variant-message__movies button[aria-busy="true"] {
+  opacity: .68;
 }
 
 .home-variant-message__movies .index-mini-poster {
@@ -196,20 +212,26 @@
 }
 
 .home-variant-message__movies strong {
-  padding: 8px;
   display: block;
   overflow: hidden;
-  font-size: 11px;
+  font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.home-variant-message__movie-copy {
+  min-height: 52px;
+  padding: 10px;
+  display: block;
+}
+
 .home-variant-message__movie-role {
   display: block;
-  margin-top: 8px;
+  margin-bottom: 5px;
   color: #f6a21a;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
+  letter-spacing: .04em;
 }
 
 .home-variant-message__movie-reason {
@@ -221,6 +243,15 @@
   color: var(--home3-muted);
   font-size: 11px;
   line-height: 1.4;
+}
+
+.home-variant-message .home-variant-message__movie-status {
+  margin: 7px 0 0;
+  padding: 0;
+  border: 0;
+  color: #ff9a9a;
+  background: transparent;
+  font-size: 11px;
 }
 
 .home-variant-composer {
@@ -500,15 +531,6 @@
   overscroll-behavior: contain;
   scroll-behavior: smooth;
   touch-action: pan-y;
-}
-
-.home3-chat-stage .home-variant-chat__messages.is-drag-scroll {
-  cursor: grab;
-}
-
-.home3-chat-stage .home-variant-chat__messages.is-drag-scroll[data-dragging="true"] {
-  cursor: grabbing;
-  user-select: none;
 }
 
 .home3-chat-stage .home-variant-message {

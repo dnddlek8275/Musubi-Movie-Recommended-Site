@@ -670,6 +670,7 @@ def _run_movie_pitch_round(
     """
     from pipeline.query_rewriter import rewrite as rewrite_query
     from pipeline.recommendation_context import build_recommendation_context
+    from pipeline.topic_grounding import log_topic_event, topic_no_result_message
     from rag.movie_retriever import MovieFilter, retrieve as movie_retrieve, format_for_prompt, to_response
 
     recommendation_context = build_recommendation_context(user_message, history)
@@ -677,11 +678,12 @@ def _run_movie_pitch_round(
     if rewritten.get("genre") in recommendation_context.excluded_genres:
         rewritten["genre"] = None
     search_q  = rewritten.get("search_query", user_message)
+    topic = rewritten.get("topic")
     personalization = preference_search_terms(user_context)
     has_explicit_filter = any(
         rewritten.get(field) is not None
         for field in ("genre", "actor", "director", "language", "year_from", "year_to", "min_rating")
-    ) or bool(rewritten.get("sort_latest"))
+    ) or bool(rewritten.get("sort_latest")) or bool(topic)
     if personalization and not has_explicit_filter:
         search_q = f"{search_q} 사용자 선호 {personalization}"
     filters   = MovieFilter(
@@ -705,6 +707,7 @@ def _run_movie_pitch_round(
         exclude_titles=excluded_titles,
         required_count=3,
         quality_weight=quality_weight,
+        topic=topic,
     )
     if not movies:
         movies = movie_retrieve(
@@ -715,6 +718,7 @@ def _run_movie_pitch_round(
             exclude_titles=excluded_titles,
             required_count=3,
             quality_weight=quality_weight,
+            topic=topic,
         )
     movies = prepare_recommendations(
         movies,
@@ -722,6 +726,16 @@ def _run_movie_pitch_round(
         rewritten,
         limit=3,
     )
+
+    if topic and not movies:
+        chosen = random.choice(characters)
+        log_topic_event(topic, "clarification_required")
+        return (
+            [],
+            [CharacterChatResult(character=chosen, answer=topic_no_result_message(topic))],
+            "",
+        )
+    log_topic_event(topic, "recommended", movies)
 
     movie_context = format_for_prompt(movies)
     movie_titles  = ", ".join(f"'{m['title']}'" for m in movies)
@@ -951,6 +965,14 @@ def run_group_auto_rounds(
             characters, user_message, history, profiles, max_tokens_r1,
             user_context=user_context,
         )
+        # A grounded topic search may intentionally return no cards and a
+        # clarification. Do not let a second character turn that safe answer
+        # back into an ungrounded recommendation.
+        if not movies and movie_titles == "":
+            return intent, [], [
+                RoundResult(round=1, label="첫 번째 답변", responses=r1_results),
+                RoundResult(round=2, label="반응", responses=[]),
+            ]
     else:
         movies = []
         r1_results = _run_character_round1(

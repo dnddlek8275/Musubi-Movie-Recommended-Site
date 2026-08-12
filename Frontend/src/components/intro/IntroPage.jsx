@@ -46,10 +46,10 @@ const POPCORN = Array.from({ length: 34 }, (_, index) => ({
 }));
 
 const MU_INTRO_STATES = [
-  '/images/character/mu/upper-body/mu-upper-default-v1.png',
-  '/images/character/mu/upper-body/mu-upper-joy-v1.png',
-  '/images/character/mu/upper-body/mu-upper-thinking-v1.png',
-  '/images/character/mu/upper-body/mu-upper-searching-v1.png',
+  '/images/character/mu/upper-body/mu-upper-default-v1.webp',
+  '/images/character/mu/upper-body/mu-upper-joy-v1.webp',
+  '/images/character/mu/upper-body/mu-upper-thinking-v1.webp',
+  '/images/character/mu/upper-body/mu-upper-searching-v1.webp',
 ];
 
 function getInitialTheme() {
@@ -174,12 +174,12 @@ function IntroPage({ entryClassName = '', entryContent, initialScene, onLogin, o
       >
         <img
           className="intro-skip-logo__image intro-skip-logo__image--dark"
-          src="/images/brand/musubi-logo-dark.png"
+          src="/images/brand/musubi-logo-dark.webp"
           alt=""
         />
         <img
           className="intro-skip-logo__image intro-skip-logo__image--light"
-          src="/images/brand/musubi-logo.png"
+          src="/images/brand/musubi-logo.webp"
           alt=""
         />
       </button>
@@ -283,7 +283,9 @@ function IntroPage({ entryClassName = '', entryContent, initialScene, onLogin, o
                   <div className="intro-movie-card">
                     <img
                       className="intro-movie-card__poster"
-                      src="/images/posters/today-us.png?v=20260804-1"
+                      src="/images/posters/today-us.webp?v=20260812-1"
+                      decoding="async"
+                      loading="lazy"
                       alt="오늘, 우리 포스터"
                     />
                     <div>

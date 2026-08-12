@@ -39,6 +39,10 @@ watchdog는 다음을 검사한다.
 - GPU Xid, uncorrected volatile ECC 증가
 - AI 서비스 로그의 CUDA OOM
 - 루트 디스크 사용률
+- AI 요청 수, 대기열 거절·타임아웃, 최대 대기시간과 처리시간
+
+동시 요청 보호 정책과 다중 GPU 발전 방향은
+`ai-capacity-and-scaling.md`에 기록한다.
 
 배포 파일은 다음 위치에 보관한다.
 
@@ -60,6 +64,8 @@ watchdog는 다음을 검사한다.
 | 긴급 | `ROOT_DISK_CRITICAL` | GPU watchdog 로그 |
 | 주의 | `GPU_TEMPERATURE_WARNING`, `GPU_VRAM_HIGH` | GPU watchdog 로그 |
 | 주의 | `ROOT_DISK_WARNING` | GPU watchdog 로그 |
+| 주의 | `AI_QUEUE_REJECTIONS`, `AI_QUEUE_WAIT_HIGH`, `AI_RESPONSE_SLOW` | AI admission 로그 |
+| 긴급 | `AI_QUEUE_TIMEOUTS`, `AI_REQUEST_ERRORS` | AI admission 로그 |
 | 긴급 | Frontend, Backend, DB, AI health 연속 실패 | Production Health(현재 Slack 미연결) |
 
 같은 이벤트가 매분 반복되더라도 활성 상태 파일이 존재하는 동안에는 Slack을

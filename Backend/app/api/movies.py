@@ -14,6 +14,7 @@ from app.schemas.movies import MovieCastData, MovieDetailData, MovieDetailRespon
 from app.schemas.users import PreferenceRequest
 from app.services.actor_service import get_actors_result, get_onboarding_actors_result
 from app.services.movies.genre_service import genre_movies
+from app.services.movies.chat_movie_link_service import resolve_chat_movie
 from app.services.movies.ranking_service import movie_detail, realtime_movie_ranking_result
 from app.services.movies.discovery_section_service import get_discovery_sections_result
 from app.services.interaction_service import detail_movie_result, like_movie_result
@@ -321,6 +322,39 @@ async def search_movies(
     
     except Exception:
         return error_response("영화 검색 에러")
+
+
+@router.get("/resolve")
+def resolve_recommended_movie(
+    movie_id: int | None = Query(None, ge=1),
+    tmdb_id: int | None = Query(None, ge=1),
+    title: str | None = Query(None, min_length=1, max_length=300),
+    year: int | None = Query(None, ge=1880, le=2200),
+    db: Session = Depends(get_db),
+):
+    """AI 추천 카드 식별자를 서비스 내부 상세 페이지 ID로 변환한다."""
+    if movie_id is None and tmdb_id is None and not str(title or "").strip():
+        raise HTTPException(status_code=422, detail="영화 식별 정보가 필요합니다.")
+
+    movie = resolve_chat_movie(
+        db,
+        movie_id=movie_id,
+        tmdb_id=tmdb_id,
+        title=title,
+        year=year,
+    )
+    if movie is None:
+        raise HTTPException(status_code=404, detail="서비스에 등록된 영화를 찾을 수 없습니다.")
+
+    return {
+        "state": "success",
+        "message": "영화 상세 페이지 연결 정보 조회 성공",
+        "data": {
+            "movie_id": movie.id,
+            "tmdb_id": movie.tmdb_id,
+            "title": movie.title,
+        },
+    }
 
 
 # 실시간 랭킹 10 GET /movies/ranking

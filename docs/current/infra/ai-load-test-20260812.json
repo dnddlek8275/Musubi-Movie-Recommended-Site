@@ -1,0 +1,72 @@
+{
+  "tested_at_kst": "2026-08-12T16:57:00+09:00/2026-08-12T17:00:00+09:00",
+  "endpoint": "http://127.0.0.1/chat/auto",
+  "scope": "direct_gpu_ai_api",
+  "request": {
+    "message": "액션 영화 세 편 추천해줘",
+    "history": []
+  },
+  "stages": [
+    {
+      "concurrency": 10,
+      "wall_seconds": 37.857,
+      "responses": {"200": 10, "429": 0, "503": 0, "other": 0},
+      "success_latency_seconds": {
+        "min": 15.605,
+        "avg": 28.461,
+        "p50": 27.167,
+        "p95": 37.845,
+        "max": 37.845
+      },
+      "gpu_peak": {
+        "utilization_percent": 100,
+        "vram_used_mib": 12634,
+        "temperature_c": 63
+      }
+    },
+    {
+      "concurrency": 20,
+      "wall_seconds": 49.884,
+      "responses": {"200": 14, "429": 5, "503": 1, "other": 0},
+      "success_latency_seconds": {
+        "min": 15.477,
+        "avg": 32.096,
+        "p50": 32.685,
+        "p95": 49.87,
+        "max": 49.87
+      },
+      "gpu_peak": {
+        "utilization_percent": 100,
+        "vram_used_mib": 12634,
+        "temperature_c": 69
+      }
+    },
+    {
+      "concurrency": 30,
+      "wall_seconds": 44.355,
+      "responses": {"200": 12, "429": 15, "503": 3, "other": 0},
+      "success_latency_seconds": {
+        "min": 15.404,
+        "avg": 32.446,
+        "p50": 31.699,
+        "p95": 44.341,
+        "max": 44.341
+      },
+      "gpu_peak": {
+        "utilization_percent": 100,
+        "vram_used_mib": 12634,
+        "temperature_c": 70
+      }
+    }
+  ],
+  "post_test_health": {
+    "ai_api": "active",
+    "llama_server": "active",
+    "watchdog_timer": "active",
+    "llm": "ok",
+    "milvus": "ok (8 collections)",
+    "embedder": "ok",
+    "cuda_oom": false,
+    "fatal_error": false
+  }
+}

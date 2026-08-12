@@ -4,6 +4,7 @@ import { fetchRecentMovies } from '../../api.js';
 import PosterArt from './PosterArt.jsx';
 import { normalizeMovie } from './RecommendationRow.jsx';
 import { SkeletonBlock } from '../common/LoadingSkeleton.jsx';
+import { navigateTo } from '../../navigation.js';
 
 function RecentPanel({ authUser }) {
   const [recentMovies, setRecentMovies] = useState([]);
@@ -46,7 +47,7 @@ function RecentPanel({ authUser }) {
           <button
             className="index-recent-poster"
             type="button"
-            onClick={() => { window.location.href = `/movies/${movie.id}`; }}
+            onClick={() => navigateTo(`/movies/${movie.id}`)}
             key={movie.id ?? movie.title}
           >
             <PosterArt movie={{ ...movie, tone: index + 11 }} index={index} compact />

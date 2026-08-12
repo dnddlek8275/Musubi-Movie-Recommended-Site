@@ -11,6 +11,7 @@ from app.schemas.chat import CharacterChatRequest, SendChatMessageRequest
 from app.services.character_service import get_active_character
 from app.services.chat_service import process_chat_message
 from app.services.chat_context_service import build_chat_user_context
+from app.services.movies.chat_movie_link_service import enrich_recommended_movies
 
 
 # AI 서버가 답변 앞에 보내는 내부 제어 문자열을 찾는 정규식
@@ -117,7 +118,7 @@ async def stream_and_save_character_answer(
                 "assistant",
                 answer,
                 response_metadata.get("character") or character,
-                recommended_movies=response_metadata.get("movies") or None,
+                recommended_movies=enrich_recommended_movies(db, response_metadata.get("movies")) or None,
                 emotion=response_metadata.get("emotion"),
             )
             db.commit()

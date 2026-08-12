@@ -18,8 +18,12 @@ async def post_ai(path: str, payload: dict) -> dict:
             response = await client.post(
                 f"{ai_base_url}{ai_path}",
                 json=payload,
-                # AI 서버 응답 생성 시간이 길 수 있으므로 30초 이상으로 설정합니다.
-                timeout=30.0,
+                timeout=httpx.Timeout(
+                    connect=5.0,
+                    read=settings.AI_CHAT_TIMEOUT_SECONDS,
+                    write=30.0,
+                    pool=5.0,
+                ),
             )
 
         # 4xx, 5xx 응답이면 HTTPStatusError가 발생합니다.

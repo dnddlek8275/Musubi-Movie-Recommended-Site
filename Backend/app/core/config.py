@@ -24,6 +24,7 @@ class Settings(BaseSettings) :
 
     # AI 호출할 서버 주소
     AI_BASE_URL : str = "http://210.109.15.251"
+    AI_CHAT_TIMEOUT_SECONDS: float = 60.0
     AI_SYNC_TOKEN: str | None = None
     AI_SYNC_TIMEOUT_SECONDS: float = 180.0
 

@@ -3,7 +3,7 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useState } fro
 import DefaultLayout from './default.jsx';
 import LoginPage from './components/login/LoginPage.jsx';
 import IntroPage from './components/intro/IntroPage.jsx';
-import Recommendation from './components/recomendation/recomendation.jsx';
+import { NAVIGATION_EVENT, navigateTo, replaceTo } from './navigation.js';
 
 import {
   clearStoredAuth,
@@ -23,6 +23,7 @@ const MovieDetailPage = lazy(() => import('./components/movieDetail/MovieDetailP
 const MyPage = lazy(() => import('./components/mypage/MyPage.jsx'));
 const OnboardingPage = lazy(() => import('./components/onboarding/OnboardingPage.jsx'));
 const PersonFilmographyPage = lazy(() => import('./components/person/PersonFilmographyPage.jsx'));
+const Recommendation = lazy(() => import('./components/recomendation/recomendation.jsx'));
 const SignupPage = lazy(() => import('./components/signup/SignupPage.jsx'));
 const UserActivityPage = lazy(() => import('./components/userActivity/UserActivityPage.jsx'));
 
@@ -46,21 +47,21 @@ function LazyPage({ children }) {
 
 function LegacyAutoChatRedirect() {
   useEffect(() => {
-    window.location.replace(`/home${window.location.search}${window.location.hash}`);
+    replaceTo(`/home${window.location.search}${window.location.hash}`);
   }, []);
   return null;
 }
 
 function LegacyHomeRedirect() {
   useEffect(() => {
-    window.location.replace(`/home${window.location.search}${window.location.hash}`);
+    replaceTo(`/home${window.location.search}${window.location.hash}`);
   }, []);
   return null;
 }
 
 function LegacyCharacterChatRedirect() {
   useEffect(() => {
-    window.location.replace(`/chat/group${window.location.search}${window.location.hash}`);
+    replaceTo(`/chat/group${window.location.search}${window.location.hash}`);
   }, []);
   return null;
 }
@@ -71,16 +72,79 @@ function LegacyPasswordResetRedirect() {
     const target = token
       ? `/?resetToken=${encodeURIComponent(token)}`
       : '/?auth=password-reset';
-    window.location.replace(target);
+    replaceTo(target);
   }, []);
   return null;
 }
 
 function App() {
+  const [, setNavigationVersion] = useState(0);
+  const pathname = window.location.pathname;
+  const search = window.location.search;
+  const hash = window.location.hash;
   const [authUser, setAuthUser] = useState(() => getStoredAuthUser());
   const [isArrivingHome] = useState(
     () => ['login', 'onboarding'].includes(window.sessionStorage.getItem('musubi-home-arrive'))
   );
+
+  // 동일 출처 링크는 문서 전체를 다시 받지 않고 현재 React 앱 안에서 전환한다.
+  // 브라우저 뒤로/앞으로 가기와 기존 <a href> 링크를 모두 지원한다.
+  useEffect(() => {
+    const refreshRoute = () => setNavigationVersion((value) => value + 1);
+    const handleDocumentClick = (event) => {
+      if (
+        event.defaultPrevented
+        || event.button !== 0
+        || event.metaKey
+        || event.ctrlKey
+        || event.shiftKey
+        || event.altKey
+      ) return;
+      const anchor = event.target.closest?.('a[href]');
+      if (!anchor || anchor.target || anchor.download || anchor.dataset.fullReload === 'true') return;
+      const url = new URL(anchor.href, window.location.href);
+      if (url.origin !== window.location.origin) return;
+      if (url.pathname === window.location.pathname && url.search === window.location.search && url.hash) return;
+      event.preventDefault();
+      navigateTo(`${url.pathname}${url.search}${url.hash}`);
+    };
+
+    window.addEventListener('popstate', refreshRoute);
+    window.addEventListener(NAVIGATION_EVENT, refreshRoute);
+    document.addEventListener('click', handleDocumentClick);
+    return () => {
+      window.removeEventListener('popstate', refreshRoute);
+      window.removeEventListener(NAVIGATION_EVENT, refreshRoute);
+      document.removeEventListener('click', handleDocumentClick);
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    if (hash) {
+      let frameId = 0;
+      let attempts = 0;
+      const findHashTarget = () => {
+        let targetId = hash.slice(1);
+        try {
+          targetId = decodeURIComponent(targetId);
+        } catch {
+          // 잘못 인코딩된 해시는 원문 ID로 한 번만 확인한다.
+        }
+        const target = document.getElementById(targetId);
+        if (target) {
+          target.scrollIntoView();
+          return;
+        }
+        attempts += 1;
+        if (attempts < 20) frameId = window.requestAnimationFrame(findHashTarget);
+      };
+      frameId = window.requestAnimationFrame(findHashTarget);
+      return () => window.cancelAnimationFrame(frameId);
+    } else {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    }
+    return undefined;
+  }, [pathname, search, hash]);
 
   // 모든 페이지는 새로고침하거나 새 문서로 이동할 때 이전 스크롤 위치를
   // 복원하지 않고 항상 페이지 최상단에서 시작한다.
@@ -139,7 +203,6 @@ function App() {
     };
   }, []);
 
-  const pathname = window.location.pathname;
   const isAdminPage = pathname.startsWith('/admin');
   const isOnboardingPage = pathname.startsWith('/onboarding');
   const movieDetailMatch = pathname.match(/^\/movies\/(\d+)\/?$/);
@@ -214,7 +277,7 @@ function App() {
       setAuthUser(null);
 
       if (!window.location.pathname.startsWith('/login')) {
-        window.location.href = '/login';
+        replaceTo('/login');
       }
     }
   };

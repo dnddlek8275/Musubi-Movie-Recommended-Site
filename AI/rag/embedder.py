@@ -4,9 +4,11 @@ BGE-M3 Dense + Sparse 임베딩 싱글턴
 """
 
 from functools import lru_cache
+from threading import Lock
 from FlagEmbedding import BGEM3FlagModel
 
 MODEL_NAME = "BAAI/bge-m3"
+_EMBED_LOCK = Lock()
 
 
 @lru_cache(maxsize=1)
@@ -29,12 +31,17 @@ def embed(texts: list[str]) -> tuple[list[list[float]], list[dict]]:
         - sparse_list: 각 텍스트의 sparse 벡터 (dict 형태)
     """
     embedder = get_embedder()
-    result = embedder.encode(
-        texts,
-        return_dense=True,
-        return_sparse=True,
-        return_colbert_vecs=False,
-    )
+    # PyTorch/BLAS already use several CPU threads for one query. Letting five
+    # request threads enter encode() together oversubscribes the 16-vCPU host and
+    # makes every query slower. Keep model inference single-file while FastAPI
+    # continues to accept and queue concurrent requests.
+    with _EMBED_LOCK:
+        result = embedder.encode(
+            texts,
+            return_dense=True,
+            return_sparse=True,
+            return_colbert_vecs=False,
+        )
 
     dense_list = result["dense_vecs"].tolist()
     sparse_list = [

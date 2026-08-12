@@ -47,7 +47,7 @@ const TASTE_TYPES = [
   ['keywords', 'keyword', '키워드'],
 ];
 
-const DEFAULT_AVATAR = '/images/character/mu/upper-body/mu-upper-default-v1.png';
+const DEFAULT_AVATAR = '/images/character/mu/upper-body/mu-upper-default-v1.webp';
 const CHAT_STORAGE_KEYS = ['cineverse.autochat.conversations', 'cineverse.groupchat.conversations'];
 
 function uniqueText(values) {

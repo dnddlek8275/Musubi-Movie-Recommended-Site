@@ -3,6 +3,7 @@ import unittest
 from pipeline.recommendation_presenter import (
     build_character_grounded_answer,
     build_grounded_answer,
+    filter_movies_by_requested_genre,
     is_safe_general_recommendation,
     prepare_recommendations,
     select_diverse_movies,
@@ -10,6 +11,34 @@ from pipeline.recommendation_presenter import (
 
 
 class RecommendationPresenterTests(unittest.TestCase):
+    def test_explicit_genre_drops_mismatched_cards(self):
+        movies = [
+            {"title": "액션 카드", "genres": "액션, 스릴러"},
+            {"title": "공포 카드", "genres": "공포, 미스터리"},
+            {"title": "장르 배열", "genres_list": '["액션", "모험"]'},
+        ]
+
+        filtered = filter_movies_by_requested_genre(movies, "액션")
+
+        self.assertEqual([movie["title"] for movie in filtered], ["액션 카드", "장르 배열"])
+
+    def test_hwarim_fallback_uses_character_voice_instead_of_generic_template(self):
+        movies = prepare_recommendations(
+            [
+                {"title": "베스와 베라", "genres": "공포, 미스터리", "vote_average": 7.4},
+                {"title": "부기맨", "genres": "공포"},
+            ],
+            "공포 영화 추천해줘",
+            {"genre": "공포"},
+        )
+
+        answer = build_character_grounded_answer(movies, "화림")
+
+        self.assertIn("낌새", answer)
+        self.assertIn("베스와 베라", answer)
+        self.assertIn("부기맨", answer)
+        self.assertNotIn("요청하신", answer)
+
     def test_character_fallback_keeps_all_titles_and_direct_tone(self):
         movies = prepare_recommendations(
             [
