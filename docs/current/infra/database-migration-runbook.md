@@ -141,6 +141,29 @@ Migration은 자동으로 downgrade하지 않는다. downgrade에는 테이블·
 - 배포 후 `/`, `/api/health`, `/api/ready`, `/api/db-test`, `/api/ai-health`가 모두
   HTTP 200이고 랭킹 10건, 검색 결과, 비회원 추천 5건을 확인했다. 배포 시점의
   Warning 이벤트와 최근 Backend 오류 로그는 없었다.
+- 2026-08-12: 제목 현지화 migration 직전 자동 백업
+  `storage-prod-team3/backups/postgresql/cineverse-20260812T041636Z.dump`와
+  SHA-256 파일을 Object Storage에 업로드했다. dump 크기는 19,435,194 bytes이다.
+- migration Job으로 revision `20260812_0035`를 적용하고, TMDB가 제공하는 공식
+  한국어 제목 871건을 PostgreSQL에 반영했다. TMDB에서 삭제된 404 영화 29편은
+  사용자 활동 참조가 없음을 확인한 뒤 PostgreSQL과 Milvus에서 제거했다.
+- `backend-vector-sync-20260812042743` Job이 제목 변경 871건의 임베딩 재생성을
+  완료했으며, 동기화 작업은 완료 2,298건, pending/failed 0건이다.
+- 배포 이미지는 commit `c19ca70895a06f52f93745c40ce816595517ab0d`이며,
+  Backend·Frontend Deployment는 각각 2/2 Ready, 신규 Pod 재시작 0회로
+  롤아웃됐다.
+- 배포 후 PostgreSQL 영화는 32,281행이고, 유효한 고유 `tmdb_id`는 32,280개다.
+  Milvus `movies_active` iterator도 32,280행·고유 ID 32,280개이며, 두 ID 집합의
+  정렬 SHA-256은
+  `ce249e208400c1fd088319620acc45b79f4912901b668d7de5376fb5c6fe8371`로
+  일치한다. PostgreSQL 대비 Milvus 누락·초과·중복은 모두 0개다.
+- `/`, `/api/health`, `/api/ready`, `/api/db-test`, `/api/ai-health`, 랭킹,
+  카테고리 검색, 비회원 추천을 재검사해 모두 HTTP 200을 확인했다. 브라우저에서
+  `/`와 `/home` 렌더링 및 콘솔 경고·오류 없음도 확인했다.
+- 전체 Milvus iterator 감사 중 `MVCC timestamp`를 서버에서 받지 못해 클라이언트
+  timestamp로 대체했다는 PyMilvus 경고가 1회 발생했다. 감사 조회는 정상 완료됐고
+  PostgreSQL과 Milvus의 전체 ID 해시도 일치하므로 데이터 불일치나 동기화 실패로
+  판정하지 않는다.
 
 아직 추가할 운영 안전장치는 다음과 같다.
 
