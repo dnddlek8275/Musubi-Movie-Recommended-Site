@@ -12,6 +12,7 @@ docs/
 scripts/
 !scripts/
 scripts/*
+!scripts/dispatch_movie_vectors.py
 !scripts/__init__.py
 !scripts/sync_tmdb_daily.py
 !scripts/import_movies_csv.py
