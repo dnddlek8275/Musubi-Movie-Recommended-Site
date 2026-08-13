@@ -16,6 +16,7 @@ import {
 import { navigateTo } from '../../navigation.js';
 import { normalizeMovie } from '../index/RecommendationRow.jsx';
 import { SkeletonBlock } from '../common/LoadingSkeleton.jsx';
+import HorizontalScroller from '../common/HorizontalScroller.jsx';
 import {
   getInternalMovieId,
   hasMatchingMovieIdentity,
@@ -602,7 +603,7 @@ function MovieDetailPage({ authUser, movieId }) {
 
       <section className="movie-detail__similar">
         <div className="movie-detail__section-heading"><span>MORE LIKE THIS</span><h2>이런 영화를 좋아하신다면?</h2></div>
-        <div className="movie-detail__similar-grid">
+        <HorizontalScroller className="movie-detail__similar-grid" ariaLabel="비슷한 추천 영화 목록">
           {recommendedLoading ? Array.from({ length: 6 }, (_, index) => (
             <div className="movie-detail__similar-skeleton" key={`similar-skeleton-${index}`} aria-hidden="true">
               <SkeletonBlock />
@@ -616,7 +617,7 @@ function MovieDetailPage({ authUser, movieId }) {
               <small>{movie.genre}</small>
             </a>
           ))}
-        </div>
+        </HorizontalScroller>
         {!recommendedLoading && recommended.length === 0 ? <p className="movie-detail__empty-copy">추천 영화를 준비하지 못했습니다.</p> : null}
       </section>
 

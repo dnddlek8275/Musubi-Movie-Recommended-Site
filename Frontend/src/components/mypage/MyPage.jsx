@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import {
   checkAccountNicknameAvailability,
@@ -28,6 +29,7 @@ import {
 } from '../../api.js';
 import { normalizeMovie } from '../index/RecommendationRow.jsx';
 import { PanelSkeleton, PosterRowSkeleton, SkeletonBlock } from '../common/LoadingSkeleton.jsx';
+import HorizontalScroller from '../common/HorizontalScroller.jsx';
 import { getKeywordLabel } from '../../utils/keywordLabels.js';
 import { getInternalMovieId } from '../../utils/movieIdentity.js';
 import TastePreferenceModal from './TastePreferenceModal.jsx';
@@ -225,8 +227,8 @@ function MovieStrip({ id, title, description, movies, emptyText = '아직 이곳
     <section className="mypage-movie-section" id={id}>
       <header className="mypage-section-heading"><div><h2>{title}</h2>{description ? <p>{description}</p> : null}</div></header>
       {movies.length ? (
-        <div className="mypage-movie-strip">
-          {movies.slice(0, 8).map((movie, index) => {
+        <HorizontalScroller className="mypage-movie-strip" ariaLabel={`${title} 목록`}>
+          {movies.map((movie, index) => {
             const id = movieId(movie);
             const poster = moviePoster(movie);
             return (
@@ -243,7 +245,7 @@ function MovieStrip({ id, title, description, movies, emptyText = '아직 이곳
               </article>
             );
           })}
-        </div>
+        </HorizontalScroller>
       ) : <EmptyState>{emptyText}</EmptyState>}
     </section>
   );
@@ -283,10 +285,19 @@ function ChatColumn({ title, rooms, side, onPin, onRename, onDelete }) {
   useEffect(() => {
     if (!menuId) return undefined;
     const closeMenu = (event) => {
-      if (!(event.target instanceof Element) || !event.target.closest('.mypage-chat-record__actions')) setMenuId('');
+      if (
+        !(event.target instanceof Element)
+        || !event.target.closest('.mypage-chat-record__actions, .mypage-chat-record__menu')
+      ) setMenuId('');
     };
     document.addEventListener('pointerdown', closeMenu);
-    return () => document.removeEventListener('pointerdown', closeMenu);
+    window.addEventListener('resize', closeMenu);
+    window.addEventListener('scroll', closeMenu, true);
+    return () => {
+      document.removeEventListener('pointerdown', closeMenu);
+      window.removeEventListener('resize', closeMenu);
+      window.removeEventListener('scroll', closeMenu, true);
+    };
   }, [menuId]);
 
   return (
@@ -314,11 +325,14 @@ function ChatColumn({ title, rooms, side, onPin, onRename, onDelete }) {
                 });
                 setMenuId((current) => current === room.id ? '' : room.id);
               }} aria-label={`${room.title} 메뉴`} aria-expanded={menuId === room.id}>⋮</button>
-              {menuId === room.id ? <div className="mypage-chat-record__menu" style={{ top: menuPosition.top, left: menuPosition.left }}>
-                <button type="button" onClick={() => { onPin(room); setMenuId(''); }}>{room.pinned ? '고정 해제' : '채팅 고정'}</button>
-                <button type="button" onClick={() => { onRename(room); setMenuId(''); }}>이름 수정</button>
-                <button className="is-danger" type="button" onClick={() => { onDelete(room); setMenuId(''); }}>삭제하기</button>
-              </div> : null}
+              {menuId === room.id ? createPortal(
+                <div className="mypage-chat-record__menu" style={{ top: menuPosition.top, left: menuPosition.left }}>
+                  <button type="button" onClick={() => { onPin(room); setMenuId(''); }}>{room.pinned ? '고정 해제' : '채팅 고정'}</button>
+                  <button type="button" onClick={() => { onRename(room); setMenuId(''); }}>이름 수정</button>
+                  <button className="is-danger" type="button" onClick={() => { onDelete(room); setMenuId(''); }}>삭제하기</button>
+                </div>,
+                document.body,
+              ) : null}
             </div>
           </article>
         )) : <EmptyState>저장된 대화가 없습니다.</EmptyState>}

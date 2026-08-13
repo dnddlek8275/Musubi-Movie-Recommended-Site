@@ -15,6 +15,7 @@ import {
 import './chat.css';
 import SttMicButton from './SttMicButton.jsx';
 import { SkeletonBlock } from '../common/LoadingSkeleton.jsx';
+import HorizontalScroller from '../common/HorizontalScroller.jsx';
 
 const POSTER_BASE_URL =
   import.meta.env.VITE_TMDB_IMAGE_BASE_URL || 'https://image.tmdb.org/t/p/w500';
@@ -1154,7 +1155,7 @@ function ChatPage({ authUser }) {
                             ) : null}
 
                             {message.movies?.length > 0 ? (
-                              <div className="chat-movies-row">
+                              <HorizontalScroller className="chat-movies-row" ariaLabel="추천 영화 목록">
                                 {message.movies.map((movie, index) => {
                                   const title =
                                     movie.title || movie.name || '추천작';
@@ -1209,7 +1210,7 @@ function ChatPage({ authUser }) {
                                     </div>
                                   );
                                 })}
-                              </div>
+                              </HorizontalScroller>
                             ) : null}
 
                             {message.sources?.length > 0 ? (

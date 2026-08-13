@@ -8,6 +8,7 @@ import {
   resolveMovieImage,
 } from '../../api.js';
 import { SkeletonBlock } from '../common/LoadingSkeleton.jsx';
+import HorizontalScroller from '../common/HorizontalScroller.jsx';
 import { getInternalMovieId } from '../../utils/movieIdentity.js';
 import '../mypage/mypage.css';
 import './userActivity.css';
@@ -61,14 +62,17 @@ function UserMovieGrid({ authUser, movies, likedIds, onToggleLike, hideScrollbar
   };
 
   return (
-    <div
+    <HorizontalScroller
+      ariaLabel="영화 목록"
       className={`user-activity__movie-grid${hideScrollbar ? ' is-scrollbar-hidden' : ''}`}
-      onClickCapture={blockClickAfterDrag}
-      onPointerCancel={stopDrag}
-      onPointerDown={startDrag}
-      onPointerMove={moveDrag}
-      onPointerUp={stopDrag}
-      ref={railRef}
+      externalRef={railRef}
+      railProps={{
+        onClickCapture: blockClickAfterDrag,
+        onPointerCancel: stopDrag,
+        onPointerDown: startDrag,
+        onPointerMove: moveDrag,
+        onPointerUp: stopDrag,
+      }}
     >
       {movies.map((movie) => {
         const id = getInternalMovieId(movie);
@@ -85,7 +89,7 @@ function UserMovieGrid({ authUser, movies, likedIds, onToggleLike, hideScrollbar
           </article>
         );
       })}
-    </div>
+    </HorizontalScroller>
   );
 }
 
@@ -156,7 +160,6 @@ function UserActivityPage({ authUser, userId }) {
 
   const user = activity.user || {};
   const likedMovies = activity.liked_movies || [];
-  const wishlistedMovies = activity.wishlisted_movies || [];
   const reviews = activity.reviews || [];
 
   return (
@@ -168,18 +171,11 @@ function UserActivityPage({ authUser, userId }) {
         <div>
           <span>MEMBER ACTIVITY</span>
           <h1>{user.nickname || '회원'}</h1>
-          <p>찜한 영화와 좋아요, 남긴 리뷰를 모아봤어요.</p>
+          <p>좋아요 누른 영화와 남긴 리뷰를 모아봤어요.</p>
         </div>
       </header>
 
       {status ? <p className="user-activity__status" role="status">{status}</p> : null}
-
-      <section className="user-activity__section">
-        <header><span>WISHLIST</span><h2>찜한 영화</h2><small>{wishlistedMovies.length}편</small></header>
-        {wishlistedMovies.length
-          ? <UserMovieGrid authUser={authUser} movies={wishlistedMovies} likedIds={likedIds} onToggleLike={toggleLike} />
-          : <p className="user-activity__empty">공개할 찜한 영화가 없습니다.</p>}
-      </section>
 
       <section className="user-activity__section">
         <header><span>LIKED MOVIES</span><h2>좋아요 누른 영화</h2><small>{likedMovies.length}편</small></header>

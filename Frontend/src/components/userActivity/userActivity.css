@@ -10,7 +10,8 @@
 .user-activity__section > header h2 { margin: 8px 0 0; font-size: 28px; }
 .user-activity__section > header small { position: absolute; right: 0; bottom: 4px; color: var(--muted); }
 .user-activity__status { margin: 18px 0 0; color: var(--accent); text-align: center; }
-.user-activity__movie-grid { padding-bottom: 8px; display: grid; grid-auto-columns: 170px; grid-auto-flow: column; justify-content: start; gap: 16px; overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: thin; cursor: grab; user-select: none; }
+.user-activity__movie-grid { padding-bottom: 8px; display: grid; grid-auto-columns: 170px; grid-auto-flow: column; justify-content: start; gap: 16px; overflow-x: auto; overscroll-behavior-inline: contain; scroll-behavior: smooth; scrollbar-width: none; cursor: grab; user-select: none; }
+.user-activity__movie-grid::-webkit-scrollbar { display: none; }
 .user-activity__movie-grid.is-scrollbar-hidden { scrollbar-width: none; }
 .user-activity__movie-grid.is-scrollbar-hidden::-webkit-scrollbar { display: none; }
 .user-activity__movie-grid[data-dragging="true"] { cursor: grabbing; }

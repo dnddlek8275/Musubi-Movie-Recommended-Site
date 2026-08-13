@@ -74,7 +74,7 @@
 .mypage-chat-row b { color: var(--accent); }
 
 .mypage-movie-section { margin-top: 54px; }
-.mypage-movie-strip { display: grid; grid-auto-columns: minmax(190px, 190px); grid-auto-flow: column; justify-content: start; gap: 14px; overflow-x: auto; scrollbar-width: none; }
+.mypage-movie-strip { padding: 2px 0 5px; display: grid; grid-auto-columns: minmax(190px, 190px); grid-auto-flow: column; justify-content: start; gap: 14px; overflow-x: auto; scroll-behavior: smooth; scrollbar-width: none; }
 .mypage-movie-strip::-webkit-scrollbar { display: none; }
 .mypage-movie-card { width: 190px; min-width: 190px; max-width: 190px; color: var(--text); text-decoration: none; }
 .mypage-movie-card__poster { position: relative; aspect-ratio: 2 / 3; border: 1px solid var(--panel-border); border-radius: 14px; overflow: hidden; display: grid; place-items: center; background: var(--panel); color: var(--muted); font-size: 11px; }
@@ -124,7 +124,8 @@
 .mypage-chat-column > header { margin-bottom: 14px; padding-bottom: 18px; border-bottom: 1px solid var(--panel-border); display: flex; align-items: center; justify-content: space-between; }
 .mypage-chat-column h3 { margin: 0; font-size: 19px; }
 .mypage-chat-column > header span { color: var(--muted); font-size: 13px; font-weight: 700; }
-.mypage-chat-column > div { max-height: 520px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--muted) 35%, transparent) transparent; }
+.mypage-chat-column > div { max-height: 520px; overflow-y: auto; scrollbar-width: none; }
+.mypage-chat-column > div::-webkit-scrollbar { display: none; }
 .mypage-chat-record { min-height: 72px; padding: 0 3px 0 8px; border-bottom: 1px solid var(--panel-border); position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; }
 .mypage-chat-record > a { min-width: 0; align-self: stretch; display: flex; flex-direction: column; justify-content: center; gap: 7px; color: var(--text); text-decoration: none; }
 .mypage-chat-record > a strong { overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }

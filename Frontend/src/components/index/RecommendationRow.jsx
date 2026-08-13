@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { fetchMovies, getLocalPreferences } from '../../api.js';
 import { HOME_MOVIE_COUNT } from './constants.js';
 import MovieCard from '../movieCard/MovieCard.jsx';
 import { PosterRowSkeleton } from '../common/LoadingSkeleton.jsx';
+import HorizontalScroller from '../common/HorizontalScroller.jsx';
 import SectionHeader from './SectionHeader.jsx';
 import { getInternalMovieId } from '../../utils/movieIdentity.js';
 import { navigateTo } from '../../navigation.js';
@@ -88,18 +89,10 @@ function RecommendationRow({ authUser, likedMovieKeys = [], onToggleLike }) {
   const [movies, setMovies] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
-  const rowRef = useRef(null);
 
   const displayName =
     authUser?.nickname || authUser?.name || authUser?.username || '게스트';
   const title = `${displayName}님을 위한 영화 추천!`;
-
-  const scrollByCards = (direction) => {
-    const row = rowRef.current;
-    if (!row) return;
-
-    row.scrollBy({ left: direction * (212 + 30) * 3, behavior: 'smooth' });
-  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -128,16 +121,7 @@ function RecommendationRow({ authUser, likedMovieKeys = [], onToggleLike }) {
       <SectionHeader icon="👏" title={title} />
 
       <div className="index-movie-slider">
-        <button
-          className="index-movie-slider-btn index-movie-slider-btn--prev"
-          type="button"
-          onClick={() => scrollByCards(-1)}
-          aria-label="이전 영화 보기"
-        >
-          ‹
-        </button>
-
-        <div className="index-movie-row" ref={rowRef}>
+        <HorizontalScroller className="index-movie-row" ariaLabel="개인 추천 영화 목록">
           {loading ? <PosterRowSkeleton count={7} /> : movies.map((movie, index) => (
             <MovieCard
               index={index}
@@ -148,16 +132,7 @@ function RecommendationRow({ authUser, likedMovieKeys = [], onToggleLike }) {
               key={movie.id}
             />
           ))}
-        </div>
-
-        <button
-          className="index-movie-slider-btn index-movie-slider-btn--next"
-          type="button"
-          onClick={() => scrollByCards(1)}
-          aria-label="다음 영화 보기"
-        >
-          ›
-        </button>
+        </HorizontalScroller>
       </div>
 
       {movies.length === 0 && error ? (

@@ -623,10 +623,18 @@
 /* 추천 영화 카드 */
 .chat-movies-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 12px;
   margin-top: 8px;
+  padding: 2px 0 5px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
 }
+
+.chat-movies-row::-webkit-scrollbar { display: none; }
+.chat-msg .horizontal-scroller { max-width: 100%; }
+.chat-msg .horizontal-scroller__arrow { top: 48%; width: 32px; height: 46px; font-size: 27px; }
 
 .chat-sources {
   display: grid;

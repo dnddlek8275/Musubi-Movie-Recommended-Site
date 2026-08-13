@@ -158,8 +158,13 @@
   gap: 12px;
   overflow-x: auto;
   padding-bottom: 3px;
-  scrollbar-width: thin;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
 }
+
+.home-variant-message__movies::-webkit-scrollbar { display: none; }
+.home-variant-message .horizontal-scroller { max-width: 100%; }
+.home-variant-message .horizontal-scroller__arrow { top: 48%; width: 32px; height: 46px; font-size: 27px; }
 
 .home-variant-message__sources {
   display: grid;

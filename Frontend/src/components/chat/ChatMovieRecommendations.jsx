@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import { resolveChatMovieId } from '../../api.js';
 import { navigateTo } from '../../navigation.js';
 import PosterArt from '../index/PosterArt.jsx';
+import HorizontalScroller from '../common/HorizontalScroller.jsx';
 
 function ChatMovieRecommendations({ movies }) {
   const [openingKey, setOpeningKey] = useState('');
@@ -30,7 +31,7 @@ function ChatMovieRecommendations({ movies }) {
 
   return (
     <>
-      <div className="home-variant-message__movies" aria-label="추천 영화">
+      <HorizontalScroller className="home-variant-message__movies" ariaLabel="추천 영화">
         {movies.slice(0, 3).map((movie, index) => {
           const title = movie.title || movie.name || movie.movie || `추천 영화 ${index + 1}`;
           const key = String(movie.movie_id || movie.tmdb_id || movie.id || `${title}-${index}`);
@@ -55,7 +56,7 @@ function ChatMovieRecommendations({ movies }) {
             </button>
           );
         })}
-      </div>
+      </HorizontalScroller>
       {status ? <p className="home-variant-message__movie-status" role="status">{status}</p> : null}
     </>
   );
