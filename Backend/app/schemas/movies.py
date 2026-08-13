@@ -19,7 +19,7 @@ class MovieReviewData(BaseModel):
     id: int
     user_id: int
     nickname: str
-    score: int
+    score: float
     comment: str
     is_spoiler: bool = False
     updated_at: datetime
@@ -102,7 +102,7 @@ class MovieDetailData(BaseModel):
     updated_at: datetime
     musubi_rating: float | None = None
     rating_count: int = 0
-    my_rating: int | None = None
+    my_rating: float | None = None
     my_comment: str | None = None
     my_is_spoiler: bool = False
     reviews: list[MovieReviewData] = Field(default_factory=list)
@@ -128,7 +128,7 @@ class MovieIdentityRequest(BaseModel):
 
 
 class MovieRatingRequest(MovieIdentityRequest):
-    score: int = Field(ge=1, le=5)
+    score: float = Field(ge=0.5, le=5, multiple_of=0.5)
     comment: str | None = Field(default=None, max_length=500)
     is_spoiler: bool = False
 

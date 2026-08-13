@@ -182,8 +182,9 @@
 .movie-detail__rating-panel { margin-top: 14px; padding: 16px 18px; border: 1px solid var(--panel-border); border-radius: 14px; display: flex; align-items: center; flex-wrap: wrap; gap: 14px 18px; background: var(--panel); }
 .movie-detail__rating-panel > strong { margin-right: auto; font-size: 14px; }
 .movie-detail__rating-stars { display: flex; gap: 3px; }
-.movie-detail__rating-stars button { width: 32px; height: 32px; padding: 0; border: 0; background: transparent; color: var(--line); cursor: pointer; font-size: 25px; line-height: 1; }
-.movie-detail__rating-stars button.is-selected { color: var(--accent); }
+.movie-detail__rating-stars button { width: 32px; height: 32px; padding: 0; border: 0; position: relative; background: transparent; cursor: pointer; font-size: 25px; line-height: 1; }
+.movie-detail__rating-star-base, .movie-detail__rating-star-fill { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: var(--line); pointer-events: none; }
+.movie-detail__rating-star-fill { width: var(--rating-fill, 0); left: calc(50% - 12.5px); transform: translateY(-50%); overflow: hidden; color: var(--accent); white-space: nowrap; }
 .movie-detail__rating-submit { height: 36px; padding: 0 16px; border: 0; border-radius: 999px; background: var(--accent); color: #111; cursor: pointer; font-weight: 900; }
 .movie-detail__rating-submit:disabled { cursor: default; opacity: .45; }
 .movie-detail__review-input { width: 100%; position: relative; }

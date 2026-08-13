@@ -54,6 +54,17 @@ class MovieRatingIdentityTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             MovieRatingRequest(score=4, comment="검증 필드가 없는 요청")
 
+    def test_half_star_rating_is_accepted(self):
+        self.assertEqual(self.request(score=3.5).score, 3.5)
+
+    def test_rating_must_use_half_star_steps(self):
+        with self.assertRaises(ValidationError):
+            self.request(score=3.7)
+
+    def test_rating_cannot_be_zero(self):
+        with self.assertRaises(ValidationError):
+            self.request(score=0)
+
     def test_delete_identity_uses_the_same_validation(self):
         request = MovieIdentityRequest(
             expected_movie_id=196,

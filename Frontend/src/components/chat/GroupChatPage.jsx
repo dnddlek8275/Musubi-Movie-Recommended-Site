@@ -572,13 +572,13 @@ function GroupChatPage({ authUser, onLogout }) {
   }, [authUser]);
 
   const activeConversation = conversations.find((c) => c.id === activeId) || null;
-  const historyConversations = useMemo(() => [...conversations, ...linkedConversations]
+  const historyConversations = useMemo(() => conversations
     .map((conversation, index) => ({ conversation, index }))
     .sort((left, right) => (
       Number(Boolean(right.conversation.pinned)) - Number(Boolean(left.conversation.pinned))
       || left.index - right.index
     ))
-    .map(({ conversation }) => conversation), [conversations, linkedConversations]);
+    .map(({ conversation }) => conversation), [conversations]);
   const messages = activeConversation?.messages || [];
   const members = activeConversation?.members || [];
   const canChat = Boolean(activeConversation);

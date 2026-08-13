@@ -22,7 +22,7 @@ function formatDate(value) {
   }).format(date);
 }
 
-function UserMovieGrid({ authUser, movies, likedIds, onToggleLike }) {
+function UserMovieGrid({ authUser, movies, likedIds, onToggleLike, hideScrollbar = false }) {
   const railRef = useRef(null);
 
   const startDrag = (event) => {
@@ -62,7 +62,7 @@ function UserMovieGrid({ authUser, movies, likedIds, onToggleLike }) {
 
   return (
     <div
-      className="user-activity__movie-grid"
+      className={`user-activity__movie-grid${hideScrollbar ? ' is-scrollbar-hidden' : ''}`}
       onClickCapture={blockClickAfterDrag}
       onPointerCancel={stopDrag}
       onPointerDown={startDrag}
@@ -184,7 +184,7 @@ function UserActivityPage({ authUser, userId }) {
       <section className="user-activity__section">
         <header><span>LIKED MOVIES</span><h2>좋아요 누른 영화</h2><small>{likedMovies.length}편</small></header>
         {likedMovies.length
-          ? <UserMovieGrid authUser={authUser} movies={likedMovies} likedIds={likedIds} onToggleLike={toggleLike} />
+          ? <UserMovieGrid authUser={authUser} movies={likedMovies} likedIds={likedIds} onToggleLike={toggleLike} hideScrollbar />
           : <p className="user-activity__empty">공개할 좋아요 영화가 없습니다.</p>}
       </section>
 

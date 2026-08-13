@@ -337,16 +337,8 @@ def get_discovery_sections_result(
             ),
         })
 
-    genre_values = [item["value"] for item in preferences if item["type"] == "genre"]
     actor_values = [item["value"] for item in preferences if item["type"] == "actor"]
     sections.extend([
-        {
-            "key": "preferred-genres",
-            "title": "선호 장르 영화",
-            "movies": _movies_for_preference(
-                db, "genre", genre_values, limit, liked_movie_ids
-            ),
-        },
         {
             "key": "preferred-actors",
             "title": "선호 배우 영화",

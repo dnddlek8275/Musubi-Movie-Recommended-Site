@@ -1,4 +1,6 @@
+from datetime import datetime
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile, status
 from sqlalchemy import func, select
@@ -343,9 +345,7 @@ async def get_my_preferences(
                 "message": "사용자 정보를 찾을 수 없습니다.",
             }
         
-        # 좋아요·조회·검색으로 자동 학습된 취향 점수 조회
-        preference_scores = get_user_preference_scores(db,user_id)
-         # 프론트에서 사용하기 편하도록 취향 타입별로 분리한다.
+        # 프론트에서 사용하기 편하도록 취향 타입별로 분리한다.
         learned_preferences = {
             "genres": [],
             "actors": [],
@@ -359,7 +359,8 @@ async def get_my_preferences(
             "keyword": "keywords",
         }
 
-        for preference in preference_scores:
+        effective_preferences = get_combined_user_preference_signals(db, user_id)
+        for preference in effective_preferences:
             response_key = preference_key_map.get(
                 preference.preference_type
             )
@@ -368,9 +369,12 @@ async def get_my_preferences(
             if response_key is None:
                 continue
 
+            if preference.behavior_score <= 0:
+                continue
             learned_preferences[response_key].append({
                 "value": preference.preference_value,
-                "score": round(preference.score or 0.0, 3),
+                # 조회·검색·좋아요뿐 아니라 별점·찜과 시간 감쇠까지 반영한 실효 점수다.
+                "score": round(preference.behavior_score, 3),
             })
 
         # 실제 추천 계산과 동일하게 직접 설정값과 행동 학습 점수를 합산한 결과다.
@@ -379,7 +383,7 @@ async def get_my_preferences(
             "actors": [],
             "keywords": [],
         }
-        for preference in get_combined_user_preference_signals(db, user_id):
+        for preference in effective_preferences:
             response_key = preference_key_map.get(preference.preference_type)
             if response_key is None:
                 continue
@@ -554,9 +558,14 @@ async def reset_my_learned_preferences(
     db: Session = Depends(get_db),
 ):
     try:
+        user_id = current_user["user_id"]
+        user = get_user(db, user_id)
+        if user is None:
+            return {"state": "failure", "message": "사용자 정보를 찾을 수 없습니다."}
         deleted_count = db.query(UserPreferenceScore).filter(
-            UserPreferenceScore.user_id == current_user["user_id"],
+            UserPreferenceScore.user_id == user_id,
         ).delete(synchronize_session=False)
+        user.preference_learning_reset_at = datetime.now(ZoneInfo("Asia/Seoul"))
         db.commit()
         return {
             "state": "success",

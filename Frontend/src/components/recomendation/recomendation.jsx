@@ -118,9 +118,6 @@ function sectionTitle(section, displayName) {
   if (section.key === 'recent-likes') {
     return `${displayName}님이 마음을 남긴 영화, 최근 순서로 모았어요`;
   }
-  if (section.key === 'preferred-genres') {
-    return `${displayName}님의 장르 취향을 조금 더 넓혀볼까요?`;
-  }
   if (section.key === 'preferred-actors') {
     return `${displayName}님이 눈여겨본 배우들의 다른 작품이에요`;
   }

@@ -411,13 +411,23 @@ function MovieDetailPage({ authUser, movieId }) {
               <div className="movie-detail__rating-stars" role="group" aria-label="영화 평점 선택">
                 {[1, 2, 3, 4, 5].map((score) => (
                   <button
-                    aria-label={`${score}점`}
-                    aria-pressed={draftRating === score}
-                    className={score <= draftRating ? 'is-selected' : ''}
+                    aria-label={`${score - 0.5}점 또는 ${score}점 선택`}
+                    aria-pressed={draftRating === score || draftRating === score - 0.5}
                     key={score}
-                    onClick={() => setDraftRating(score)}
+                    onClick={(event) => {
+                      if (event.detail === 0) {
+                        setDraftRating(score);
+                        return;
+                      }
+                      const rect = event.currentTarget.getBoundingClientRect();
+                      setDraftRating(event.clientX - rect.left < rect.width / 2 ? score - 0.5 : score);
+                    }}
+                    style={{ '--rating-fill': `${Math.max(0, Math.min(1, draftRating - score + 1)) * 25}px` }}
                     type="button"
-                  >★</button>
+                  >
+                    <span className="movie-detail__rating-star-base" aria-hidden="true">★</span>
+                    <span className="movie-detail__rating-star-fill" aria-hidden="true">★</span>
+                  </button>
                 ))}
               </div>
               <label className="movie-detail__review-input">

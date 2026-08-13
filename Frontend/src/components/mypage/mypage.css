@@ -146,7 +146,7 @@
 .mypage-taste-editor > header h3 { margin: 0 0 8px; }
 .mypage-taste-editor > header p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.55; }
 .mypage-taste-editor > header > button,
-.mypage-taste-editor > header > button.is-reset { height: auto; align-self: flex-start; margin-top: -9px; padding: 2px 0; border: 0; border-radius: 0; background: transparent; color: var(--muted); font-size: 13px; font-weight: 650; cursor: pointer; }
+.mypage-taste-editor > header > button.is-reset { height: auto; flex: 0 0 auto; align-self: flex-start; margin-top: -9px; padding: 2px 0; border: 0; border-radius: 0; background: transparent; color: var(--muted); font-size: 13px; font-weight: 650; white-space: nowrap; cursor: pointer; }
 .mypage-taste-editor-row { min-width: 0; min-height: 0; padding: 24px 0 26px; border-top: 1px solid var(--panel-border); display: flex; flex-direction: column; justify-content: center; }
 .mypage-taste-editor-row__heading { min-width: 0; display: flex; align-items: baseline; gap: 16px; }
 .mypage-taste-editor-row__heading strong { flex: 0 0 auto; color: var(--text); font-size: 17px; font-weight: 850; }

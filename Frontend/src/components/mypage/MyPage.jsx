@@ -302,7 +302,16 @@ function ChatColumn({ title, rooms, side, onPin, onRename, onDelete }) {
               </button>
               <button className="mypage-chat-record__more" type="button" onClick={(event) => {
                 const rect = event.currentTarget.getBoundingClientRect();
-                setMenuPosition({ top: rect.bottom + 6, left: Math.min(rect.left - 92, window.innerWidth - 142) });
+                const menuWidth = 144;
+                const menuHeight = 124;
+                const gap = 8;
+                const hasRoomOnRight = rect.right + gap + menuWidth <= window.innerWidth - gap;
+                setMenuPosition({
+                  top: Math.max(gap, Math.min(rect.top, window.innerHeight - menuHeight - gap)),
+                  left: hasRoomOnRight
+                    ? rect.right + gap
+                    : Math.max(gap, rect.left - menuWidth - gap),
+                });
                 setMenuId((current) => current === room.id ? '' : room.id);
               }} aria-label={`${room.title} 메뉴`} aria-expanded={menuId === room.id}>⋮</button>
               {menuId === room.id ? <div className="mypage-chat-record__menu" style={{ top: menuPosition.top, left: menuPosition.left }}>

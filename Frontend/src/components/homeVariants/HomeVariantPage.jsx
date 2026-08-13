@@ -557,7 +557,7 @@ function HomePage({ authUser, onLogout }) {
     setHistoryOpen(false);
   };
 
-  const historyConversations = [...chat.conversations, ...chat.linkedConversations]
+  const historyConversations = chat.conversations
     .filter((conversation) => (
       Boolean(conversation.roomId)
       || (Array.isArray(conversation.messages) && conversation.messages.length > 0)

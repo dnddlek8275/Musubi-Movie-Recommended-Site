@@ -1529,7 +1529,7 @@ export async function rateMovie(
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      score: clampNumber(score, 1, 5, 1),
+      score: Math.round(clampNumber(score, 0.5, 5, 0.5) * 2) / 2,
       comment,
       is_spoiler: Boolean(isSpoiler),
       expected_movie_id: expectedMovieId,
@@ -1759,10 +1759,6 @@ export async function deletePreferenceType(preferenceType, signal) {
     ...(localPreferences || {}),
     [category]: [],
   };
-
-  if (preferenceType === 'keyword') {
-    nextLocalPreferences.directors = [];
-  }
 
   writeLocalJson(LOCAL_PREFERENCES_KEY, nextLocalPreferences);
 
