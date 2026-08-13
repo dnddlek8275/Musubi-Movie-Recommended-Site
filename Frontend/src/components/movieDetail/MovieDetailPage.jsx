@@ -546,7 +546,7 @@ function MovieDetailPage({ authUser, movieId }) {
                   <strong className="movie-detail__review-author">{review.nickname || '사용자'}</strong>
                   <div className="movie-detail__review-meta">
                     <time dateTime={review.updated_at}>{formatReviewDate(review.updated_at)}</time>
-                    <span>{review.is_spoiler ? '스포일러 · ' : ''}★ {review.score}</span>
+                    <span>★ {review.score}</span>
                   </div>
                   {review.is_spoiler && !revealedSpoilers.includes(String(review.id ?? index)) ? (
                     <button className="movie-detail__spoiler-cover" onClick={(event) => { event.stopPropagation(); setRevealedSpoilers((current) => [...current, String(review.id ?? index)]); }} type="button">
