@@ -25,6 +25,7 @@ from pipeline.input_clarity import (
     get_mumu_personal_reply,
 )
 from pipeline.dialogue_guard import (
+    general_history_recall_reply,
     log_dialogue_guard_event,
     output_rejection_reason,
 )
@@ -1221,6 +1222,9 @@ def run_auto(user_message, history=None, use_rag=True, max_tokens=512, user_cont
     casual_reply = _general_casual_reply(user_message, history)
     if casual_reply:
         return CharacterChatResult(character="무무", answer=casual_reply, rag_used=False)
+    history_reply = general_history_recall_reply(user_message, history)
+    if history_reply:
+        return CharacterChatResult(character="무무", answer=history_reply, rag_used=False)
     profiles = get_profiles()
 
     character_name, unsupported = detect_character_request(user_message, profiles)
@@ -1245,7 +1249,10 @@ def run_auto(user_message, history=None, use_rag=True, max_tokens=512, user_cont
     if user_context_prompt:
         messages.append({"role": "system", "content": user_context_prompt})
     messages.extend(history)
-    messages.append({"role": "user", "content": user_message})
+    messages.append({
+        "role": "user",
+        "content": user_message + "\n\n" + build_turn_guidance(user_message, history) + _ANSWER_NOW_REMINDER,
+    })
     raw = chat(messages, max_tokens=max_tokens)
     answer = clean_and_truncate(raw, "") or "..."
     if has_generic_self_help(answer):

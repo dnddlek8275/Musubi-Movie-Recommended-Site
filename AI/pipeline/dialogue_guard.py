@@ -50,6 +50,37 @@ def output_rejection_reason(answer: str, user_message: str) -> str | None:
     return None
 
 
+def general_history_recall_reply(user_message: str, history: list[dict]) -> str | None:
+    """Answer explicit recent-movie recall questions only from recorded history."""
+    compact = re.sub(r"\s+", "", str(user_message or ""))
+    if not (
+        re.search(r"(?:방금|아까|전에).*(?:말한|얘기한)", compact)
+        and re.search(r"영화.*(?:뭐|무엇|제목)", compact)
+    ):
+        return None
+
+    patterns = (
+        re.compile(
+            r"(?:가장\s*)?(?:좋아하는\s*)?영화(?:는|가)?\s*['\"‘“]?"
+            r"([^.!?\n'\"’”]{1,50}?)['\"’”]?(?:이야|야|예요|에요|라고|였)"
+        ),
+        re.compile(
+            r"['\"‘“]([^.!?\n'\"’”]{1,50})['\"’”].{0,12}(?:영화|작품)"
+        ),
+    )
+    for item in reversed(history):
+        if item.get("role") != "user":
+            continue
+        content = str(item.get("content") or "").strip()
+        for pattern in patterns:
+            match = pattern.search(content)
+            if match:
+                title = match.group(1).strip(" ,:：")
+                if title:
+                    return f"방금 말한 영화는 {title}야."
+    return "대화 기록에서 방금 말한 영화 제목을 정확히 확인하지 못했어. 제목을 한 번만 다시 알려줘."
+
+
 def log_dialogue_guard_event(
     *,
     reason: str,
