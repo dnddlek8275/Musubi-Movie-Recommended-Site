@@ -4,6 +4,7 @@ import {
   addLikedMovie,
   fetchDiscoverySections,
   fetchLikedMovies,
+  fetchMoviesByCountry,
   fetchMoviesByGenre,
   fetchSearchSections,
   getLocalPreferences,
@@ -16,6 +17,7 @@ import { navigateTo } from '../../navigation.js';
 import './recomendation.css';
 
 const ROTATING_GENRES = [
+  '한국영화',
   '드라마', '코미디', '스릴러', '액션', '공포', '로맨스', '범죄', '모험',
   '애니메이션', 'SF', '가족', '판타지', '미스터리', '다큐멘터리', '음악',
   '역사', '전쟁',
@@ -324,7 +326,10 @@ function Recommendation({ authUser, onLogout }) {
 
     const controller = new AbortController();
     setGenreLoading(true);
-    fetchMoviesByGenre(selectedGenre, controller.signal, { limit: 25, sort: 'latest' })
+    const request = selectedGenre === '한국영화'
+      ? fetchMoviesByCountry('KR', controller.signal, { limit: 25 })
+      : fetchMoviesByGenre(selectedGenre, controller.signal, { limit: 25, sort: 'latest' });
+    request
       .then(setGenreMovies)
       .catch((error) => {
         if (error.name !== 'AbortError') setStatus(error.message);
@@ -391,7 +396,7 @@ function Recommendation({ authUser, onLogout }) {
   const genreTitle = (
     <span className="recommendation-genre-title">
       <GenreSelector value={selectedGenre} onChange={setSelectedGenre} />
-      <span>영화만 모아봤어요.</span>
+      <span>{selectedGenre === '한국영화' ? '최신순으로 모아봤어요.' : '영화만 모아봤어요.'}</span>
     </span>
   );
 

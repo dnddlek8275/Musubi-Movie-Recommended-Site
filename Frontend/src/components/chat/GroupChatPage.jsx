@@ -1495,7 +1495,7 @@ function GroupChatPage({ authUser, onLogout }) {
     }
   };
 
-  const statusText = busy ? 'AI가 답변 중입니다.' : error || characterLoadError || '';
+  const statusText = error || characterLoadError || '';
   const normalizedPickerQuery = normalizeCharacterSearchText(pickerQuery);
   const pickerCharacters = normalizedPickerQuery
     ? characters.filter((character) => (

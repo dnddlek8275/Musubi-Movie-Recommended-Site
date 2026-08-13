@@ -1598,6 +1598,28 @@ export async function fetchMoviesByGenre(
   return getArrayPayload(data, 'movies');
 }
 
+export async function fetchMoviesByCountry(
+  countryCode,
+  signal,
+  { page = 1, limit = 20 } = {}
+) {
+  const params = new URLSearchParams({
+    page: String(clampNumber(page, 1, Number.MAX_SAFE_INTEGER, 1)),
+    limit: String(clampNumber(limit, 1, 50, 20)),
+  });
+  const response = await fetch(
+    `${BACKEND_BASE_URL}/movies/country/${encodeURIComponent(countryCode)}?${params}`,
+    { credentials: 'include', cache: 'no-store', signal }
+  );
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok || getResponseState(data) === 'error') {
+    throw new Error(getErrorMessage(data, `제작국가별 영화 조회 실패 (${response.status})`));
+  }
+
+  return getArrayPayload(data, 'movies');
+}
+
 export async function requestAiMovieRecommendation(
   { userId, user_id, prompt = null, genres = [] },
   signal

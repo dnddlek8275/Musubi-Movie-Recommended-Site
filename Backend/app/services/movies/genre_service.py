@@ -52,3 +52,24 @@ def genre_movies (
 
 
     return genre_movies
+
+
+def country_movies(
+        db: Session,
+        country_code: str,
+        page: int = 1,
+        limit: int = 20,
+):
+    normalized_country_code = str(country_code or "").strip().upper()
+    statement = (
+        select(Movie)
+        .where(Movie.production_countries.op("&&")([normalized_country_code]))
+        .order_by(
+            Movie.release_date.desc().nulls_last(),
+            Movie.year.desc().nulls_last(),
+            Movie.id.desc(),
+        )
+        .offset((page - 1) * limit)
+        .limit(limit)
+    )
+    return db.scalars(statement).all()

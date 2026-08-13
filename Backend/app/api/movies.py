@@ -13,7 +13,7 @@ from app.core.dependencies import get_db
 from app.schemas.movies import MovieCastData, MovieDetailData, MovieDetailResponse, MovieIdentityRequest, MovieRatingRequest, PersonFilmographyResponse, RecommendRequest
 from app.schemas.users import PreferenceRequest
 from app.services.actor_service import get_actors_result, get_onboarding_actors_result
-from app.services.movies.genre_service import genre_movies
+from app.services.movies.genre_service import country_movies, genre_movies
 from app.services.movies.chat_movie_link_service import resolve_chat_movie
 from app.services.movies.ranking_service import movie_detail, realtime_movie_ranking_result
 from app.services.movies.discovery_section_service import get_discovery_sections_result
@@ -941,6 +941,36 @@ def get_genre_movies(
         }
     except Exception:
         return error_response("장르별 영화 에러")
+
+
+@router.get("/country/{country_code}")
+def get_country_movies(
+    country_code: str,
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=50),
+    db: Session = Depends(get_db),
+):
+    try:
+        movies_result = country_movies(db, country_code, page, limit)
+        return {
+            "state": "success",
+            "message": "제작국가별 영화 조회 성공",
+            "data": [
+                {
+                    "movie_id": movie.id,
+                    "title": movie.title,
+                    "poster_path": movie.poster_path,
+                    "vote_average": movie.vote_average,
+                    "genres": movie.genres or [],
+                    "year": movie.year,
+                    "release_date": movie.release_date,
+                    "production_countries": movie.production_countries or [],
+                }
+                for movie in movies_result
+            ],
+        }
+    except Exception:
+        return error_response("제작국가별 영화 조회 에러")
 
 # ai의 영화 추천
 @router.post("/ai-recommend")

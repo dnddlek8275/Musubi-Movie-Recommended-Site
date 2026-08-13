@@ -818,9 +818,7 @@ function ChatPage({ authUser }) {
 
   const canSend = Boolean(input.trim() && canChat && !busy);
 
-  const statusText = busy
-    ? 'AI가 답변 중입니다.'
-    : error || characterLoadError || '';
+  const statusText = error || characterLoadError || '';
 
   const stopIcon = (
     <svg viewBox="0 0 24 24" aria-hidden="true">

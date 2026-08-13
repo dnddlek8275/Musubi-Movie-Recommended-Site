@@ -1,14 +1,16 @@
 import imageData from '../../imgData.json';
 
 function PromoBanner({ highResolution = false }) {
-  const promos = imageData.hero?.promos || [];
+  const promos = highResolution
+    ? imageData.homeHero?.promos || imageData.hero?.promos || []
+    : imageData.hero?.promos || [];
   const slides = promos.length > 0
     ? [...promos, { ...promos[0], id: `${promos[0].id}-clone`, isClone: true }]
     : [];
 
   return (
     <article className="index-hero-card">
-      <div className="index-hero-slider">
+      <div className={`index-hero-slider${promos.length === 12 ? ' index-hero-slider--12' : ''}`}>
         {slides.map((promo, index) => {
           const imageSource = highResolution
             ? promo.highResolutionImage || promo.image
