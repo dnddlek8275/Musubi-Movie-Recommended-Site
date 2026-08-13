@@ -11,6 +11,12 @@ from pipeline.input_clarity import (
     get_mumu_personal_reply,
 )
 from pipeline.intent import Intent, classify
+from pipeline.dialogue_guard import output_rejection_reason
+from pipeline.tone_presets import (
+    build_identity_reply,
+    build_recovery_reply,
+    is_character_relation_question,
+)
 
 
 class AmbiguousInputPromptTests(unittest.TestCase):
@@ -116,6 +122,51 @@ class AmbiguousInputPromptTests(unittest.TestCase):
         for message in ("ㅇㅇ", "ㄴㄴ", "ㄱㄱ", "ㅎㅇ", "ㄴㄴ 그거 말고"):
             with self.subTest(message=message):
                 self.assertIsNone(get_ambiguous_input_reply(message))
+
+    def test_short_unexplained_ascii_is_recovered_without_llm(self):
+        for message in ("cd", "cfr"):
+            with self.subTest(message=message):
+                recovery = get_input_recovery(message)
+                self.assertIsNotNone(recovery)
+                self.assertEqual(recovery.kind, "ambiguous_short_ascii")
+                self.assertEqual(classify(message), Intent.INPUT_RECOVERY)
+
+    def test_known_short_ascii_terms_are_not_blocked(self):
+        for message in ("AI", "DB", "SF", "TV", "ok", "hi", "Up", "Hope", "xyz"):
+            with self.subTest(message=message):
+                self.assertIsNone(get_input_recovery(message))
+
+    def test_direct_character_identity_is_not_a_relation_question(self):
+        for message in ("넌 누구야?", "이름이 뭐야?", "당신은 누구예요?"):
+            with self.subTest(message=message):
+                self.assertFalse(is_character_relation_question(message))
+
+    def test_selected_character_identity_uses_profile_without_llm(self):
+        source = (self.ai_root / "pipeline" / "character_pipeline.py").read_text()
+        self.assertIn("def _character_identity_reply", source)
+        self.assertIn("profiles[\"characters\"][character_name]", source)
+
+    def test_guard_reply_preserves_active_character_register(self):
+        self.assertIn("겠소", build_recovery_reply("간달프"))
+        self.assertIn("요", build_recovery_reply("우디"))
+        self.assertNotEqual(build_recovery_reply("간달프"), build_recovery_reply("무무"))
+        self.assertIn("하오", build_identity_reply("간달프", "반지의 제왕: 반지 원정대"))
+
+    def test_generated_user_turn_is_rejected(self):
+        self.assertEqual(
+            output_rejection_reason("코드 관련 책을 추천해줘.", "cd"),
+            "generated_user_request",
+        )
+        self.assertEqual(
+            output_rejection_reason("공포 영화를 추천해줘", "공포 영화를 추천해줘"),
+            "generated_user_request",
+        )
+        self.assertIsNone(
+            output_rejection_reason("어떤 분위기의 영화를 찾고 있어?", "영화 추천해줘")
+        )
+        self.assertIsNone(
+            output_rejection_reason("원하는 장르를 알려줘.", "영화 추천해줘")
+        )
 
     def test_random_jamo_has_dedicated_intent(self):
         self.assertEqual(classify("ㄴㄹㅇㄹㄴ"), Intent.INPUT_RECOVERY)

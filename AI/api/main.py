@@ -671,30 +671,25 @@ def chat_stream(req: ChatRequest):
     from llm.client import chat_stream as llm_stream
     from pipeline.character_pipeline import (
         _ANSWER_NOW_REMINDER,
+        _character_identity_reply,
         _relation_answer,
         _should_use_character_rag,
         _verified_relation_chunks,
     )
     from pipeline.input_clarity import get_ambiguous_input_reply
+    from pipeline.dialogue_guard import (
+        log_dialogue_guard_event,
+        output_rejection_reason,
+    )
     from pipeline.user_context import build_user_context_prompt
     from pipeline.tone_presets import (
         build_turn_guidance,
+        build_recovery_reply,
         enforce_dialogue_policy,
         is_character_relation_question,
         mentioned_characters,
     )
     import os
-
-    ambiguous_reply = get_ambiguous_input_reply(req.message)
-    if ambiguous_reply:
-        def recovery_event_generator():
-            yield f"data: {json.dumps({'answer': ambiguous_reply, 'character': '무무', 'intent': 'input_recovery'}, ensure_ascii=False)}\n\n"
-            yield "data: [DONE]\n\n"
-
-        return StreamingResponse(
-            recovery_event_generator(),
-            media_type="text/event-stream",
-        )
 
     profile_path = os.environ.get("PROFILE_PATH", "character_profiles_ALL_50.json")
     profiles = load_profiles(profile_path)
@@ -710,6 +705,33 @@ def chat_stream(req: ChatRequest):
         )
     except KeyError:
         raise HTTPException(status_code=404, detail=f"캐릭터 '{req.character}'를 찾을 수 없습니다.")
+
+    ambiguous_reply = get_ambiguous_input_reply(req.message)
+    if ambiguous_reply:
+        log_dialogue_guard_event(
+            reason="ambiguous_input",
+            mode="character_stream",
+            user_message=req.message,
+            character_name=character_name,
+        )
+        def recovery_event_generator():
+            payload = {
+                "answer": build_recovery_reply(character_name),
+                "character": character_name,
+                "intent": "input_recovery",
+            }
+            yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+            yield "data: [DONE]\n\n"
+
+        return StreamingResponse(recovery_event_generator(), media_type="text/event-stream")
+
+    identity_reply = _character_identity_reply(character_name, req.message, profiles)
+    if identity_reply:
+        def identity_event_generator():
+            yield f"data: {json.dumps(identity_reply, ensure_ascii=False)}\n\n"
+            yield "data: [DONE]\n\n"
+
+        return StreamingResponse(identity_event_generator(), media_type="text/event-stream")
 
     intent = classify(req.message, history=req.history)
     if intent == Intent.MOVIE_RECOMMEND:
@@ -786,6 +808,15 @@ def chat_stream(req: ChatRequest):
                 history=req.history,
                 relation_answer=relation_answer,
             )
+            rejection = output_rejection_reason(answer, req.message)
+            if rejection:
+                log_dialogue_guard_event(
+                    reason=rejection,
+                    mode="character_stream",
+                    user_message=req.message,
+                    character_name=character_name,
+                )
+                answer = build_recovery_reply(character_name)
             yield f"data: {json.dumps(answer, ensure_ascii=False)}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"

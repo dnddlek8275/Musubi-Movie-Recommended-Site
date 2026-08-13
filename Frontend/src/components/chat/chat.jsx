@@ -16,6 +16,7 @@ import './chat.css';
 import SttMicButton from './SttMicButton.jsx';
 import { SkeletonBlock } from '../common/LoadingSkeleton.jsx';
 import HorizontalScroller from '../common/HorizontalScroller.jsx';
+import { formatRating } from '../../utils/formatRating.js';
 
 const POSTER_BASE_URL =
   import.meta.env.VITE_TMDB_IMAGE_BASE_URL || 'https://image.tmdb.org/t/p/w500';
@@ -1198,7 +1199,7 @@ function ChatPage({ authUser }) {
                                         {rating != null ? (
                                           <div className="chat-movie__rating">
                                             <span>★</span>
-                                            {rating}
+                                            {formatRating(rating)}
                                           </div>
                                         ) : null}
                                         {movie.recommendation_reason ? (

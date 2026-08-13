@@ -261,12 +261,12 @@
 .movie-detail__similar-grid { padding: 2px 0 8px; display: flex; gap: 20px; overflow-x: auto; scroll-behavior: smooth; scroll-snap-type: x proximity; scrollbar-width: none; }
 .movie-detail__similar-grid::-webkit-scrollbar { display: none; }
 .movie-detail__similar-grid a, .movie-detail__similar-skeleton { width: calc((100% - 100px) / 6); min-width: 170px; flex: 0 0 calc((100% - 100px) / 6); color: var(--text); text-decoration: none; scroll-snap-align: start; }
-.movie-detail__similar-grid a > div { height: 280px; border-radius: 12px; display: grid; place-items: center; overflow: hidden; background: var(--panel); color: var(--muted); }
-.movie-detail__similar-grid img { width: 100%; height: 100%; object-fit: cover; }
+.movie-detail__similar-grid a > div { width: 100%; height: auto; aspect-ratio: 2 / 3; border-radius: 12px; display: grid; place-items: center; overflow: hidden; background: var(--panel); color: var(--muted); }
+.movie-detail__similar-grid img { width: 100%; height: 100%; object-fit: contain; }
 .movie-detail__similar-grid strong { display: block; margin: 12px 0 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .movie-detail__similar-grid small { color: var(--muted); }
 .movie-detail__similar-skeleton { min-width: 0; }
-.movie-detail__similar-skeleton > .loading-skeleton:first-child { width: 100%; height: 280px; border-radius: 12px; }
+.movie-detail__similar-skeleton > .loading-skeleton:first-child { width: 100%; height: auto; aspect-ratio: 2 / 3; border-radius: 12px; }
 .movie-detail__similar-skeleton > .loading-skeleton:nth-child(2) { width: 84%; margin-top: 12px; }
 .movie-detail__similar-skeleton > .loading-skeleton:nth-child(3) { width: 54%; margin-top: 7px; }
 
@@ -305,6 +305,6 @@
   .movie-detail__trailer-list button { min-width: 190px; flex-basis: min(70vw, 260px); }
   .movie-detail__trailer, .movie-detail__similar { margin-top: 70px; }
   .movie-detail__similar-grid a, .movie-detail__similar-skeleton { width: calc((100% - 14px) / 2); min-width: 150px; flex-basis: calc((100% - 14px) / 2); }
-  .movie-detail__similar-grid a > div { height: 240px; }
-  .movie-detail__similar-skeleton > .loading-skeleton:first-child { height: 240px; }
+  .movie-detail__similar-grid a > div { height: auto; }
+  .movie-detail__similar-skeleton > .loading-skeleton:first-child { height: auto; }
 }

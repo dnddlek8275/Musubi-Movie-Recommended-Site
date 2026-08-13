@@ -12,6 +12,7 @@ import {
 } from '../../api.js';
 import { normalizeMovie } from '../index/RecommendationRow.jsx';
 import MovieCard from '../movieCard/MovieCard.jsx';
+import HorizontalScroller from '../common/HorizontalScroller.jsx';
 import { getKeywordLabel } from '../../utils/keywordLabels.js';
 import { navigateTo } from '../../navigation.js';
 import './recomendation.css';
@@ -139,34 +140,8 @@ function sectionTitle(section, displayName) {
 }
 
 function MovieSection({ section, displayName, likedMovies, onToggleLike, source = '', titleContent = null }) {
-  const rowRef = useRef(null);
   const movies = section.movies.map(normalizeMovie);
   const title = sectionTitle(section, displayName);
-  const [scrollState, setScrollState] = useState({ canGoBack: false, canGoForward: false });
-
-  const updateScrollState = () => {
-    const row = rowRef.current;
-    if (!row) return;
-    const maxScrollLeft = Math.max(row.scrollWidth - row.clientWidth, 0);
-    setScrollState({
-      canGoBack: row.scrollLeft > 4,
-      canGoForward: row.scrollLeft < maxScrollLeft - 4,
-    });
-  };
-
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(updateScrollState);
-    window.addEventListener('resize', updateScrollState);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.removeEventListener('resize', updateScrollState);
-    };
-  }, [movies.length]);
-
-  const scroll = (direction) => {
-    const distance = Math.max((rowRef.current?.clientWidth || 1160) * 0.86, 320);
-    rowRef.current?.scrollBy({ left: direction * distance, behavior: 'smooth' });
-  };
 
   return (
     <section className="recommendation-row" aria-label={title}>
@@ -176,9 +151,7 @@ function MovieSection({ section, displayName, likedMovies, onToggleLike, source 
         </div>
       </header>
 
-      <div className={`recommendation-row__slider${scrollState.canGoBack ? ' has-prev' : ''}${scrollState.canGoForward ? ' has-more' : ''}`}>
-        <button className="recommendation-row__arrow is-prev" type="button" onClick={() => scroll(-1)} disabled={!scrollState.canGoBack} aria-label="이전 영화 보기">‹</button>
-        <div className="recommendation-row__movies" ref={rowRef} onScroll={updateScrollState}>
+      <HorizontalScroller className="recommendation-row__movies" ariaLabel={`${title} 영화 목록`}>
           {movies.map((movie, index) => (
             <div className="recommendation-row__item" key={movie.id ?? `${movie.title}-${index}`}>
               {section.key === 'box-office' || section.key === 'site-popular' ? (
@@ -195,9 +168,7 @@ function MovieSection({ section, displayName, likedMovies, onToggleLike, source 
               />
             </div>
           ))}
-        </div>
-        <button className="recommendation-row__arrow is-next" type="button" onClick={() => scroll(1)} disabled={!scrollState.canGoForward} aria-label="다음 영화 보기">›</button>
-      </div>
+      </HorizontalScroller>
     </section>
   );
 }

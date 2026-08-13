@@ -156,7 +156,7 @@ async def process_group_chat_message(db: Session, room, message: str):
     privious_messages = get_room_messages(db, room.id)
 
     # DB 메세지 목록을 history 형태로 변환
-    history = make_ai_history(privious_messages)
+    history = make_ai_history(privious_messages, include_character_labels=True)
     user_context = build_chat_user_context(db, room.user_id)
 
     # 그룹 채팅 API 요청

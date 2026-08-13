@@ -12,6 +12,9 @@ _ELLIPSIS = re.compile(r"^(?:\.{2,}|…+)$")
 _JAMO_ONLY = re.compile(r"^[ㄱ-ㅎㅏ-ㅣ\s!?.~]+$")
 _PUNCTUATION_ONLY = re.compile(r"^[\s.,!~;:'\"`()\[\]{}\-_=+*/\\|]+$")
 MEANINGFUL_JAMO_SHORTHANDS = {"ㅇㅇ", "ㄴㄴ", "ㄱㄱ", "ㅎㅇ"}
+# 운영 제보로 의미 불명 입력임이 확인된 값만 차단한다. 짧은 영문 전체를
+# 차단하면 Up/Hope 같은 영화 제목이나 SF/AI 같은 정상 입력까지 막을 수 있다.
+KNOWN_AMBIGUOUS_ASCII_INPUTS = {"cd", "cfr"}
 
 _CONTEXT_FREE_SHORT_REPLIES = {
     "ㅇㅇ": "응, 이어서 말해줘.",
@@ -94,6 +97,11 @@ def get_input_recovery(message: str) -> AIInputRecovery | None:
         return AIInputRecovery(
             answer="혹시 입력 중이었어? 편하게 이어서 말해줘.",
             kind="punctuation",
+        )
+    if text.casefold() in KNOWN_AMBIGUOUS_ASCII_INPUTS:
+        return AIInputRecovery(
+            answer="방금 입력은 뜻을 정확히 알기 어려워. 어떤 말을 하려던 건지 한 번만 더 알려줘.",
+            kind="ambiguous_short_ascii",
         )
     return None
 

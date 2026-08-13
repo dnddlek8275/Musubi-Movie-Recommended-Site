@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { fetchMovieDetail } from '../../api.js';
+import { formatRating } from '../../utils/formatRating.js';
 import './movieModal.css';
 
 let youtubeApiPromise;
@@ -83,7 +84,7 @@ function MovieModal({ movie, onClose, source = 'direct' }) {
     (Array.isArray(detail?.genres) ? detail.genres.join(', ') : '') ||
     movie?.genre ||
     '장르 정보 없음';
-  const ratingText = detail?.vote_average ?? movie?.rating ?? '-';
+  const ratingText = formatRating(detail?.vote_average ?? movie?.rating);
 
   const trailerUrl = toEmbeddableUrl(
     detail?.trailer_url ||

@@ -24,7 +24,16 @@
   gap: 12px;
   overflow-y: auto;
   scrollbar-width: thin;
+  scrollbar-color: rgba(135, 143, 149, 0.34) transparent;
 }
+
+.home-variant-chat__messages::-webkit-scrollbar { width: 6px; }
+.home-variant-chat__messages::-webkit-scrollbar-track { background: transparent; }
+.home-variant-chat__messages::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(135, 143, 149, 0.34);
+}
+.home-variant-chat__messages::-webkit-scrollbar-thumb:hover { background: rgba(170, 178, 184, 0.56); }
 
 .home-variant-chat__messages.is-compact {
   min-height: 120px;

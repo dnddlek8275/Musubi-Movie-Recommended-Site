@@ -21,6 +21,7 @@ import {
   getInternalMovieId,
   hasMatchingMovieIdentity,
 } from '../../utils/movieIdentity.js';
+import { formatRating } from '../../utils/formatRating.js';
 import './movieDetail.css';
 
 function toEmbedUrl(url) {
@@ -274,7 +275,7 @@ function MovieDetailPage({ authUser, movieId }) {
       setReviewSpoiler(Boolean(result.my_is_spoiler ?? draftSpoiler));
       setDetail((current) => ({ ...current, ...result }));
       setRatingOpen(false);
-      setStatus(`${detail?.title || '선택한 영화'}에 리뷰가 저장되었습니다.`);
+      setStatus('');
     } catch (error) {
       setStatus(error.message);
     } finally {
@@ -546,7 +547,7 @@ function MovieDetailPage({ authUser, movieId }) {
                   <strong className="movie-detail__review-author">{review.nickname || '사용자'}</strong>
                   <div className="movie-detail__review-meta">
                     <time dateTime={review.updated_at}>{formatReviewDate(review.updated_at)}</time>
-                    <span>★ {review.score}</span>
+                    <span>★ {formatRating(review.score)}</span>
                   </div>
                   {review.is_spoiler && !revealedSpoilers.includes(String(review.id ?? index)) ? (
                     <button className="movie-detail__spoiler-cover" onClick={(event) => { event.stopPropagation(); setRevealedSpoilers((current) => [...current, String(review.id ?? index)]); }} type="button">

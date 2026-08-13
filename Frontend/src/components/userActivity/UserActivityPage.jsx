@@ -10,6 +10,7 @@ import {
 import { SkeletonBlock } from '../common/LoadingSkeleton.jsx';
 import HorizontalScroller from '../common/HorizontalScroller.jsx';
 import { getInternalMovieId } from '../../utils/movieIdentity.js';
+import { formatRating } from '../../utils/formatRating.js';
 import '../mypage/mypage.css';
 import './userActivity.css';
 
@@ -197,7 +198,7 @@ function UserActivityPage({ authUser, userId }) {
                 <a className="mypage-review-card" href={`/movies/${id}`} key={review.id}>
                   <div className="mypage-review-card__poster">{poster ? <img src={poster} alt="" loading="lazy" /> : <span>포스터 준비 중</span>}</div>
                   <div className="mypage-review-card__body">
-                    <header><strong>{movie.title || '영화'}</strong><span>★ {review.score}</span></header>
+                    <header><strong>{movie.title || '영화'}</strong><span>★ {formatRating(review.score)}</span></header>
                     <p className={!comment ? 'is-rating-only' : ''}>{review.is_spoiler ? '스포일러가 포함된 리뷰입니다.' : comment || '별점만 남긴 평가입니다.'}</p>
                     <time dateTime={review.updated_at}>{formatDate(review.updated_at)}</time>
                   </div>

@@ -1,5 +1,6 @@
 import './movieCard.css';
 import { optimizeImageUrl } from '../../utils/imagePerformance.js';
+import { formatRating } from '../../utils/formatRating.js';
 
 function MovieCard({
   isLiked,
@@ -114,7 +115,7 @@ function MovieCard({
       <div className="movie-card__info">
         <strong>{movie.title}</strong>
         <span>{movie.genre}</span>
-        <div className="movie-card__rating">★ {movie.rating}</div>
+        <div className="movie-card__rating">★ {formatRating(movie.rating)}</div>
       </div>
     </article>
   );

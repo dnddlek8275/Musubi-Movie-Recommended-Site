@@ -58,14 +58,35 @@ def create_message(
 
     return message
 
-# history 형태로 변환 - 그룹 대화용 묶음으로 
-def make_ai_history(messages) -> list[dict]:
-    history = []
+# 현재 LLM 슬롯당 실제 컨텍스트는 4,096 tokens이므로 DB의 전체 대화를
+# 무제한 전송하지 않는다. 최근 대화를 우선하고 긴 메시지 하나가 예산을
+# 독점하지 않도록 메시지별 길이도 제한한다.
+def make_ai_history(
+    messages,
+    *,
+    include_character_labels: bool = False,
+    max_messages: int = 10,
+    max_chars: int = 5000,
+    max_chars_per_message: int = 1000,
+) -> list[dict]:
+    selected = []
+    used_chars = 0
+    for message in reversed(messages):
+        if len(selected) >= max_messages:
+            break
+        content = str(message.content or "")[-max_chars_per_message:]
+        if selected and used_chars + len(content) > max_chars:
+            break
+        selected.append((message, content))
+        used_chars += len(content)
 
-    for message in messages:
+    history = []
+    for message, content in reversed(selected):
+        if include_character_labels and message.role == "assistant" and message.character_name:
+            content = f"[{message.character_name}] {content}"
         item = {
             "role" : message.role,
-            "content" : message.content
+            "content" : content
         }
 
         # 후속 추천에서 직전 추천작을 다시 노출하지 않도록 AI 서버에도
@@ -73,9 +94,8 @@ def make_ai_history(messages) -> list[dict]:
         if message.recommended_movies:
             item["recommended_movies"] = message.recommended_movies
 
-        # 캐릭터가 있는 경우
-        # if message.character_name:
-        #     item["character"] = message.character_name
+        if message.character_name:
+            item["character"] = message.character_name
         
         history.append(item)
     return history

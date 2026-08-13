@@ -32,6 +32,7 @@ import { PanelSkeleton, PosterRowSkeleton, SkeletonBlock } from '../common/Loadi
 import HorizontalScroller from '../common/HorizontalScroller.jsx';
 import { getKeywordLabel } from '../../utils/keywordLabels.js';
 import { getInternalMovieId } from '../../utils/movieIdentity.js';
+import { formatRating } from '../../utils/formatRating.js';
 import TastePreferenceModal from './TastePreferenceModal.jsx';
 import './mypage.css';
 
@@ -266,7 +267,7 @@ function ReviewList({ reviews }) {
               {poster ? <img src={poster} alt="" /> : <span>포스터 준비 중</span>}
             </div>
             <div className="mypage-review-card__body">
-              <header><strong>{title}</strong><span>★ {review.score}</span></header>
+              <header><strong>{title}</strong><span>★ {formatRating(review.score)}</span></header>
               <p className={comment ? '' : 'is-rating-only'}>{comment || '별점만 남긴 평가입니다.'}</p>
               <time dateTime={review.updated_at || review.created_at}>{formatDate(review.updated_at || review.created_at) || '날짜 정보 없음'}</time>
             </div>
