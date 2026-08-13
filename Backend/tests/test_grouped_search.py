@@ -24,9 +24,25 @@ def test_recent_movie_rows_orders_by_release_date(monkeypatch):
             captured["statement"] = statement
             return FakeScalars()
 
-    rows = _recent_movie_rows(FakeDb(), True, set(), 20)
+    rows, has_more = _recent_movie_rows(FakeDb(), True, 20)
 
     assert [row.id for row in rows] == [2, 1]
+    assert has_more is False
     statement_text = str(captured["statement"])
     assert "movies.release_date DESC NULLS LAST" in statement_text
     assert "LIMIT" in statement_text
+
+
+def test_recent_movie_rows_requests_one_extra_row_for_has_more():
+    class FakeScalars:
+        def all(self):
+            return [SimpleNamespace(id=index, title=str(index)) for index in range(1, 4)]
+
+    class FakeDb:
+        def scalars(self, statement):
+            return FakeScalars()
+
+    rows, has_more = _recent_movie_rows(FakeDb(), True, 2, page=2)
+
+    assert [row.id for row in rows] == [1, 2]
+    assert has_more is True

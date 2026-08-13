@@ -1340,15 +1340,25 @@ export async function fetchMovies(
   return getArrayPayload(data, 'movies', 'results', 'items');
 }
 
-export async function fetchSearchSections(signal, keyword, { limit = 20, searchType = '' } = {}) {
+export async function fetchSearchSections(
+  signal,
+  keyword,
+  { limit = 20, searchType = '', category = '', page = 1, excludeIds = [] } = {},
+) {
   const searchKeyword = String(keyword ?? '').trim();
   if (!searchKeyword) return [];
 
   const params = new URLSearchParams({
     keyword: searchKeyword,
     limit: String(clampNumber(limit, 1, 40, 20)),
+    page: String(Math.max(Number(page) || 1, 1)),
   });
   if (searchType) params.set('type', searchType);
+  if (category) params.set('category', category);
+  excludeIds.forEach((id) => {
+    const numericId = Number(id);
+    if (Number.isInteger(numericId) && numericId > 0) params.append('exclude_ids', String(numericId));
+  });
   const response = await fetchWithAuth(`${BACKEND_BASE_URL}/movies/search/grouped?${params}`, {
     method: 'GET',
     signal,

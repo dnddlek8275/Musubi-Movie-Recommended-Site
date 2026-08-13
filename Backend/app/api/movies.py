@@ -292,10 +292,21 @@ async def search_movies_grouped(
     keyword: str = Query(..., min_length=1),
     limit: int = Query(20, ge=1, le=40),
     search_type: str | None = Query(None, alias="type"),
+    category: str | None = Query(None),
+    page: int = Query(1, ge=1),
+    exclude_ids: list[int] = Query(default=[]),
     db: Session = Depends(get_db),
 ):
     try:
-        return search_movie_sections_result(db, keyword, limit, search_type)
+        return search_movie_sections_result(
+            db,
+            keyword,
+            limit,
+            search_type,
+            category,
+            page,
+            exclude_ids,
+        )
     except Exception:
         return error_response("카테고리별 영화 검색 에러")
 

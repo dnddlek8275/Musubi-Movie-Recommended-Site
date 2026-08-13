@@ -820,9 +820,13 @@
 }
 
 @media (max-width: 1200px) {
-  .home3-cinema-nav { grid-template-columns: 170px minmax(0, 1fr) auto; gap: 16px; }
+  .home3-cinema-nav { grid-template-columns: 150px minmax(0, 1fr) auto; gap: 14px; }
+  .home3-cinema-nav__logo .site-logo__art { width: 148px; height: 38px; }
   .home3-cinema-nav nav { gap: 18px; }
   .home3-cinema-nav nav a { font-size: 13px; }
+  .home3-cinema-search.is-open { width: min(240px, 24vw); }
+  .cinema-nav__logout,
+  .cinema-nav__admin { min-width: 92px; padding: 0 11px; }
 }
 
 @media (max-width: 768px) {
@@ -942,12 +946,19 @@
   .home3-cinema-nav {
     width: calc(100% - 32px);
     left: 16px;
-    grid-template-columns: 132px minmax(0, 1fr) auto;
+    grid-template-columns: 112px minmax(0, 1fr) auto;
     gap: 10px;
   }
 
-  .home3-cinema-nav__logo .site-logo__art { width: 126px; height: 34px; }
-  .home3-cinema-nav nav { overflow-x: auto; scrollbar-width: none; }
+  .home3-cinema-nav__logo .site-logo__art { width: 108px; height: 30px; }
+  .home3-cinema-nav nav { gap: 14px; overflow-x: auto; scrollbar-width: none; }
+  .home3-cinema-nav nav::-webkit-scrollbar { display: none; }
+  .home3-cinema-nav nav a { flex: 0 0 auto; font-size: 12px; }
+  .home3-cinema-search { flex: 0 0 34px; }
+  .home3-cinema-search.is-open {
+    width: min(220px, calc(100vw - 174px));
+    flex-basis: min(220px, calc(100vw - 174px));
+  }
   .home3-cinema-nav__account { padding: 8px 9px; }
 
   .cinema-nav__logout {
@@ -972,4 +983,31 @@
   .chat-page.cinema-nav-page > :not(.cinema-page-nav) {
     width: 100%;
   }
+}
+
+@media (max-width: 480px) {
+  .home3-cinema-nav {
+    min-height: 82px;
+    padding-top: 8px;
+    grid-template-columns: 98px minmax(0, 1fr) auto;
+    grid-template-areas:
+      "logo spacer actions"
+      "nav nav nav";
+    grid-template-rows: 34px 32px;
+    gap: 4px 7px;
+  }
+
+  .home3-cinema-nav__logo { grid-area: logo; }
+  .home3-cinema-nav__logo .site-logo__art { width: 94px; height: 27px; }
+  .home3-cinema-nav nav {
+    grid-area: nav;
+    width: 100%;
+    gap: 16px;
+    padding-right: 4px;
+  }
+  .home3-cinema-nav nav a { font-size: 11px; }
+  .home3-cinema-nav__actions { grid-area: actions; gap: 6px; }
+  .home3-cinema-nav .theme-toggle,
+  .cinema-nav__logout,
+  .cinema-nav__admin { width: 34px; min-width: 34px; height: 34px; }
 }

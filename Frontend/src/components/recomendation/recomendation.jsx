@@ -139,7 +139,16 @@ function sectionTitle(section, displayName) {
   return `${displayName}님의 ${label} 취향까지 놓치지 않았어요`;
 }
 
-function MovieSection({ section, displayName, likedMovies, onToggleLike, source = '', titleContent = null }) {
+function MovieSection({
+  section,
+  displayName,
+  likedMovies,
+  onToggleLike,
+  source = '',
+  titleContent = null,
+  onReachEnd = null,
+  isLoadingMore = false,
+}) {
   const movies = section.movies.map(normalizeMovie);
   const title = sectionTitle(section, displayName);
 
@@ -151,7 +160,11 @@ function MovieSection({ section, displayName, likedMovies, onToggleLike, source 
         </div>
       </header>
 
-      <HorizontalScroller className="recommendation-row__movies" ariaLabel={`${title} 영화 목록`}>
+      <HorizontalScroller
+        className="recommendation-row__movies"
+        ariaLabel={`${title} 영화 목록`}
+        onReachEnd={onReachEnd}
+      >
           {movies.map((movie, index) => (
             <div className="recommendation-row__item" key={movie.id ?? `${movie.title}-${index}`}>
               {section.key === 'box-office' || section.key === 'site-popular' ? (
@@ -168,6 +181,13 @@ function MovieSection({ section, displayName, likedMovies, onToggleLike, source 
               />
             </div>
           ))}
+          {isLoadingMore ? (
+            <div className="recommendation-row__item recommendation-row__item--loading" aria-label="다음 영화 불러오는 중">
+              <div className="recommendation-skeleton__poster" />
+              <div className="recommendation-skeleton__line is-title" />
+              <div className="recommendation-skeleton__line" />
+            </div>
+          ) : null}
       </HorizontalScroller>
     </section>
   );
@@ -207,7 +227,7 @@ function SearchResultsSkeleton() {
   );
 }
 
-function SearchResults({ query, sections, likedMovies, onToggleLike }) {
+function SearchResults({ query, sections, likedMovies, onToggleLike, onLoadMore, loadingSections }) {
   return (
     <section className="recommendation-search" aria-label={`${query} 검색 결과`}>
       <header className="recommendation-search__header">
@@ -224,6 +244,8 @@ function SearchResults({ query, sections, likedMovies, onToggleLike }) {
             likedMovies={likedMovies}
             onToggleLike={onToggleLike}
             source="search"
+            onReachEnd={section.has_more ? () => onLoadMore(section) : null}
+            isLoadingMore={loadingSections.has(section.type)}
           />
         ))}
       </div>
@@ -234,6 +256,9 @@ function SearchResults({ query, sections, likedMovies, onToggleLike }) {
 function Recommendation({ authUser, onLogout }) {
   const [sections, setSections] = useState([]);
   const [searchSections, setSearchSections] = useState([]);
+  const [loadingSearchSections, setLoadingSearchSections] = useState(() => new Set());
+  const searchLoadRef = useRef(new Set());
+  const searchQueryRef = useRef('');
   const [likedMovies, setLikedMovies] = useState([]);
   const [status, setStatus] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -256,6 +281,7 @@ function Recommendation({ authUser, onLogout }) {
 
   useEffect(() => {
     const controller = new AbortController();
+    searchQueryRef.current = query;
     setIsLoading(true);
     setStatus('');
 
@@ -263,6 +289,8 @@ function Recommendation({ authUser, onLogout }) {
       ? fetchSearchSections(controller.signal, query, { limit: 20, searchType }).then((groupedSections) => {
           setSections([]);
           setSearchSections(groupedSections);
+          searchLoadRef.current.clear();
+          setLoadingSearchSections(new Set());
         })
       : fetchDiscoverySections(
           controller.signal,
@@ -284,6 +312,50 @@ function Recommendation({ authUser, onLogout }) {
 
     return () => controller.abort();
   }, [authUser, query, searchType]);
+
+  const loadMoreSearchSection = async (section) => {
+    const category = String(section?.type || '').trim();
+    if (!query || !category || !section?.has_more || searchLoadRef.current.has(category)) return;
+
+    searchLoadRef.current.add(category);
+    setLoadingSearchSections((current) => new Set(current).add(category));
+    try {
+      const nextPage = Math.max(Number(section.page) || 1, 1) + 1;
+      const excludeIds = searchSections.flatMap((item) => (
+        item.movies.map((movie) => movie.id ?? movie.movie_id).filter(Boolean)
+      ));
+      const nextSections = await fetchSearchSections(undefined, query, {
+        limit: 20,
+        searchType,
+        category,
+        page: nextPage,
+        excludeIds,
+      });
+      if (searchQueryRef.current !== query) return;
+      const nextSection = nextSections.find((item) => item.type === category);
+      setSearchSections((current) => current.map((item) => {
+        if (item.type !== category) return item;
+        if (!nextSection) return { ...item, has_more: false };
+        const knownIds = new Set(item.movies.map((movie) => String(movie.id)));
+        const appended = nextSection.movies.filter((movie) => !knownIds.has(String(movie.id)));
+        return {
+          ...item,
+          movies: [...item.movies, ...appended],
+          page: nextSection.page,
+          has_more: nextSection.has_more,
+        };
+      }));
+    } catch (error) {
+      if (error.name !== 'AbortError') setStatus(error.message);
+    } finally {
+      searchLoadRef.current.delete(category);
+      setLoadingSearchSections((current) => {
+        const next = new Set(current);
+        next.delete(category);
+        return next;
+      });
+    }
+  };
 
   useEffect(() => {
     if (query) {
@@ -393,6 +465,8 @@ function Recommendation({ authUser, onLogout }) {
             sections={searchSections}
             likedMovies={likedMovies}
             onToggleLike={handleToggleLike}
+            onLoadMore={loadMoreSearchSection}
+            loadingSections={loadingSearchSections}
           />
         ) : sectionsWithGenre.map((section) => (
             section.key === 'rotating-genre' && genreLoading ? (

@@ -27,10 +27,6 @@ const Recommendation = lazy(() => import('./components/recomendation/recomendati
 const SignupPage = lazy(() => import('./components/signup/SignupPage.jsx'));
 const UserActivityPage = lazy(() => import('./components/userActivity/UserActivityPage.jsx'));
 
-const DESIGN_WIDTH = 1920;
-// 이 폭 이하에서는 캔버스 축소(scale)를 끄고 CSS 반응형 1열 레이아웃으로 전환한다.
-const MOBILE_BREAKPOINT = 768;
-
 function PageLoadFallback() {
   return (
     <main
@@ -171,36 +167,12 @@ function App() {
   }, []);
 
   useLayoutEffect(() => {
-    const updateScale = () => {
-      // zoom은 보이는 크기와 문서 레이아웃 높이를 함께 줄여
-      // transform 축소 때 생기던 화면 아래의 빈 스크롤 영역을 만들지 않는다.
-      document.body.style.height = 'auto';
-
-      if (window.innerWidth <= MOBILE_BREAKPOINT) {
-        document.documentElement.style.setProperty('--page-scale', '1');
-        return;
-      }
-
-      const scale = window.innerWidth / DESIGN_WIDTH;
-
-      document.documentElement.style.setProperty('--page-scale', String(scale));
-    };
-
     const platform = String(
       navigator.userAgentData?.platform || navigator.platform || navigator.userAgent || ''
     ).toLowerCase();
     document.documentElement.dataset.clientPlatform = platform.includes('win')
       ? 'windows'
       : 'default';
-
-    updateScale();
-
-    window.addEventListener('resize', updateScale);
-
-    return () => {
-      window.removeEventListener('resize', updateScale);
-      document.body.style.height = 'auto';
-    };
   }, []);
 
   const isAdminPage = pathname.startsWith('/admin');

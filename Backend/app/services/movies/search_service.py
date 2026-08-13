@@ -143,13 +143,16 @@ def _normalized_text(value) -> str:
 def _recent_movie_rows(
         db: Session,
         condition,
-        excluded_ids: set[int],
         limit: int,
+        page: int = 1,
+        excluded_ids: set[int] | None = None,
 ):
     statement = select(Movie).where(condition)
+    excluded_ids = excluded_ids or set()
     if excluded_ids:
         statement = statement.where(Movie.id.not_in(excluded_ids))
-    return db.scalars(
+    offset = 0 if excluded_ids else (max(page, 1) - 1) * limit
+    rows = db.scalars(
         statement
         .order_by(
             Movie.release_date.desc().nullslast(),
@@ -157,8 +160,10 @@ def _recent_movie_rows(
             func.coalesce(Movie.vote_count, 0).desc(),
             Movie.title.asc(),
         )
-        .limit(limit)
+        .offset(offset)
+        .limit(limit + 1)
     ).all()
+    return rows[:limit], len(rows) > limit
 
 
 def search_movie_sections_result(
@@ -166,6 +171,9 @@ def search_movie_sections_result(
         search_keyword: str,
         limit: int = 20,
         search_type: str | None = None,
+        category: str | None = None,
+        page: int = 1,
+        exclude_ids: list[int] | None = None,
 ):
     """검색 필드별 영화 섹션을 최신 개봉일순으로 반환한다."""
     raw_keyword = (search_keyword or "").strip()
@@ -257,6 +265,10 @@ def search_movie_sections_result(
         "장르": "genre", "genre": "genre",
         "키워드": "keyword", "keyword": "keyword",
     }.get(str(search_type or "").strip().casefold())
+    requested_category = str(category or "").strip().casefold()
+    allowed_categories = {"title", "actor", "director", "genre", "keyword", "related"}
+    if requested_category and requested_category not in allowed_categories:
+        requested_category = ""
 
     specs = [
         {
@@ -296,13 +308,21 @@ def search_movie_sections_result(
         base_order[spec["type"]],
     ))
 
+    if requested_category:
+        specs = [spec for spec in specs if spec["type"] == requested_category]
+
     sections = []
-    used_ids: set[int] = set()
+    used_ids: set[int] = set(exclude_ids or [])
     for spec in specs:
         if spec["condition"] is None:
             continue
-        section_limit = min(limit, 12) if spec["type"] == "related" else limit
-        movies = _recent_movie_rows(db, spec["condition"], used_ids, section_limit)
+        movies, has_more = _recent_movie_rows(
+            db,
+            spec["condition"],
+            limit,
+            page,
+            used_ids,
+        )
         if not movies:
             continue
         used_ids.update(movie.id for movie in movies)
@@ -312,6 +332,8 @@ def search_movie_sections_result(
             "title": spec["title"],
             "matches": spec["matches"],
             "movies": [get_movie_result(movie) for movie in movies],
+            "page": page,
+            "has_more": has_more,
         })
 
     if not sections:

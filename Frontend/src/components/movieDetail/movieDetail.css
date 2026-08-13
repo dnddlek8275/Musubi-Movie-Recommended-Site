@@ -270,7 +270,7 @@
 .movie-detail__similar-skeleton > .loading-skeleton:nth-child(2) { width: 84%; margin-top: 12px; }
 .movie-detail__similar-skeleton > .loading-skeleton:nth-child(3) { width: 54%; margin-top: 7px; }
 
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
   .movie-detail-skeleton__hero { grid-template-columns: minmax(250px, 38vw) 1fr; gap: 28px; }
   .movie-detail-skeleton__poster { height: 520px; }
   .movie-detail-skeleton__buttons { margin-top: 230px; }

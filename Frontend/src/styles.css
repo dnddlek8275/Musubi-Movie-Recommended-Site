@@ -64,13 +64,13 @@ textarea {
 }
 
 .app-shell {
-  width: 1920px;
+  width: 100%;
+  min-width: 0;
   min-height: 100vh;
-  zoom: var(--page-scale, 1);
 }
 
 .page {
-  width: 1620px;
+  width: min(1620px, calc(100% - 96px));
   margin: 0 auto;
   padding: 25px 0 46px;
 }
@@ -98,13 +98,13 @@ textarea {
   }
 }
 
-/* 모바일: 1920px 캔버스 축소를 끄고 화면 폭에 맞춘 실제 반응형 레이아웃으로 전환 */
-@media (max-width: 768px) {
-  .app-shell {
-    width: 100%;
-    zoom: 1;
+@media (max-width: 1200px) {
+  .page {
+    width: calc(100% - 56px);
   }
+}
 
+@media (max-width: 768px) {
   .page {
     width: 100%;
     padding: 16px 16px 36px;

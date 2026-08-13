@@ -9,6 +9,7 @@ function HorizontalScroller({
   externalRef = null,
   railProps = {},
   scrollRatio = 0.82,
+  onReachEnd = null,
 }) {
   const internalRef = useRef(null);
   const [state, setState] = useState({ back: false, forward: false });
@@ -24,7 +25,10 @@ function HorizontalScroller({
     if (!rail) return;
     const max = Math.max(rail.scrollWidth - rail.clientWidth, 0);
     setState({ back: rail.scrollLeft > 4, forward: rail.scrollLeft < max - 4 });
-  }, []);
+    if (onReachEnd && max > 0 && max - rail.scrollLeft <= Math.max(120, rail.clientWidth * 0.12)) {
+      onReachEnd();
+    }
+  }, [onReachEnd]);
 
   useEffect(() => {
     const rail = internalRef.current;

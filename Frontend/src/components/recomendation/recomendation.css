@@ -219,6 +219,23 @@
   width: 100%;
 }
 
+.recommendation-row__item--loading .recommendation-skeleton__poster {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  border-radius: 12px;
+}
+
+.recommendation-row__item--loading .recommendation-skeleton__line {
+  height: 10px;
+  margin: 8px 2px 0;
+  border-radius: 999px;
+}
+
+.recommendation-row__item--loading .recommendation-skeleton__line.is-title {
+  height: 13px;
+  margin-top: 14px;
+}
+
 .recommendation-row__rank {
   position: absolute;
   top: 12px;
