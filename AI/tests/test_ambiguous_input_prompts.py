@@ -6,12 +6,13 @@ from cineverse_prompt import build_system_prompt
 from pipeline.input_clarity import (
     get_ambiguous_input_reply,
     get_general_short_reply,
+    get_general_template_reply,
     get_input_recovery,
     get_mumu_identity_reply,
     get_mumu_personal_reply,
 )
 from pipeline.intent import Intent, classify
-from pipeline.dialogue_guard import output_rejection_reason
+from pipeline.dialogue_guard import general_output_rejection_reason, output_rejection_reason
 from pipeline.tone_presets import (
     build_identity_reply,
     build_recovery_reply,
@@ -204,6 +205,43 @@ class AmbiguousInputPromptTests(unittest.TestCase):
             get_general_short_reply("ㅎㅇ", has_history=True),
             "안녕! 오늘은 어떤 이야기 해볼까?",
         )
+
+    def test_high_confidence_general_templates_skip_generation(self):
+        expected = {
+            "고마워": "별말을 다 해. 또 궁금한 영화나 이야기가 있으면 말해줘.",
+            "감사합니다!": "별말을 다 해. 또 궁금한 영화나 이야기가 있으면 말해줘.",
+            "다음에 보자": "그래, 다음에 또 영화 이야기하자.",
+            "무무는 뭘 할 수 있어?": "영화를 검색하거나 추천하고, 영화 정보와 네 취향에 관해 이야기할 수 있어.",
+        }
+        for message, answer in expected.items():
+            with self.subTest(message=message):
+                self.assertEqual(get_general_template_reply(message), answer)
+
+    def test_context_dependent_text_is_not_templated(self):
+        for message in ("고마워 그런데 다른 영화도 알려줘", "그럼 다음에 나온 영화는?", "뭐가 좋아?"):
+            with self.subTest(message=message):
+                self.assertIsNone(get_general_template_reply(message))
+
+    def test_general_output_guard_rejects_role_and_identity_failures(self):
+        expected = {
+            "너는 내 질문을 잘 기억하고 있어?": "generated_user_meta_question",
+            "나는 코코야.": "assistant_identity_drift",
+            "내가 어제 영화관에 가서 영화를 봤어.": "invented_human_experience",
+        }
+        for answer, reason in expected.items():
+            with self.subTest(answer=answer):
+                self.assertEqual(general_output_rejection_reason(answer, "오늘 뭐 했어?"), reason)
+
+        self.assertIsNone(
+            general_output_rejection_reason(
+                "나는 직접 영화관에 가지는 못하지만 영화 이야기는 함께할 수 있어.",
+                "너 영화관 가봤어?",
+            )
+        )
+
+    def test_character_identity_is_not_rejected_by_general_only_guard(self):
+        self.assertIsNone(output_rejection_reason("나는 우디야.", "넌 누구야?"))
+        self.assertIsNone(output_rejection_reason("너는 내 말을 이해했어?", "내 말 알겠지?"))
 
     def test_character_chat_asks_again_when_meaning_is_uncertain(self):
         prompt = build_system_prompt(

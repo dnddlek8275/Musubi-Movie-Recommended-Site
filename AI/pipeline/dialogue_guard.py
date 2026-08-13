@@ -25,6 +25,21 @@ _ROLE_MARKER = re.compile(
     r"(?:<\|?user\|?>|<start_of_turn>\s*user|^\s*user\s*:|^\s*사용자\s*:)",
     re.IGNORECASE,
 )
+_GENERATED_USER_META_QUESTION = re.compile(
+    r"^(?:너|당신)(?:는|은|가)?\s*(?:내|나의)\s*(?:질문|말|요청)(?:을|를)?\s*"
+    r".{0,12}(?:기억|이해|알고|들었).{0,25}[?？]?$",
+    re.IGNORECASE,
+)
+_IDENTITY_DRIFT = re.compile(
+    r"^(?:내\s*이름은|나는|전|저는)\s*(?!무무(?:야|예요|입니다|라고|\b))"
+    r"[가-힣A-Za-z][가-힣A-Za-z0-9 ]{0,24}(?:야|예요|입니다|라고\s*해)[.!?~]*$",
+    re.IGNORECASE,
+)
+_INVENTED_HUMAN_EXPERIENCE = re.compile(
+    r"(?:나는|내가|저는|제가).{0,20}(?:어제|오늘|지난주).{0,30}"
+    r"(?:영화관에\s*갔|영화를\s*봤|감동했|울었|웃었)",
+    re.IGNORECASE,
+)
 
 
 def output_rejection_reason(answer: str, user_message: str) -> str | None:
@@ -41,12 +56,26 @@ def output_rejection_reason(answer: str, user_message: str) -> str | None:
         return "user_role_marker"
     if len(text) <= 80 and _USER_ROLE_REQUEST.fullmatch(text):
         return "generated_user_request"
-
     normalize = lambda value: re.sub(r"[^0-9A-Za-z가-힣]+", "", str(value or "")).casefold()
     answer_key = normalize(text)
     user_key = normalize(user_message)
     if len(user_key) >= 4 and answer_key == user_key:
         return "user_echo"
+    return None
+
+
+def general_output_rejection_reason(answer: str, user_message: str) -> str | None:
+    """Apply common guards plus Mumu-only identity and experience boundaries."""
+    reason = output_rejection_reason(answer, user_message)
+    if reason:
+        return reason
+    text = " ".join(str(answer or "").split()).strip()
+    if len(text) <= 100 and _GENERATED_USER_META_QUESTION.fullmatch(text):
+        return "generated_user_meta_question"
+    if _IDENTITY_DRIFT.fullmatch(text):
+        return "assistant_identity_drift"
+    if _INVENTED_HUMAN_EXPERIENCE.search(text):
+        return "invented_human_experience"
     return None
 
 

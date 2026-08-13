@@ -19,12 +19,14 @@ from pipeline.tone_presets import (
 )
 from pipeline.input_clarity import (
     get_ambiguous_input_reply,
+    get_general_template_reply,
     get_general_short_reply,
     get_input_recovery,
     get_mumu_identity_reply,
     get_mumu_personal_reply,
 )
 from pipeline.dialogue_guard import (
+    general_output_rejection_reason,
     general_history_recall_reply,
     log_dialogue_guard_event,
     output_rejection_reason,
@@ -490,7 +492,11 @@ def _guard_generated_answer(
     mode: str,
     character_name: str | None = None,
 ) -> str:
-    reason = output_rejection_reason(answer, user_message)
+    reason = (
+        general_output_rejection_reason(answer, user_message)
+        if mode == "general"
+        else output_rejection_reason(answer, user_message)
+    )
     if not reason:
         return answer
     log_dialogue_guard_event(
@@ -1219,6 +1225,9 @@ def run_auto(user_message, history=None, use_rag=True, max_tokens=512, user_cont
     short_reply = get_general_short_reply(user_message, has_history=bool(history))
     if short_reply:
         return CharacterChatResult(character="무무", answer=short_reply, rag_used=False)
+    template_reply = get_general_template_reply(user_message)
+    if template_reply:
+        return CharacterChatResult(character="무무", answer=template_reply, rag_used=False)
     casual_reply = _general_casual_reply(user_message, history)
     if casual_reply:
         return CharacterChatResult(character="무무", answer=casual_reply, rag_used=False)
