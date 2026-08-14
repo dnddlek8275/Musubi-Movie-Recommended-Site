@@ -1,0 +1,313 @@
+.mypage {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.mypage-shell {
+  width: min(1640px, calc(100% - 96px));
+  margin: 0 auto;
+  padding: 15px 0 54px;
+}
+
+.mypage-status {
+  margin: 0 0 16px;
+  color: var(--accent);
+  font-size: 13px;
+}
+
+.mypage-profile-hero {
+  min-height: 248px;
+  padding: 38px 42px;
+  border: 1px solid var(--panel-border);
+  border-radius: 28px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 30px;
+  box-sizing: border-box;
+  background:
+    radial-gradient(circle at 8% 18%, color-mix(in srgb, var(--accent) 15%, transparent), transparent 31%),
+    var(--panel);
+}
+
+.mypage-profile-main { display: flex; align-items: center; gap: 26px; }
+.mypage-avatar { width: 112px; height: 112px; flex: 0 0 auto; border: 3px solid color-mix(in srgb, var(--accent) 64%, white); border-radius: 50%; overflow: hidden; background: #fff; }
+.mypage-avatar img { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center top; }
+.mypage-eyebrow, .mypage-section-heading span, .mypage-tab-page > header > span { color: var(--accent); font-size: 12px; font-weight: 900; letter-spacing: .14em; }
+.mypage-profile-main h1 { margin: 8px 0 10px; font-size: 34px; letter-spacing: -.045em; }
+.mypage-profile-main p { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.6; }
+.mypage-profile-actions { display: flex; align-items: flex-start; gap: 8px; }
+.mypage-profile-actions button { min-height: 40px; padding: 0 16px; border: 1px solid var(--panel-border); border-radius: 999px; background: color-mix(in srgb, var(--text) 4%, transparent); color: var(--text); font-weight: 750; cursor: pointer; }
+
+.mypage-stats { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(5, 1fr); border-top: 1px solid var(--panel-border); }
+.mypage-stats button { min-width: 0; padding: 22px 24px 0; border: 0; border-left: 1px solid var(--panel-border); display: flex; align-items: baseline; gap: 10px; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.mypage-stats button:first-child { border-left: 0; padding-left: 0; }
+.mypage-stats button:hover span, .mypage-stats button:focus-visible span { color: var(--text); text-decoration: underline; text-underline-offset: 4px; }
+.mypage-stats button:focus-visible { outline: 2px solid var(--accent); outline-offset: 5px; }
+.mypage-stats strong { font-size: 27px; }
+.mypage-stats span { color: var(--muted); font-size: 14px; }
+
+.mypage-tabs { margin: 64px 0 24px; border-bottom: 1px solid var(--panel-border); display: flex; gap: 50px; }
+.mypage-tabs button { padding: 0 4px 20px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--muted); font: inherit; font-size: 18px; font-weight: 850; cursor: pointer; }
+.mypage-tabs button.is-active { border-bottom-color: var(--accent); color: var(--text); }
+
+.mypage-overview-grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 22px; }
+.mypage-taste-columns { display: grid; grid-template-columns: 2fr 3fr; gap: 22px; }
+.mypage-panel { padding: 30px; border: 1px solid var(--panel-border); border-radius: 22px; background: var(--panel); box-sizing: border-box; }
+.mypage-section-heading { margin-bottom: 25px; display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.mypage-section-heading h2 { margin: 7px 0 0; font-size: 22px; letter-spacing: -.035em; }
+.mypage-section-heading p { margin: 8px 0 0; color: var(--muted); font-size: 14px; line-height: 1.55; }
+.mypage-section-heading button { border: 0; background: transparent; color: var(--muted); font-size: 14px; cursor: pointer; }
+
+.mypage-taste-row { min-height: 54px; border-top: 1px solid var(--panel-border); display: grid; grid-template-columns: 110px minmax(0, 1fr); align-items: center; gap: 18px; }
+.mypage-taste-row:first-of-type { border-top: 0; }
+.mypage-taste-row > strong { font-size: 15px; }
+.mypage-taste-row > div { min-width: 0; display: flex; gap: 6px; overflow: hidden; white-space: nowrap; }
+.mypage-taste-row span { padding: 7px 11px; border: 1px solid var(--panel-border); border-radius: 999px; color: var(--muted); font-size: 13px; }
+.mypage-taste-row small { color: var(--muted); font-size: 14px; }
+
+.mypage-chat-row { min-height: 60px; padding: 8px 2px; border-top: 1px solid var(--panel-border); display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; color: var(--text); text-decoration: none; }
+.mypage-chat-row:first-of-type { border-top: 0; }
+.mypage-chat-row div { display: grid; gap: 4px; }
+.mypage-chat-row strong { overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
+.mypage-chat-row time { color: var(--muted); font-size: 12px; }
+.mypage-chat-row b { color: var(--accent); }
+
+.mypage-movie-section { margin-top: 54px; }
+.mypage-movie-strip { padding: 2px 0 5px; display: grid; grid-auto-columns: minmax(190px, 190px); grid-auto-flow: column; justify-content: start; gap: 14px; overflow-x: auto; scroll-behavior: smooth; scrollbar-width: none; }
+.mypage-movie-strip::-webkit-scrollbar { display: none; }
+.mypage-movie-card { width: 190px; min-width: 190px; max-width: 190px; color: var(--text); text-decoration: none; }
+.mypage-movie-card__poster { position: relative; aspect-ratio: 2 / 3; border: 1px solid var(--panel-border); border-radius: 14px; overflow: hidden; display: grid; place-items: center; background: var(--panel); color: var(--muted); font-size: 11px; }
+.mypage-movie-card__poster > a { position: absolute; inset: 0; z-index: 2; }
+.mypage-movie-card__poster img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.mypage-movie-card > strong, .mypage-movie-card__title { margin-top: 11px; display: block; overflow: hidden; color: var(--text); font-size: 15px; font-weight: 800; line-height: 1.4; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
+.mypage-movie-card > small { margin-top: 6px; display: block; overflow: hidden; color: var(--muted); font-size: 13px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
+.mypage-movie-like { position: absolute; top: 12px; right: 12px; z-index: 3; width: 26px; height: 26px; padding: 0; border: 0; background: transparent; color: #ff2b2b; font-size: 26px; line-height: 1; text-shadow: 0 1px 8px rgba(0,0,0,.72); cursor: pointer; }
+.mypage-movie-like:disabled { opacity: .45; cursor: wait; }
+
+.mypage + .site-footer { margin-top: 33px; }
+
+.mypage-tab-page > header { margin: 0 0 28px; }
+.mypage-tab-page > header h2 { margin: 8px 0 10px; font-size: 30px; letter-spacing: -.045em; }
+.mypage-tab-page > header p, .mypage-panel > p { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.65; }
+.mypage-panel h3 { margin: 0 0 8px; font-size: 20px; }
+.mypage-panel > p { margin-bottom: 24px; }
+.mypage-account-card { max-width: 760px; }
+.mypage-account-card > div { min-height: 64px; border-bottom: 1px solid var(--panel-border); display: grid; grid-template-columns: 120px 1fr; align-items: center; }
+.mypage-account-card span { color: var(--muted); font-size: 14px; }
+.mypage-account-card strong { font-size: 16px; }
+.mypage-account-card__avatar { width: 52px; height: 52px; border: 2px solid color-mix(in srgb, var(--accent) 55%, white); border-radius: 50%; overflow: hidden; display: block; background: #fff; }
+.mypage-account-card__avatar img { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center top; }
+.mypage-account-card > button { min-height: 36px; margin: 18px 0 0 auto; padding: 0; border: 0; display: block; background: transparent; color: var(--muted); font-weight: 750; cursor: pointer; }
+.mypage-account-card > button:hover,
+.mypage-account-card > button:focus-visible { color: var(--text); text-decoration: underline; text-underline-offset: 4px; outline: none; }
+.mypage-empty { min-height: 100px; margin: 0; display: grid; place-items: center; color: var(--muted); font-size: 14px; }
+.mypage-review-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.mypage-review-card { min-height: 132px; padding: 16px; border: 1px solid var(--panel-border); border-radius: 18px; display: grid; grid-template-columns: 68px minmax(0, 1fr) auto; align-items: center; gap: 18px; background: var(--panel); color: var(--text); text-decoration: none; }
+.mypage-review-card:hover, .mypage-review-card:focus-visible { border-color: color-mix(in srgb, var(--accent) 58%, var(--panel-border)); transform: translateY(-1px); }
+.mypage-review-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.mypage-review-card__poster { width: 68px; aspect-ratio: 2 / 3; border-radius: 9px; overflow: hidden; display: grid; place-items: center; background: color-mix(in srgb, var(--text) 5%, transparent); color: var(--muted); font-size: 10px; text-align: center; }
+.mypage-review-card__poster img { width: 100%; height: 100%; object-fit: cover; }
+.mypage-review-card__body { min-width: 0; }
+.mypage-review-card__body header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.mypage-review-card__body header strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mypage-review-card__body header span { flex: 0 0 auto; color: var(--accent); font-weight: 850; }
+.mypage-review-card__body p { margin: 12px 0 10px; overflow: hidden; display: -webkit-box; color: color-mix(in srgb, var(--text) 86%, var(--muted)); line-height: 1.6; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.mypage-review-card__body p.is-rating-only { color: var(--muted); }
+.mypage-review-card__body time { color: var(--muted); font-size: 12px; }
+.mypage-review-card > b { color: var(--accent); font-size: 22px; }
+.mypage-skeleton { display: grid; gap: 28px; }
+.mypage-skeleton__hero { height: 248px; border-radius: 28px; }
+
+.mypage-chat-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: start; }
+.mypage-chat-column { min-height: 390px; padding: 28px; border: 1px solid var(--panel-border); border-radius: 22px; background: var(--panel); }
+.mypage-chat-column > header { margin-bottom: 14px; padding-bottom: 18px; border-bottom: 1px solid var(--panel-border); display: flex; align-items: center; justify-content: space-between; }
+.mypage-chat-column h3 { margin: 0; font-size: 19px; }
+.mypage-chat-column > header span { color: var(--muted); font-size: 13px; font-weight: 700; }
+.mypage-chat-column > div { max-height: 520px; overflow-y: auto; scrollbar-width: none; }
+.mypage-chat-column > div::-webkit-scrollbar { display: none; }
+.mypage-chat-record { min-height: 72px; padding: 0 3px 0 8px; border-bottom: 1px solid var(--panel-border); position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.mypage-chat-record > a { min-width: 0; align-self: stretch; display: flex; flex-direction: column; justify-content: center; gap: 7px; color: var(--text); text-decoration: none; }
+.mypage-chat-record > a strong { overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
+.mypage-chat-record > a time { color: var(--muted); font-size: 12px; }
+.mypage-chat-record__actions { display: flex; align-items: center; gap: 2px; }
+.mypage-chat-record__actions > button { width: 30px; height: 30px; padding: 0; border: 0; border-radius: 8px; display: grid; place-items: center; background: transparent; color: var(--muted); cursor: pointer; }
+.mypage-chat-record__actions > button:hover,
+.mypage-chat-record__pin.is-pinned { background: color-mix(in srgb, var(--text) 7%, transparent); color: var(--text); }
+.mypage-chat-record__pin svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.mypage-chat-record__more { padding-bottom: 3px !important; font-size: 20px; line-height: 1; }
+.mypage-chat-record__menu { z-index: 80; width: 128px; padding: 7px; border: 1px solid var(--panel-border); border-radius: 12px; position: fixed; display: grid; gap: 2px; background: var(--panel); box-shadow: 0 14px 34px rgba(0, 0, 0, .24); }
+.mypage-chat-record__menu button { min-height: 34px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.mypage-chat-record__menu button:hover { background: color-mix(in srgb, var(--text) 7%, transparent); }
+.mypage-chat-record__menu button.is-danger { color: #ff5c66; }
+
+.mypage-taste-columns { align-items: stretch; }
+.mypage-taste-editor { min-width: 0; min-height: 520px; display: grid; grid-template-rows: auto repeat(3, minmax(0, 1fr)); }
+.mypage-taste-editor > header { min-height: 66px; margin-bottom: 18px; display: flex; justify-content: space-between; gap: 20px; }
+.mypage-taste-editor > header h3 { margin: 0 0 8px; }
+.mypage-taste-editor > header p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.55; }
+.mypage-taste-editor > header > button,
+.mypage-taste-editor > header > button.is-reset { height: auto; flex: 0 0 auto; align-self: flex-start; margin-top: -9px; padding: 2px 0; border: 0; border-radius: 0; background: transparent; color: var(--muted); font-size: 13px; font-weight: 650; white-space: nowrap; cursor: pointer; }
+.mypage-taste-editor-row { min-width: 0; min-height: 0; padding: 24px 0 26px; border-top: 1px solid var(--panel-border); display: flex; flex-direction: column; justify-content: center; }
+.mypage-taste-editor-row__heading { min-width: 0; display: flex; align-items: baseline; gap: 16px; }
+.mypage-taste-editor-row__heading strong { flex: 0 0 auto; color: var(--text); font-size: 17px; font-weight: 850; }
+.mypage-taste-editor-row__heading span { min-width: 0; color: var(--muted); font-size: 14px; font-weight: 550; line-height: 1.55; }
+.mypage-taste-editor-row__rail { min-width: 0; margin-top: 13px; padding: 2px 0 7px; display: flex; gap: 9px; overflow-x: auto; overflow-y: hidden; white-space: nowrap; cursor: grab; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--muted) 30%, transparent) transparent; }
+.mypage-taste-editor-row__rail span { flex: 0 0 auto; padding: 9px 11px 9px 13px; border: 1px solid var(--panel-border); border-radius: 999px; color: var(--muted); font-size: 14px; }
+.mypage-taste-editor-row__rail span button { margin-left: 6px; padding: 0 2px; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
+.mypage-taste-editor-row__rail small { color: var(--muted); font-size: 14px; }
+.mypage-taste-editor-row form { margin-top: 10px; display: flex; gap: 7px; }
+.mypage-taste-editor-row form input { min-width: 0; height: 34px; flex: 1; padding: 0 11px; border: 1px solid var(--panel-border); border-radius: 9px; background: var(--bg); color: var(--text); outline: none; }
+.mypage-taste-editor-row form input:focus { border-color: var(--accent); }
+.mypage-taste-editor-row form button { width: 48px; border: 0; border-radius: 9px; background: var(--accent); color: #15120d; font-weight: 850; cursor: pointer; }
+
+.mypage-confirm-modal { width: min(470px, 100%); padding: 30px; border: 1px solid var(--panel-border); border-radius: 22px; box-sizing: border-box; background: var(--panel); box-shadow: 0 28px 90px rgba(0,0,0,.34); }
+.mypage-confirm-modal > span { color: var(--accent); font-size: 10px; font-weight: 900; letter-spacing: .14em; }
+.mypage-confirm-modal h2 { margin: 10px 0 12px; font-size: 23px; letter-spacing: -.04em; }
+.mypage-confirm-modal p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.75; }
+.mypage-confirm-modal footer { margin-top: 26px; display: grid; grid-template-columns: 1fr 1.3fr; gap: 9px; }
+.mypage-confirm-modal footer button { height: 42px; border: 1px solid var(--panel-border); border-radius: 11px; background: transparent; color: var(--text); font-weight: 850; cursor: pointer; }
+.mypage-confirm-modal footer button:last-child { border-color: var(--accent); background: var(--accent); color: #15120d; }
+.mypage-confirm-modal button:disabled, .mypage-taste-editor button:disabled { opacity: .5; cursor: wait; }
+
+.mypage-modal-backdrop { position: fixed; inset: 0; z-index: 300; display: grid; place-items: center; padding: 24px; background: rgba(0,0,0,.58); backdrop-filter: blur(7px); }
+.mypage-taste-modal-backdrop { z-index: 320; }
+.mypage-taste-modal { width: min(840px, 100%); height: min(720px, calc(100vh - 48px)); padding: 30px 30px 92px; border: 1px solid var(--panel-border); border-radius: 24px; box-sizing: border-box; position: relative; display: grid; grid-template-rows: auto auto auto auto auto minmax(160px, 1fr) auto; gap: 14px; overflow: hidden; background: var(--panel); box-shadow: 0 28px 90px rgba(0, 0, 0, .38); }
+.mypage-taste-modal__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.mypage-taste-modal__header > div > span { color: var(--accent); font-size: 10px; font-weight: 900; letter-spacing: .16em; }
+.mypage-taste-modal__header h2 { margin: 8px 0 0; color: var(--text); font-size: 27px; letter-spacing: -.04em; }
+.mypage-taste-modal__header > button { width: 38px; height: 38px; padding: 0; border: 1px solid var(--panel-border); border-radius: 50%; background: transparent; color: var(--muted); font-size: 25px; line-height: 1; cursor: pointer; }
+.mypage-taste-modal__header > button:hover { border-color: var(--muted); color: var(--text); }
+.mypage-taste-modal__steps { border-bottom: 1px solid var(--panel-border); display: grid; grid-template-columns: repeat(3, 1fr); }
+.mypage-taste-modal__steps button { min-height: 48px; padding: 0 10px 14px; border: 0; position: relative; display: flex; align-items: center; justify-content: center; background: transparent; color: var(--muted); cursor: pointer; }
+.mypage-taste-modal__steps button::after { height: 2px; position: absolute; right: 0; bottom: -1px; left: 0; background: transparent; content: ''; }
+.mypage-taste-modal__steps button strong { font-size: 14px; }
+.mypage-taste-modal__steps button.is-current { color: var(--text); }
+.mypage-taste-modal__steps button.is-current::after { background: var(--accent); }
+.mypage-taste-modal__steps button:disabled { cursor: default; opacity: .48; }
+.mypage-taste-modal__steps button.is-current:disabled { opacity: 1; }
+.mypage-taste-modal__copy { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
+.mypage-taste-modal__copy > div > span { color: var(--accent); font-size: 10px; font-weight: 900; letter-spacing: .14em; }
+.mypage-taste-modal__copy h3 { margin: 7px 0 6px; color: var(--text); font-size: 20px; letter-spacing: -.02em; }
+.mypage-taste-modal__copy p { margin: 0; color: var(--muted); font-size: 13px; }
+.mypage-taste-modal__copy > strong { flex: 0 0 auto; color: var(--accent); font-size: 13px; }
+.mypage-taste-modal__selected { min-height: 35px; display: flex; gap: 7px; overflow-x: auto; scrollbar-width: thin; }
+.mypage-taste-modal__selected.is-empty { display: none; }
+.mypage-taste-modal__selected button { flex: 0 0 auto; padding: 7px 11px; border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--panel-border)); border-radius: 999px; background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--text); font-size: 12px; cursor: pointer; }
+.mypage-taste-modal__selected button span { margin-left: 4px; color: var(--accent); }
+.mypage-taste-modal__search { height: 46px; padding: 0 14px; border: 1px solid var(--panel-border); border-radius: 12px; display: flex; align-items: center; gap: 10px; background: var(--bg); }
+.mypage-taste-modal__search-slot { height: 46px; }
+.mypage-taste-modal__search-slot:empty { display: none; }
+.mypage-taste-modal__search:focus-within { border-color: var(--accent); }
+.mypage-taste-modal__search svg { width: 19px; height: 19px; fill: none; stroke: var(--muted); stroke-width: 1.7; }
+.mypage-taste-modal__search input { min-width: 0; height: 100%; flex: 1; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; }
+.mypage-taste-modal__choices { min-height: 160px; padding-right: 5px; align-content: start; display: grid; gap: 10px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--muted) 35%, transparent) transparent; }
+.mypage-taste-modal__choices > p { margin: 0; grid-column: 1 / -1; place-self: center; color: var(--muted); font-size: 13px; }
+.mypage-taste-modal__choices.is-genres,
+.mypage-taste-modal__choices.is-keywords { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.mypage-taste-modal__choices.is-actors { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.mypage-taste-modal__choices > button { min-height: 46px; padding: 9px 14px; border: 1px solid var(--panel-border); border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 10px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 750; cursor: pointer; }
+.mypage-taste-modal__choices.is-actors > button { justify-content: flex-start; text-align: left; }
+.mypage-taste-modal__choices > button:hover { border-color: color-mix(in srgb, var(--accent) 42%, var(--panel-border)); color: var(--text); }
+.mypage-taste-modal__choices > button.is-selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--text); }
+.mypage-taste-modal__actor-photo { width: 36px; height: 36px; flex: 0 0 auto; border-radius: 50%; overflow: hidden; display: grid; place-items: center; background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--muted); }
+.mypage-taste-modal__actor-photo img { width: 100%; height: 100%; object-fit: cover; }
+.mypage-taste-modal__status { margin: -10px 0 0; color: #e45d5d; font-size: 13px; }
+.mypage-taste-modal__status.is-empty { display: none; }
+.mypage-taste-modal__actions { position: absolute; right: 30px; bottom: 30px; display: flex; justify-content: flex-end; gap: 9px; }
+.mypage-taste-modal__actions button { min-width: 108px; height: 44px; padding: 0 18px; border: 1px solid var(--panel-border); border-radius: 11px; background: transparent; color: var(--text); font-weight: 850; cursor: pointer; }
+.mypage-taste-modal__actions button:last-child { min-width: 138px; border-color: var(--accent); background: var(--accent); color: #15120d; }
+.mypage-taste-modal button:disabled { cursor: wait; }
+.mypage-account-editor { width: min(760px, 100%); }
+.mypage-account-editor > header { padding-bottom: 20px; border-bottom: 1px solid var(--panel-border); }
+.mypage-account-editor > header span { color: var(--muted); font-size: 12px; font-weight: 900; letter-spacing: .14em; }
+.mypage-account-editor > header h3 { margin: 8px 0 0; font-size: 26px; line-height: 1.3; }
+.mypage-account-editor form { padding-top: 24px; display: grid; gap: 17px; }
+.mypage-account-image-field { padding-bottom: 20px; border-bottom: 1px solid var(--panel-border); position: relative; display: flex; align-items: center; gap: 18px; }
+.mypage-account-image-preview { width: 86px; height: 86px; flex: 0 0 auto; border: 3px solid color-mix(in srgb, var(--accent) 60%, white); border-radius: 50%; overflow: hidden; display: block; background: #fff; }
+.mypage-account-image-preview img { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center top; }
+.mypage-account-image-field > div { display: grid; gap: 6px; }
+.mypage-account-image-field > div > strong { color: var(--text); font-size: 15px; }
+.mypage-account-image-field > div > small { color: var(--muted); font-size: 12px; font-weight: 600; }
+.mypage-account-image-field > div > span { margin-top: 4px; display: flex; gap: 8px; }
+.mypage-account-image-field button { min-height: 34px; padding: 0 13px; border: 1px solid var(--panel-border); border-radius: 9px; background: transparent; color: var(--text); font-weight: 750; cursor: pointer; }
+.mypage-account-image-field button:first-child { border-color: color-mix(in srgb, var(--accent) 48%, var(--panel-border)); color: var(--accent); }
+.mypage-account-image-field button:disabled { opacity: .5; cursor: wait; }
+.mypage-account-image-input { width: 1px !important; height: 1px !important; padding: 0 !important; position: absolute; overflow: hidden; opacity: 0; pointer-events: none; }
+.mypage-account-editor label { display: grid; gap: 9px; color: color-mix(in srgb, var(--text) 74%, var(--muted)); font-size: 15px; font-weight: 800; }
+.mypage-account-editor input, .mypage-account-editor textarea { width: 100%; padding: 0 15px; border: 1px solid var(--panel-border); border-radius: 11px; box-sizing: border-box; background: var(--bg); color: var(--text); font-size: 16px; outline: none; }
+.mypage-account-editor input::placeholder, .mypage-account-editor textarea::placeholder { color: color-mix(in srgb, var(--text) 48%, transparent); opacity: 1; }
+.mypage-account-editor input { height: 48px; }
+.mypage-account-editor textarea { min-height: 92px; max-height: 190px; padding-top: 14px; padding-bottom: 14px; resize: vertical; field-sizing: content; font-family: inherit; line-height: 1.65; }
+.mypage-account-editor input:focus, .mypage-account-editor textarea:focus { border-color: var(--accent); }
+.mypage-account-field-row { display: grid; grid-template-columns: minmax(0, 1fr) 104px; gap: 10px; }
+.mypage-account-field-row > button { border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--panel-border)); border-radius: 11px; background: transparent; color: var(--accent); font-size: 15px; font-weight: 800; cursor: pointer; }
+.mypage-account-field-row > button:disabled { border-color: var(--panel-border); color: var(--muted); opacity: .52; cursor: default; }
+.mypage-account-code { position: relative; display: block; }
+.mypage-account-code input { padding-right: 64px; }
+.mypage-account-code time { position: absolute; top: 50%; right: 13px; transform: translateY(-50%); color: var(--accent); font-size: 14px; }
+.mypage-account-message { margin: 0; color: var(--accent); font-size: 14px; }
+.mypage-account-meta { display: flex; justify-content: space-between; gap: 14px; color: color-mix(in srgb, var(--text) 58%, var(--muted)); font-size: 13px; font-weight: 600; line-height: 1.55; }
+.mypage-account-meta small:last-child { flex: 0 0 auto; }
+.mypage-account-editor footer { margin-top: 5px; display: flex; justify-content: flex-end; gap: 10px; }
+.mypage-account-editor footer button { width: 132px; height: 48px; border: 1px solid var(--panel-border); border-radius: 11px; background: transparent; color: var(--text); font-size: 15px; font-weight: 850; cursor: pointer; }
+.mypage-account-editor footer button:last-child { width: min(310px, 48%); }
+.mypage-account-editor footer button:last-child { border-color: var(--accent); background: var(--accent); color: #15120d; }
+.mypage-account-danger { margin-top: 30px; padding-top: 22px; border-top: 1px solid var(--panel-border); display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.mypage-account-danger h4 { margin: 0; color: var(--text); font-size: 16px; }
+.mypage-account-danger p { margin: 7px 0 0; color: color-mix(in srgb, var(--text) 58%, var(--muted)); font-size: 13px; line-height: 1.5; }
+.mypage-account-danger button { flex: 0 0 auto; padding: 9px 2px; border: 0; background: transparent; color: #e45d5d; font-size: 14px; font-weight: 800; text-decoration: underline; text-underline-offset: 4px; cursor: pointer; }
+.mypage-account-danger button:hover, .mypage-account-danger button:focus-visible { color: #ff7070; outline: none; }
+.mypage-confirm-modal.is-account-delete > span { color: #e45d5d; }
+.mypage-confirm-modal.is-account-delete footer button:last-child { border-color: #b93b3b; background: #b93b3b; color: #fff; }
+
+@media (max-width: 900px) {
+  .mypage-review-list { grid-template-columns: 1fr; }
+  .mypage-shell { width: calc(100% - 32px); padding-top: 12px; }
+  .mypage-profile-hero { padding: 28px; grid-template-columns: 1fr; }
+  .mypage-profile-actions { grid-row: 2; }
+  .mypage-stats { grid-template-columns: repeat(2, 1fr); }
+  .mypage-stats button:nth-child(odd) { border-left: 0; padding-left: 0; }
+  .mypage-tabs { gap: 30px; overflow-x: auto; }
+  .mypage-tabs button { flex: 0 0 auto; }
+  .mypage-overview-grid, .mypage-taste-columns { grid-template-columns: 1fr; }
+  .mypage-chat-columns { grid-template-columns: 1fr; }
+  .mypage-movie-strip { grid-auto-columns: minmax(150px, 150px); }
+  .mypage-movie-card { width: 150px; min-width: 150px; max-width: 150px; }
+  .mypage-taste-modal__choices.is-genres,
+  .mypage-taste-modal__choices.is-keywords { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .mypage-taste-modal__choices.is-actors { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 560px) {
+  .mypage-profile-main { align-items: flex-start; }
+  .mypage-avatar { width: 78px; height: 78px; }
+  .mypage-profile-main h1 { font-size: 25px; }
+  .mypage-profile-main p { display: none; }
+  .mypage-profile-actions { flex-wrap: wrap; }
+  .mypage-taste-row { grid-template-columns: 90px minmax(0, 1fr); }
+  .mypage-account-field-row { grid-template-columns: 1fr; }
+  .mypage-account-meta { align-items: flex-start; flex-direction: column; gap: 5px; }
+  .mypage-account-editor footer { display: grid; grid-template-columns: 1fr 1.5fr; }
+  .mypage-account-editor footer button,
+  .mypage-account-editor footer button:last-child { width: 100%; }
+  .mypage-account-danger { align-items: flex-start; flex-direction: column; gap: 10px; }
+  .mypage-review-card { grid-template-columns: 54px minmax(0, 1fr); gap: 13px; }
+  .mypage-review-card__poster { width: 54px; }
+  .mypage-review-card > b { display: none; }
+  .mypage-modal-backdrop { padding: 12px; }
+  .mypage-taste-modal { height: calc(100vh - 24px); padding: 21px 18px 82px; border-radius: 18px; gap: 12px; }
+  .mypage-taste-modal__header h2 { font-size: 22px; }
+  .mypage-taste-modal__steps button { padding-right: 3px; padding-left: 3px; }
+  .mypage-taste-modal__steps button strong { font-size: 12px; }
+  .mypage-taste-modal__copy { align-items: flex-start; }
+  .mypage-taste-modal__copy h3 { font-size: 18px; }
+  .mypage-taste-modal__copy p { display: none; }
+  .mypage-taste-modal__choices.is-genres,
+  .mypage-taste-modal__choices.is-keywords,
+  .mypage-taste-modal__choices.is-actors { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mypage-taste-modal__choices > button { padding-right: 9px; padding-left: 9px; }
+  .mypage-taste-modal__actions { right: 18px; bottom: 20px; left: 18px; display: grid; grid-template-columns: 1fr 1.25fr; }
+  .mypage-taste-modal__actions button,
+  .mypage-taste-modal__actions button:last-child { min-width: 0; width: 100%; }
+}

@@ -1,0 +1,26 @@
+{
+  "navigation": {
+    "menus": [
+      {
+        "label": "매표소",
+        "href": "/home"
+      },
+      {
+        "label": "배우대기실",
+        "href": "/chat/group"
+      },
+      {
+        "label": "박스오피스",
+        "href": "/recommendations"
+      }
+    ],
+    "searchPlaceholder": "",
+    "authLabel": "로그인",
+    "authHref": "/login"
+  },
+
+  "footer": {
+    "supportEmail": "musubi@gmail.com",
+    "copyright": "© 2026 MUSUBI. All rights reserved."
+  }
+}

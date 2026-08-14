@@ -1,0 +1,232 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [dev]
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: Frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit dependencies
+        run: npm audit
+
+      - name: Build production bundle
+        env:
+          VITE_API_BASE_URL: /api
+        run: npm run build
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run critical browser flows
+        run: npm run test:e2e
+
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: cineverse
+          POSTGRES_USER: cineverse
+          POSTGRES_PASSWORD: ci-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cineverse -d cineverse"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: Backend
+    env:
+      DATABASE_URL: postgresql+psycopg://cineverse:ci-only-password@127.0.0.1:5432/cineverse
+      SECRET_KEY: ci-only-secret
+      AI_BASE_URL: http://127.0.0.1:8001
+      CORS_ORIGINS: http://localhost:5173
+      MAIL_HOST: smtp.example.com
+      MAIL_PORT: "587"
+      MAIL_USERNAME: ci@example.com
+      MAIL_PASSWORD: ci-only-password
+      MAIL_FROM: ci@example.com
+      FRONTEND_BASE_URL: http://localhost:5173
+      PASSWORD_RESET_EXPIRE_MINUTES: "30"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install package
+        run: python -m pip install .
+
+      - name: Check installed dependencies
+        run: python -m pip check
+
+      - name: Compile Python sources
+        run: python -m compileall -q app alembic
+
+      - name: Validate Alembic history
+        run: python -m app.ops.migration_preflight --phase history
+
+      - name: Run Backend unit tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Validate FastAPI route schema
+        run: |
+          python - <<'PY'
+          from app.main import app
+
+          paths = app.openapi()["paths"]
+          required_paths = {"/health", "/ready", "/db-test", "/ai-health"}
+          missing = required_paths.difference(paths)
+          if missing:
+              raise SystemExit(f"Missing required routes: {sorted(missing)}")
+          print(f"Validated {len(paths)} API routes")
+          PY
+
+      - name: Apply all database migrations
+        run: python -m alembic upgrade head
+
+      - name: Start Backend and test PostgreSQL integration
+        run: |
+          python -m uvicorn app.main:app \
+            --host 127.0.0.1 \
+            --port 8080 \
+            > /tmp/cineverse-backend.log 2>&1 &
+          backend_pid=$!
+          trap 'kill "${backend_pid}" 2>/dev/null || true' EXIT
+
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8080/health >/dev/null; then
+              break
+            fi
+            if ! kill -0 "${backend_pid}" 2>/dev/null; then
+              cat /tmp/cineverse-backend.log
+              exit 1
+            fi
+            if [ "${attempt}" -eq 30 ]; then
+              cat /tmp/cineverse-backend.log
+              exit 1
+            fi
+            sleep 1
+          done
+
+          curl --fail --silent --show-error \
+            http://127.0.0.1:8080/health
+          curl --fail --silent --show-error \
+            http://127.0.0.1:8080/ready
+          curl --fail --silent --show-error \
+            http://127.0.0.1:8080/db-test |
+            python -c '
+          import json
+          import sys
+
+          payload = json.load(sys.stdin)
+          if payload.get("state") != "success":
+              raise SystemExit(payload)
+          print(payload["message"])
+          '
+
+  containers:
+    name: Container - ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: frontend
+            context: Frontend
+          - service: backend
+            context: Backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image without pushing
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: false
+          tags: cineverse-${{ matrix.service }}:ci
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  kubernetes:
+    name: Kubernetes manifests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check Kustomization references
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          base = Path("Infra/k8s/base")
+          text = (base / "kustomization.yaml").read_text()
+          for name in (
+              "namespace.yaml",
+              "configmap.yaml",
+              "backend.yaml",
+              "frontend.yaml",
+              "ingress.yaml",
+              "pod-disruption-budget.yaml",
+          ):
+              if name not in text or not (base / name).is_file():
+                  raise SystemExit(f"Missing Kustomization resource: {name}")
+          PY
+
+      - name: Validate Kubernetes schemas
+        run: |
+          {
+            while IFS= read -r -d '' file; do
+              cat "${file}"
+              printf '\n---\n'
+            done < <(
+              find Infra/k8s/base -type f -name '*.yaml' \
+                ! -name 'kustomization.yaml' -print0 |
+                sort -z
+            )
+            cat Infra/k8s/secret.example.yaml
+          } |
+            docker run --rm -i ghcr.io/yannh/kubeconform:latest \
+              -strict -summary -ignore-missing-schemas

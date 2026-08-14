@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <meta name="theme-color" content="#eef1f4" />
+    <meta name="description" content="영화 추천 사이트" />
+    <title>Musubi</title>
+    <script>
+      // 렌더 전에 테마를 먼저 적용해서 새로고침 시 깜빡임(FOUC)을 막는다. 기본값은 다크.
+      (function () {
+        try {
+          var theme = localStorage.getItem('cineverse-theme') || 'dark';
+          document.documentElement.setAttribute('data-theme', theme);
+        } catch (e) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

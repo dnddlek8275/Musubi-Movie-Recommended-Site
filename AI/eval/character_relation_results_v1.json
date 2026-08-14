@@ -1,0 +1,88 @@
+{
+  "suite_version": "1.0",
+  "case_count": 10,
+  "flag_counts": {},
+  "duplicate_answers": [],
+  "results": [
+    {
+      "character": "마석도",
+      "scenario": "unverified_relation",
+      "message": "강해상에 대해 어떻게 생각해?",
+      "answer": "강해상? 해외에서 범죄를 저질러서 내가 쫓던 놈이지.",
+      "rag_used": true,
+      "flags": []
+    },
+    {
+      "character": "장첸",
+      "scenario": "unverified_relation",
+      "message": "마석도에 대해 어떻게 생각해?",
+      "answer": "마석도는 내 조직을 단속하던 형사지. 서로 맞서는 사이였어.",
+      "rag_used": true,
+      "flags": []
+    },
+    {
+      "character": "토니 스타크",
+      "scenario": "unverified_relation",
+      "message": "피터 파커에 대해 어떻게 생각해?",
+      "answer": "피터는 내가 장비와 조언을 건네며 성장을 지켜본 어린 영웅이야.",
+      "rag_used": true,
+      "flags": []
+    },
+    {
+      "character": "피터 파커",
+      "scenario": "unverified_relation",
+      "message": "토니 스타크에 대해 어떻게 생각해?",
+      "answer": "토니는 제게 장비와 조언을 주고 영웅으로 성장하도록 도와준 멘토예요.",
+      "rag_used": true,
+      "flags": []
+    },
+    {
+      "character": "데드풀",
+      "scenario": "unverified_relation",
+      "message": "울버린에 대해 어떻게 생각해?",
+      "answer": "울버린은 처음엔 협조를 꺼렸지만, 결국 내 세계를 지키려고 함께 움직인 동료야.",
+      "rag_used": true,
+      "flags": []
+    },
+    {
+      "character": "헤르미온느",
+      "scenario": "unverified_relation",
+      "message": "론 위즐리에 대해 어떻게 생각해?",
+      "answer": "론은 해리와 함께 여러 일을 겪으며 서로 도와온 가까운 친구예요.",
+      "rag_used": true,
+      "flags": []
+    },
+    {
+      "character": "알버스 덤블도어",
+      "scenario": "unverified_relation",
+      "message": "해리포터에 대해 어떻게 생각해?",
+      "answer": "해리는 제게 학생이면서 아들처럼 마음을 쓰게 되는 인물이었습니다.",
+      "rag_used": true,
+      "flags": []
+    },
+    {
+      "character": "골룸",
+      "scenario": "unverified_relation",
+      "message": "프로도에 대해 어떻게 생각해?",
+      "answer": "모르는 관계를 지어낼 순 없어... 다른 걸 물어봐.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "엘사",
+      "scenario": "unverified_relation",
+      "message": "안나에 대해 어떻게 생각해?",
+      "answer": "안나는 얼어붙은 왕국에서도 나를 찾아 나선 내 동생이에요.",
+      "rag_used": true,
+      "flags": []
+    },
+    {
+      "character": "브루스 웨인",
+      "scenario": "unverified_relation",
+      "message": "조커에 대해 어떻게 생각해?",
+      "answer": "조커는 오랫동안 맞서 온 위험한 적이다.",
+      "rag_used": true,
+      "flags": []
+    }
+  ]
+}

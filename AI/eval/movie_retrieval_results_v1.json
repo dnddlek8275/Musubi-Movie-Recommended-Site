@@ -1,0 +1,50 @@
+[
+  {
+    "id": "light_mood",
+    "message": "가볍게 볼 영화 추천해줘",
+    "seconds": 6.596,
+    "titles": [
+      "레이디와 트램프",
+      "야! 러그래츠: 파리 대모험",
+      "로빈슨 가족"
+    ],
+    "failures": [],
+    "passed": true
+  },
+  {
+    "id": "comedy",
+    "message": "웃긴 코미디 영화 추천해줘",
+    "seconds": 5.724,
+    "titles": [
+      "로미와 미셀",
+      "아메리카: 영화 같은 이야기",
+      "우주에서 온 고양이"
+    ],
+    "failures": [],
+    "passed": true
+  },
+  {
+    "id": "action",
+    "message": "긴장감 있는 액션 영화 추천해줘",
+    "seconds": 6.197,
+    "titles": [
+      "38선: DMZ 탈출 작전",
+      "12 솔져스",
+      "긴급 명령"
+    ],
+    "failures": [],
+    "passed": true
+  },
+  {
+    "id": "latest",
+    "message": "최신 영화 추천해줘",
+    "seconds": 8.18,
+    "titles": [
+      "사랑해 줘 사랑해 줘",
+      "멜라니아",
+      "나우 유 씨 미 3"
+    ],
+    "failures": [],
+    "passed": true
+  }
+]

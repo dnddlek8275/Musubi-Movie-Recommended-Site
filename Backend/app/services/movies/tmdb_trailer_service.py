@@ -1,0 +1,171 @@
+import logging
+import re
+from typing import Any
+
+import httpx
+
+from app.core.config import settings
+
+
+logger = logging.getLogger(__name__)
+
+# TMDB API 기본 주소
+TMDB_BASE_URL = "https://api.themoviedb.org/3"
+
+# 사이트 내부 iframe에서 사용할 YouTube 주소
+YOUTUBE_EMBED_BASE_URL = "https://www.youtube.com/embed"
+
+# 일반적인 YouTube 영상 ID는 영문, 숫자, -, _로 구성된 11자리다.
+# TMDB에서 받은 key를 URL에 넣기 전에 형식을 검사한다.
+YOUTUBE_KEY_PATTERN = re.compile(r"^[A-Za-z0-9_-]{11}$")
+
+
+def get_tmdb_auth() -> tuple[dict[str, str], dict[str, str]] | None:
+    """
+    현재 환경변수에 설정된 인증 방식에 맞춰
+    TMDB 요청용 헤더와 쿼리 파라미터를 만든다.
+    """
+
+    # 모든 TMDB 요청에 사용할 기본 헤더
+    headers = {
+        "accept": "application/json",
+    }
+
+    # API Key를 사용하는 경우 쿼리 파라미터에 들어간다.
+    params: dict[str, str] = {}
+
+    if settings.TMDB_ACCESS_TOKEN:
+        # Access Token이 있으면 Authorization 헤더 방식 사용
+        headers["Authorization"] = (
+            f"Bearer {settings.TMDB_ACCESS_TOKEN}"
+        )
+
+    elif settings.TMDB_API_KEY:
+        # Access Token이 없으면 기존 API Key 방식 사용
+        params["api_key"] = settings.TMDB_API_KEY
+
+    else:
+        # 인증 정보가 없으면 TMDB를 호출할 수 없다.
+        return None
+
+    return headers, params
+
+
+def select_youtube_trailer(
+    videos: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """
+    TMDB가 반환한 여러 영상 중 사이트에서 재생할
+    YouTube Trailer 한 개를 선택한다.
+    """
+
+    trailers = [
+        video
+        for video in videos
+        # YouTube 영상만 사용한다.
+        if video.get("site") == "YouTube"
+
+        # Teaser, Clip, Featurette 등이 아닌 Trailer만 사용한다.
+        and video.get("type") == "Trailer"
+
+        # key가 문자열인지 확인한다.
+        and isinstance(video.get("key"), str)
+
+        # iframe URL에 사용할 수 있는 YouTube ID 형식인지 확인한다.
+        and YOUTUBE_KEY_PATTERN.fullmatch(video["key"])
+    ]
+
+    if not trailers:
+        # 조건에 맞는 영상이 없다.
+        return None
+
+    # official=True인 공식 영상을 우선한다.
+    # 공식 여부가 같으면 published_at이 최근인 영상을 선택한다.
+    return max(
+        trailers,
+        key=lambda video: (
+            video.get("official") is True,
+            video.get("published_at") or "",
+        ),
+    )
+
+
+def select_youtube_videos(videos: list[dict[str, Any]], limit: int = 6) -> list[dict[str, Any]]:
+    allowed_types = {"Trailer", "Teaser", "Clip", "Featurette"}
+    valid = [
+        video
+        for video in videos
+        if video.get("site") == "YouTube"
+        and video.get("type") in allowed_types
+        and isinstance(video.get("key"), str)
+        and YOUTUBE_KEY_PATTERN.fullmatch(video["key"])
+    ]
+    valid.sort(
+        key=lambda video: (
+            video.get("type") == "Trailer",
+            video.get("official") is True,
+            video.get("published_at") or "",
+        ),
+        reverse=True,
+    )
+    return valid[:limit]
+
+
+async def get_movie_trailer_videos(tmdb_id: int | None, limit: int = 6) -> list[dict[str, Any]]:
+    if tmdb_id is None or tmdb_id <= 0:
+        return []
+
+    auth = get_tmdb_auth()
+    if auth is None:
+        return []
+
+    headers, auth_params = auth
+    collected: dict[str, dict[str, Any]] = {}
+    async with httpx.AsyncClient(base_url=TMDB_BASE_URL, headers=headers, timeout=5.0) as client:
+        for language in ("ko-KR", "en-US"):
+            try:
+                response = await client.get(
+                    f"/movie/{tmdb_id}/videos",
+                    params={**auth_params, "language": language},
+                )
+                response.raise_for_status()
+                payload = response.json()
+            except (httpx.HTTPError, ValueError) as exc:
+                logger.warning(
+                    "TMDB 영상 목록 조회 실패: tmdb_id=%s language=%s error=%s",
+                    tmdb_id,
+                    language,
+                    exc,
+                )
+                continue
+
+            results = payload.get("results", []) if isinstance(payload, dict) else []
+            if not isinstance(results, list):
+                continue
+            for video in results:
+                if isinstance(video, dict) and isinstance(video.get("key"), str):
+                    collected.setdefault(video["key"], video)
+
+    return [
+        {
+            "url": f"{YOUTUBE_EMBED_BASE_URL}/{video['key']}",
+            "name": str(video.get("name") or "추가 영상"),
+            "type": str(video.get("type") or "Video"),
+            "official": video.get("official") is True,
+        }
+        for video in select_youtube_videos(list(collected.values()), limit=limit)
+    ]
+
+
+async def get_movie_trailer_url(
+    tmdb_id: int | None,
+) -> str | None:
+    """
+    영화의 TMDB ID를 이용해 예고편을 조회하고
+    YouTube iframe용 embed URL을 반환한다.
+
+    예고편이 없거나 TMDB 요청이 실패하면 None을 반환한다.
+    """
+
+    videos = await get_movie_trailer_videos(tmdb_id, limit=1)
+    return videos[0]["url"] if videos else None

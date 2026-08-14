@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"name": "cineverse",
+			"path": "../../../.."
+		},
+		{
+			"name": "cineverse-backend",
+			"path": "../../../../../../Downloads/cineverse-backend"
+		}
+	],
+	"settings": {}
+}

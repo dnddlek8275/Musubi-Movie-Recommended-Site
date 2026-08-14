@@ -1,0 +1,29 @@
+/var/log/cineverse/gpu-monitor.log {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 root adm
+}
+
+/var/log/cineverse/ai-admission.log {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 root root
+}
+
+/var/log/cineverse/topic-learning.jsonl {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    copytruncate
+    missingok
+    notifempty
+}

@@ -1,0 +1,212 @@
+{
+  "hero": {
+    "promos": [
+      {
+        "id": "hope",
+        "title": "호프",
+        "image": "/images/banners/hope.webp",
+        "link": "/movies/969"
+      },
+      {
+        "id": "about-time",
+        "title": "어바웃 타임",
+        "image": "/images/promo1.webp",
+        "highResolutionImage": "/images/banners/about-time-hd.webp",
+        "link": "/movies/586"
+      },
+      {
+        "id": "spider-man",
+        "title": "스파이더맨",
+        "image": "/images/banners/spider-man.webp",
+        "link": "/movies/296"
+      },
+      {
+        "id": "la-la-land",
+        "title": "라라랜드",
+        "image": "/images/promo2.webp",
+        "highResolutionImage": "/images/banners/la-la-land-hd.webp",
+        "link": "/movies/660"
+      },
+      {
+        "id": "the-substance",
+        "title": "서브스턴스",
+        "image": "/images/promo3.webp",
+        "highResolutionImage": "/images/banners/the-substance-hd.webp",
+        "link": "/movies/51646"
+      },
+      {
+        "id": "get-out",
+        "title": "겟 아웃",
+        "image": "/images/promo4.webp",
+        "highResolutionImage": "/images/banners/get-out-hd.webp",
+        "link": "/movies/666"
+      }
+    ]
+  },
+  "homeHero": {
+    "promos": [
+      {
+        "id": "la-la-land",
+        "title": "라라랜드",
+        "image": "/images/banners/la-la-land-hd.webp",
+        "link": "/movies/660?source=home-banner"
+      },
+      {
+        "id": "exhuma",
+        "title": "파묘",
+        "image": "/images/banners/home/exhuma.webp",
+        "link": "/movies/129?source=home-banner"
+      },
+      {
+        "id": "detective-conan-highway-fallen-angel",
+        "title": "명탐정 코난: 하이웨이의 타천사",
+        "image": "/images/banners/home/detective-conan-highway-fallen-angel.webp",
+        "link": "/movies/51596?source=home-banner"
+      },
+      {
+        "id": "about-time",
+        "title": "어바웃 타임",
+        "image": "/images/banners/about-time-hd.webp",
+        "link": "/movies/586?source=home-banner"
+      },
+      {
+        "id": "the-odyssey",
+        "title": "오디세이",
+        "image": "/images/banners/home/the-odyssey.webp",
+        "link": "/movies/203?source=home-banner"
+      },
+      {
+        "id": "the-substance",
+        "title": "서브스턴스",
+        "image": "/images/banners/the-substance-hd.webp",
+        "link": "/movies/51646?source=home-banner"
+      },
+      {
+        "id": "spider-man",
+        "title": "스파이더맨",
+        "image": "/images/banners/spider-man.webp",
+        "link": "/movies/296?source=home-banner"
+      },
+      {
+        "id": "how-could-i-have-known",
+        "title": "어떻게 해야 했을까?",
+        "image": "/images/banners/home/how-could-i-have-known.webp",
+        "link": "/movies/51644?source=home-banner"
+      },
+      {
+        "id": "get-out",
+        "title": "겟 아웃",
+        "image": "/images/banners/get-out-hd.webp",
+        "link": "/movies/666?source=home-banner"
+      },
+      {
+        "id": "bohemian-rhapsody",
+        "title": "보헤미안 랩소디",
+        "image": "/images/banners/home/bohemian-rhapsody.webp",
+        "link": "/movies/1860?source=home-banner"
+      },
+      {
+        "id": "okay-madam-2",
+        "title": "오케이 마담 2",
+        "image": "/images/banners/home/okay-madam-2.webp",
+        "link": "/movies/1767?source=home-banner"
+      },
+      {
+        "id": "hope",
+        "title": "HOPE",
+        "image": "/images/banners/hope.webp",
+        "link": "/movies/969?source=home-banner"
+      }
+    ]
+  },
+  "introHero": {
+    "promos": [
+      {
+        "id": "hope",
+        "title": "HOPE",
+        "image": "/images/banners/hope.webp"
+      },
+      {
+        "id": "about-time",
+        "title": "어바웃 타임",
+        "image": "/images/banners/about-time-hd.webp"
+      },
+      {
+        "id": "spider-man",
+        "title": "스파이더맨",
+        "image": "/images/banners/spider-man.webp"
+      },
+      {
+        "id": "la-la-land",
+        "title": "라라랜드",
+        "image": "/images/banners/la-la-land-hd.webp"
+      },
+      {
+        "id": "the-substance",
+        "title": "서브스턴스",
+        "image": "/images/banners/the-substance-hd.webp"
+      },
+      {
+        "id": "get-out",
+        "title": "겟 아웃",
+        "image": "/images/banners/get-out-hd.webp"
+      },
+      {
+        "id": "the-odyssey",
+        "title": "오디세이",
+        "image": "/images/banners/home/the-odyssey.webp"
+      },
+      {
+        "id": "okay-madam-2",
+        "title": "오케이 마담 2",
+        "image": "/images/banners/home/okay-madam-2.webp"
+      },
+      {
+        "id": "exhuma",
+        "title": "파묘",
+        "image": "/images/banners/home/exhuma.webp"
+      },
+      {
+        "id": "how-could-i-have-known",
+        "title": "어떻게 해야 했을까?",
+        "image": "/images/banners/home/how-could-i-have-known.webp"
+      },
+      {
+        "id": "bohemian-rhapsody",
+        "title": "보헤미안 랩소디",
+        "image": "/images/banners/home/bohemian-rhapsody.webp"
+      },
+      {
+        "id": "detective-conan-highway-fallen-angel",
+        "title": "명탐정 코난: 하이웨이의 타천사",
+        "image": "/images/banners/home/detective-conan-highway-fallen-angel.webp"
+      },
+      {
+        "id": "midnight-serenade",
+        "title": "Midnight Serenade",
+        "image": "/images/banners/intro/midnight-serenade.webp"
+      },
+      {
+        "id": "morning-shape",
+        "title": "아침의 모양",
+        "image": "/images/banners/intro/morning-shape.webp"
+      },
+      {
+        "id": "zero-hour",
+        "title": "Zero Hour",
+        "image": "/images/banners/intro/zero-hour.webp"
+      },
+      {
+        "id": "deadline",
+        "title": "Deadline",
+        "image": "/images/banners/intro/deadline.webp"
+      },
+      {
+        "id": "after-rain",
+        "title": "After Rain",
+        "image": "/images/banners/intro/after-rain.webp"
+      }
+    ]
+  },
+  "characters": [
+  ]}

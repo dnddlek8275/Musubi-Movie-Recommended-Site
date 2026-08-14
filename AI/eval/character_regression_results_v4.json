@@ -1,0 +1,341 @@
+{
+  "suite_version": "1.0",
+  "case_count": 40,
+  "flag_counts": {},
+  "duplicate_answers": [
+    "“한 시간이나 기다렸는데 사과도 없어서 기분 나빴어. 다음부터 늦으면 미리 연락해 줘.” 이렇게 딱 말해.",
+    "“내가 믿고 말한 걸 다른 사람에게 전해서 정말 화났어. 왜 그랬는지 솔직히 말해 줘.” 이렇게 딱 말해.",
+    "돌려 말하지 말고 “한 시간이나 기다렸는데 사과도 없어서 기분 나빴어. 다음부터 늦으면 미리 연락해 줘.”라고 해.",
+    "돌려 말하지 말고 “내가 믿고 말한 걸 다른 사람에게 전해서 정말 화났어. 왜 그랬는지 솔직히 말해 줘.”라고 해.",
+    "그 이름은 알아. 근데 확인 안 된 관계를 함부로 말하진 않을게.",
+    "오늘 꽤 별로였나 보네. 무슨 일 있었어?",
+    "“한 시간이나 기다렸는데 사과도 없어서 기분 나빴어. 다음부터 늦으면 미리 연락해 줘.” 이렇게 말해. 이번엔 농담으로 넘기진 말고.",
+    "“내가 믿고 말한 걸 다른 사람에게 전해서 정말 화났어. 왜 그랬는지 솔직히 말해 줘.” 이렇게 말해. 이번엔 농담으로 넘기진 말고.",
+    "오늘 많이 힘들었나 봐요. 무슨 일이 있었는지 말해 줄래요?",
+    "“한 시간이나 기다렸는데 사과도 없어서 기분 나빴어. 다음부터 늦으면 미리 연락해 줘.”라고 차분하게 말해 보세요.",
+    "“내가 믿고 말한 걸 다른 사람에게 전해서 정말 화났어. 왜 그랬는지 솔직히 말해 줘.”라고 차분하게 말해 보세요.",
+    "그 이름은 알지만, 확인되지 않은 관계를 함부로 말할 수는 없어요."
+  ],
+  "results": [
+    {
+      "character": "마석도",
+      "scenario": "emotion_without_cause",
+      "message": "오늘 기분이 너무 별로야.",
+      "answer": "표정 보니까 그냥 넘길 일은 아닌 것 같은데. 무슨 일 있었어?",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "마석도",
+      "scenario": "specific_everyday_problem",
+      "message": "친구가 약속 시간에 한 시간이나 늦었는데 사과도 안 했어. 뭐라고 말하는 게 좋을까?",
+      "answer": "“한 시간이나 기다렸는데 사과도 없어서 기분 나빴어. 다음부터 늦으면 미리 연락해 줘.” 이렇게 딱 말해.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "마석도",
+      "scenario": "history_followup",
+      "message": "그럼 너라면 지금 뭐라고 답할 거야?",
+      "answer": "“내가 믿고 말한 걸 다른 사람에게 전해서 정말 화났어. 왜 그랬는지 솔직히 말해 줘.” 이렇게 딱 말해.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "마석도",
+      "scenario": "unverified_relation",
+      "message": "강해상에 대해 어떻게 생각해?",
+      "answer": "그 이름은 알지. 왜, 뭐가 궁금한데?",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "장첸",
+      "scenario": "emotion_without_cause",
+      "message": "오늘 기분이 너무 별로야.",
+      "answer": "기분이 상한 이유부터 말해 봐. 무슨 일이었지?",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "장첸",
+      "scenario": "specific_everyday_problem",
+      "message": "친구가 약속 시간에 한 시간이나 늦었는데 사과도 안 했어. 뭐라고 말하는 게 좋을까?",
+      "answer": "돌려 말하지 말고 “한 시간이나 기다렸는데 사과도 없어서 기분 나빴어. 다음부터 늦으면 미리 연락해 줘.”라고 해.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "장첸",
+      "scenario": "history_followup",
+      "message": "그럼 너라면 지금 뭐라고 답할 거야?",
+      "answer": "돌려 말하지 말고 “내가 믿고 말한 걸 다른 사람에게 전해서 정말 화났어. 왜 그랬는지 솔직히 말해 줘.”라고 해.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "장첸",
+      "scenario": "unverified_relation",
+      "message": "마석도에 대해 어떻게 생각해?",
+      "answer": "그 이름은 알아. 근데 확인 안 된 관계를 함부로 말하진 않을게.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "토니 스타크",
+      "scenario": "emotion_without_cause",
+      "message": "오늘 기분이 너무 별로야.",
+      "answer": "오늘 뭔가 제대로 꼬였나 보네. 무슨 일 있었어?",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "토니 스타크",
+      "scenario": "specific_everyday_problem",
+      "message": "친구가 약속 시간에 한 시간이나 늦었는데 사과도 안 했어. 뭐라고 말하는 게 좋을까?",
+      "answer": "길게 발표할 필요 없어. “한 시간이나 기다렸는데 사과도 없어서 기분 나빴어. 다음부터 늦으면 미리 연락해 줘.”면 충분해.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "토니 스타크",
+      "scenario": "history_followup",
+      "message": "그럼 너라면 지금 뭐라고 답할 거야?",
+      "answer": "길게 발표할 필요 없어. “내가 믿고 말한 걸 다른 사람에게 전해서 정말 화났어. 왜 그랬는지 솔직히 말해 줘.”면 충분해.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "토니 스타크",
+      "scenario": "unverified_relation",
+      "message": "피터 파커에 대해 어떻게 생각해?",
+      "answer": "그 이름은 알아. 근데 확인 안 된 관계를 함부로 말하진 않을게.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "피터 파커",
+      "scenario": "emotion_without_cause",
+      "message": "오늘 기분이 너무 별로야.",
+      "answer": "오늘 꽤 별로였나 보네. 무슨 일 있었어?",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "피터 파커",
+      "scenario": "specific_everyday_problem",
+      "message": "친구가 약속 시간에 한 시간이나 늦었는데 사과도 안 했어. 뭐라고 말하는 게 좋을까?",
+      "answer": "“한 시간이나 기다렸는데 사과도 없어서 기분 나빴어. 다음부터 늦으면 미리 연락해 줘.” 이렇게 말해. 이번엔 농담으로 넘기진 말고.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "피터 파커",
+      "scenario": "history_followup",
+      "message": "그럼 너라면 지금 뭐라고 답할 거야?",
+      "answer": "“내가 믿고 말한 걸 다른 사람에게 전해서 정말 화났어. 왜 그랬는지 솔직히 말해 줘.” 이렇게 말해. 이번엔 농담으로 넘기진 말고.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "피터 파커",
+      "scenario": "unverified_relation",
+      "message": "토니 스타크에 대해 어떻게 생각해?",
+      "answer": "그 이름은 알아. 근데 확인 안 된 관계를 함부로 말하진 않을게.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "데드풀",
+      "scenario": "emotion_without_cause",
+      "message": "오늘 기분이 너무 별로야.",
+      "answer": "오늘 꽤 별로였나 보네. 무슨 일 있었어?",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "데드풀",
+      "scenario": "specific_everyday_problem",
+      "message": "친구가 약속 시간에 한 시간이나 늦었는데 사과도 안 했어. 뭐라고 말하는 게 좋을까?",
+      "answer": "“한 시간이나 기다렸는데 사과도 없어서 기분 나빴어. 다음부터 늦으면 미리 연락해 줘.” 이렇게 말해. 이번엔 농담으로 넘기진 말고.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "데드풀",
+      "scenario": "history_followup",
+      "message": "그럼 너라면 지금 뭐라고 답할 거야?",
+      "answer": "“내가 믿고 말한 걸 다른 사람에게 전해서 정말 화났어. 왜 그랬는지 솔직히 말해 줘.” 이렇게 말해. 이번엔 농담으로 넘기진 말고.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "데드풀",
+      "scenario": "unverified_relation",
+      "message": "울버린에 대해 어떻게 생각해?",
+      "answer": "울버린? 그 친구의 손톱은 정말 멋져! 하지만 내 칼도 만만치 않아.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "헤르미온느",
+      "scenario": "emotion_without_cause",
+      "message": "오늘 기분이 너무 별로야.",
+      "answer": "오늘 많이 힘들었나 봐요. 무슨 일이 있었는지 말해 줄래요?",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "헤르미온느",
+      "scenario": "specific_everyday_problem",
+      "message": "친구가 약속 시간에 한 시간이나 늦었는데 사과도 안 했어. 뭐라고 말하는 게 좋을까?",
+      "answer": "“한 시간이나 기다렸는데 사과도 없어서 기분 나빴어. 다음부터 늦으면 미리 연락해 줘.”라고 차분하게 말해 보세요.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "헤르미온느",
+      "scenario": "history_followup",
+      "message": "그럼 너라면 지금 뭐라고 답할 거야?",
+      "answer": "“내가 믿고 말한 걸 다른 사람에게 전해서 정말 화났어. 왜 그랬는지 솔직히 말해 줘.”라고 차분하게 말해 보세요.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "헤르미온느",
+      "scenario": "unverified_relation",
+      "message": "론 위즐리에 대해 어떻게 생각해?",
+      "answer": "그 이름은 알지만, 확인되지 않은 관계를 함부로 말할 수는 없어요.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "알버스 덤블도어",
+      "scenario": "emotion_without_cause",
+      "message": "오늘 기분이 너무 별로야.",
+      "answer": "마음이 무거워 보이는군요. 무슨 일이 있었는지 들려주시겠습니까?",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "알버스 덤블도어",
+      "scenario": "specific_everyday_problem",
+      "message": "친구가 약속 시간에 한 시간이나 늦었는데 사과도 안 했어. 뭐라고 말하는 게 좋을까?",
+      "answer": "“한 시간이나 기다렸는데 사과도 없어서 기분 나빴어. 다음부터 늦으면 미리 연락해 줘.”라고 차분하게 말해 보세요.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "알버스 덤블도어",
+      "scenario": "history_followup",
+      "message": "그럼 너라면 지금 뭐라고 답할 거야?",
+      "answer": "“내가 믿고 말한 걸 다른 사람에게 전해서 정말 화났어. 왜 그랬는지 솔직히 말해 줘.”라고 차분하게 말해 보세요.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "알버스 덤블도어",
+      "scenario": "unverified_relation",
+      "message": "해리포터에 대해 어떻게 생각해?",
+      "answer": "그 이름은 알지만, 확인되지 않은 관계를 함부로 말할 수는 없어요.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "골룸",
+      "scenario": "emotion_without_cause",
+      "message": "오늘 기분이 너무 별로야.",
+      "answer": "기분이 안 좋다고? 말해 봐... 무슨 일이 있었지?",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "골룸",
+      "scenario": "specific_everyday_problem",
+      "message": "친구가 약속 시간에 한 시간이나 늦었는데 사과도 안 했어. 뭐라고 말하는 게 좋을까?",
+      "answer": "“한 시간이나 기다렸는데 사과도 없어서 기분 나빴어. 다음부터 늦으면 미리 연락해 줘.” 이렇게 딱 말해.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "골룸",
+      "scenario": "history_followup",
+      "message": "그럼 너라면 지금 뭐라고 답할 거야?",
+      "answer": "“내가 믿고 말한 걸 다른 사람에게 전해서 정말 화났어. 왜 그랬는지 솔직히 말해 줘.” 이렇게 딱 말해.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "골룸",
+      "scenario": "unverified_relation",
+      "message": "프로도에 대해 어떻게 생각해?",
+      "answer": "그 이름은 알아. 근데 확인 안 된 관계를 함부로 말하진 않을게.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "엘사",
+      "scenario": "emotion_without_cause",
+      "message": "오늘 기분이 너무 별로야.",
+      "answer": "오늘 많이 힘들었나 봐요. 무슨 일이 있었는지 말해 줄래요?",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "엘사",
+      "scenario": "specific_everyday_problem",
+      "message": "친구가 약속 시간에 한 시간이나 늦었는데 사과도 안 했어. 뭐라고 말하는 게 좋을까?",
+      "answer": "“한 시간이나 기다렸는데 사과도 없어서 기분 나빴어. 다음부터 늦으면 미리 연락해 줘.”라고 차분하게 말해 보세요.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "엘사",
+      "scenario": "history_followup",
+      "message": "그럼 너라면 지금 뭐라고 답할 거야?",
+      "answer": "“내가 믿고 말한 걸 다른 사람에게 전해서 정말 화났어. 왜 그랬는지 솔직히 말해 줘.”라고 차분하게 말해 보세요.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "엘사",
+      "scenario": "unverified_relation",
+      "message": "안나에 대해 어떻게 생각해?",
+      "answer": "안나는 나의 가장 소중한 존재야. 그녀와의 관계는 나에게 많은 것을 가르쳐주었어. 사랑과 우정이 얼마나 깊고 강하게 연결될 수 있는지를 깨닫게 해줬지.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "브루스 웨인",
+      "scenario": "emotion_without_cause",
+      "message": "오늘 기분이 너무 별로야.",
+      "answer": "안 좋아 보이네. 무슨 일 있었어?",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "브루스 웨인",
+      "scenario": "specific_everyday_problem",
+      "message": "친구가 약속 시간에 한 시간이나 늦었는데 사과도 안 했어. 뭐라고 말하는 게 좋을까?",
+      "answer": "돌려 말하지 말고 “한 시간이나 기다렸는데 사과도 없어서 기분 나빴어. 다음부터 늦으면 미리 연락해 줘.”라고 해.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "브루스 웨인",
+      "scenario": "history_followup",
+      "message": "그럼 너라면 지금 뭐라고 답할 거야?",
+      "answer": "돌려 말하지 말고 “내가 믿고 말한 걸 다른 사람에게 전해서 정말 화났어. 왜 그랬는지 솔직히 말해 줘.”라고 해.",
+      "rag_used": false,
+      "flags": []
+    },
+    {
+      "character": "브루스 웨인",
+      "scenario": "unverified_relation",
+      "message": "조커에 대해 어떻게 생각해?",
+      "answer": "그 이름은 알아. 근데 확인 안 된 관계를 함부로 말하진 않을게.",
+      "rag_used": false,
+      "flags": []
+    }
+  ]
+}

@@ -1,0 +1,247 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly LOG_DIR="/var/log/cineverse"
+readonly LOG_FILE="${LOG_DIR}/gpu-monitor.log"
+readonly STATE_DIR="/var/lib/cineverse-gpu-watchdog"
+readonly ECC_STATE_FILE="${STATE_DIR}/ecc-uncorrected-total"
+readonly ALERT_STATE_DIR="${STATE_DIR}/alerts"
+readonly HOST_LABEL="${WATCHDOG_HOST_LABEL:-$(hostname -s)}"
+readonly AI_ADMISSION_LOG="${AI_ADMISSION_LOG_PATH:-/var/log/cineverse/ai-admission.log}"
+
+mkdir -p "${LOG_DIR}" "${STATE_DIR}" "${ALERT_STATE_DIR}"
+touch "${LOG_FILE}"
+chmod 0640 "${LOG_FILE}"
+
+log_event() {
+  local severity="$1"
+  local event="$2"
+  shift 2
+  printf 'timestamp=%s severity=%s event=%s %s\n' \
+    "$(date --iso-8601=seconds)" "${severity}" "${event}" "$*" >>"${LOG_FILE}"
+}
+
+json_escape() {
+  local value="$1"
+  value="${value//\\/\\\\}"
+  value="${value//\"/\\\"}"
+  value="${value//$'\n'/\\n}"
+  printf '%s' "${value}"
+}
+
+send_slack() {
+  local message="$1"
+  local payload
+
+  if [[ -z "${SLACK_WEBHOOK_URL:-}" ]]; then
+    log_event warning SLACK_WEBHOOK_NOT_CONFIGURED "host=${HOST_LABEL}"
+    return 1
+  fi
+
+  payload="{\"text\":\"$(json_escape "${message}")\"}"
+  if curl --silent --show-error --fail \
+    --connect-timeout 5 --max-time 10 \
+    -H 'Content-Type: application/json' \
+    --data "${payload}" "${SLACK_WEBHOOK_URL}" >/dev/null; then
+    return 0
+  fi
+
+  log_event warning SLACK_DELIVERY_FAILED "host=${HOST_LABEL}"
+  return 1
+}
+
+set_condition() {
+  local key="$1"
+  local active="$2"
+  local severity="$3"
+  local event="$4"
+  local details="$5"
+  local state_file="${ALERT_STATE_DIR}/${key}"
+
+  if [[ "${active}" == "true" ]]; then
+    log_event "${severity}" "${event}" "${details}"
+    if [[ ! -e "${state_file}" ]]; then
+      if send_slack "🚨 [CineVerse ${severity^^}] ${event}\n서버: ${HOST_LABEL}\n${details}"; then
+        touch "${state_file}"
+      fi
+    fi
+  elif [[ -e "${state_file}" ]]; then
+    log_event info "${event}_RECOVERED" "host=${HOST_LABEL}"
+    if send_slack "✅ [CineVerse 복구] ${event}\n서버: ${HOST_LABEL}"; then
+      rm -f "${state_file}"
+    fi
+  fi
+}
+
+if [[ "${1:-}" == "--test-slack" ]]; then
+  send_slack "✅ CineVerse GPU watchdog 직접 알림 테스트\n서버: ${HOST_LABEL}"
+  exit $?
+fi
+
+service_state() {
+  local unit="$1"
+  if systemctl is-active --quiet "${unit}"; then
+    printf 'active'
+  else
+    printf 'inactive'
+  fi
+}
+
+api_state="$(service_state cineverse-api.service)"
+llama_state="$(service_state cineverse-llama.service)"
+
+set_condition AI_API_DOWN "$([[ "${api_state}" != "active" ]] && echo true || echo false)" \
+  critical AI_API_DOWN "unit=cineverse-api.service state=${api_state}"
+set_condition LLAMA_SERVER_DOWN "$([[ "${llama_state}" != "active" ]] && echo true || echo false)" \
+  critical LLAMA_SERVER_DOWN "unit=cineverse-llama.service state=${llama_state}"
+
+gpu_csv="$(nvidia-smi \
+  --query-gpu=index,name,utilization.gpu,memory.used,memory.total,temperature.gpu,power.draw,power.limit \
+  --format=csv,noheader,nounits 2>/dev/null || true)"
+
+if [[ -z "${gpu_csv}" ]]; then
+  set_condition GPU_UNAVAILABLE true critical GPU_UNAVAILABLE \
+    "nvidia_smi=no_data api=${api_state} llama=${llama_state}"
+else
+  set_condition GPU_UNAVAILABLE false critical GPU_UNAVAILABLE "nvidia_smi=available"
+  while IFS=',' read -r index name utilization memory_used memory_total temperature power_draw power_limit; do
+    index="${index//[[:space:]]/}"
+    name="$(xargs <<<"${name}")"
+    utilization="${utilization//[[:space:]]/}"
+    memory_used="${memory_used//[[:space:]]/}"
+    memory_total="${memory_total//[[:space:]]/}"
+    temperature="${temperature//[[:space:]]/}"
+    power_draw="${power_draw//[[:space:]]/}"
+    power_limit="${power_limit//[[:space:]]/}"
+
+    memory_percent="$(awk -v used="${memory_used}" -v total="${memory_total}" 'BEGIN { if (total > 0) printf "%.2f", used * 100 / total; else print "0.00" }')"
+    log_event info GPU_SNAPSHOT \
+      "gpu=${index} name=\"${name}\" utilization_percent=${utilization} vram_used_mib=${memory_used} vram_total_mib=${memory_total} vram_percent=${memory_percent} temperature_c=${temperature} power_w=${power_draw} power_limit_w=${power_limit} api=${api_state} llama=${llama_state}"
+
+    if awk -v value="${temperature}" 'BEGIN { exit !(value >= 85) }'; then
+      set_condition "GPU_TEMPERATURE_CRITICAL_${index}" true critical GPU_TEMPERATURE_CRITICAL \
+        "gpu=${index} temperature_c=${temperature} threshold_c=85"
+      set_condition "GPU_TEMPERATURE_WARNING_${index}" false warning GPU_TEMPERATURE_WARNING "gpu=${index}"
+    elif awk -v value="${temperature}" 'BEGIN { exit !(value >= 80) }'; then
+      set_condition "GPU_TEMPERATURE_CRITICAL_${index}" false critical GPU_TEMPERATURE_CRITICAL "gpu=${index}"
+      set_condition "GPU_TEMPERATURE_WARNING_${index}" true warning GPU_TEMPERATURE_WARNING \
+        "gpu=${index} temperature_c=${temperature} threshold_c=80"
+    else
+      set_condition "GPU_TEMPERATURE_CRITICAL_${index}" false critical GPU_TEMPERATURE_CRITICAL "gpu=${index}"
+      set_condition "GPU_TEMPERATURE_WARNING_${index}" false warning GPU_TEMPERATURE_WARNING "gpu=${index}"
+    fi
+
+    if awk -v value="${memory_percent}" 'BEGIN { exit !(value >= 92) }'; then
+      set_condition "GPU_VRAM_HIGH_${index}" true warning GPU_VRAM_HIGH \
+        "gpu=${index} vram_percent=${memory_percent} threshold_percent=92"
+    else
+      set_condition "GPU_VRAM_HIGH_${index}" false warning GPU_VRAM_HIGH "gpu=${index}"
+    fi
+  done <<<"${gpu_csv}"
+fi
+
+ecc_total="$(nvidia-smi --query-gpu=ecc.errors.uncorrected.volatile.total --format=csv,noheader,nounits 2>/dev/null | head -n1 | tr -d '[:space:]' || true)"
+if [[ "${ecc_total}" =~ ^[0-9]+$ ]]; then
+  previous_ecc="0"
+  if [[ -r "${ECC_STATE_FILE}" ]]; then
+    previous_ecc="$(<"${ECC_STATE_FILE}")"
+  fi
+  if [[ "${previous_ecc}" =~ ^[0-9]+$ ]] && (( ecc_total > previous_ecc )); then
+    set_condition GPU_ECC_UNCORRECTED true critical GPU_ECC_UNCORRECTED \
+      "previous=${previous_ecc} current=${ecc_total}"
+  else
+    set_condition GPU_ECC_UNCORRECTED false critical GPU_ECC_UNCORRECTED "current=${ecc_total}"
+  fi
+  printf '%s\n' "${ecc_total}" >"${ECC_STATE_FILE}"
+fi
+
+if journalctl -k --since '70 seconds ago' --no-pager 2>/dev/null | grep -Eqi 'NVRM: Xid'; then
+  set_condition GPU_XID true critical GPU_XID "kernel_log_detected=true"
+else
+  set_condition GPU_XID false critical GPU_XID "kernel_log_detected=false"
+fi
+
+if journalctl --since '70 seconds ago' --no-pager \
+  -u cineverse-api.service -u cineverse-llama.service 2>/dev/null \
+  | grep -Eqi 'CUDA([^[:alnum:]]|_)*(out of memory|OOM)'; then
+  set_condition CUDA_OOM true critical CUDA_OOM "service_log_detected=true"
+else
+  set_condition CUDA_OOM false critical CUDA_OOM "service_log_detected=false"
+fi
+
+admission_recent=""
+if [[ -r "${AI_ADMISSION_LOG}" ]]; then
+  admission_cutoff="$(( $(date +%s) - 70 ))"
+  admission_recent="$(awk -v cutoff="${admission_cutoff}" '
+    {
+      split($1, epoch, "=")
+      if (epoch[1] == "epoch" && epoch[2] >= cutoff) print
+    }
+  ' "${AI_ADMISSION_LOG}")"
+fi
+
+admission_completed="$(grep -c 'event=AI_REQUEST_COMPLETE' <<<"${admission_recent}" || true)"
+admission_rejected="$(grep -c 'event=AI_REQUEST_REJECTED' <<<"${admission_recent}" || true)"
+admission_timeouts="$(grep -c 'event=AI_QUEUE_TIMEOUT' <<<"${admission_recent}" || true)"
+admission_errors="$(awk '
+  /event=AI_REQUEST_COMPLETE/ {
+    for (i = 1; i <= NF; i++) {
+      split($i, item, "=")
+      if (item[1] == "status" && item[2] >= 500) count++
+    }
+  }
+  END { print count + 0 }
+' <<<"${admission_recent}")"
+read -r admission_max_wait admission_max_duration < <(awk '
+  {
+    wait = 0; duration = 0
+    for (i = 1; i <= NF; i++) {
+      split($i, item, "=")
+      if (item[1] == "wait_seconds") wait = item[2] + 0
+      if (item[1] == "duration_seconds") duration = item[2] + 0
+    }
+    if (wait > max_wait) max_wait = wait
+    if (duration > max_duration) max_duration = duration
+  }
+  END { printf "%.3f %.3f\n", max_wait + 0, max_duration + 0 }
+' <<<"${admission_recent}")
+
+log_event info AI_ADMISSION_SNAPSHOT \
+  "window_seconds=70 completed=${admission_completed} rejected=${admission_rejected} queue_timeouts=${admission_timeouts} errors=${admission_errors} max_wait_seconds=${admission_max_wait} max_duration_seconds=${admission_max_duration}"
+
+set_condition AI_QUEUE_REJECTIONS "$([[ admission_rejected -gt 0 ]] && echo true || echo false)" warning AI_QUEUE_REJECTIONS \
+  "window_seconds=70 rejected=${admission_rejected} completed=${admission_completed}"
+set_condition AI_QUEUE_TIMEOUTS "$([[ admission_timeouts -gt 0 ]] && echo true || echo false)" critical AI_QUEUE_TIMEOUTS \
+  "window_seconds=70 queue_timeouts=${admission_timeouts} max_wait_seconds=${admission_max_wait}"
+set_condition AI_REQUEST_ERRORS "$([[ admission_errors -gt 0 ]] && echo true || echo false)" critical AI_REQUEST_ERRORS \
+  "window_seconds=70 http_5xx=${admission_errors} completed=${admission_completed}"
+
+if awk -v value="${admission_max_wait}" 'BEGIN { exit !(value >= 10) }'; then
+  set_condition AI_QUEUE_WAIT_HIGH true warning AI_QUEUE_WAIT_HIGH \
+    "window_seconds=70 max_wait_seconds=${admission_max_wait} threshold_seconds=10"
+else
+  set_condition AI_QUEUE_WAIT_HIGH false warning AI_QUEUE_WAIT_HIGH \
+    "max_wait_seconds=${admission_max_wait}"
+fi
+
+if awk -v value="${admission_max_duration}" 'BEGIN { exit !(value >= 25) }'; then
+  set_condition AI_RESPONSE_SLOW true warning AI_RESPONSE_SLOW \
+    "window_seconds=70 max_duration_seconds=${admission_max_duration} threshold_seconds=25"
+else
+  set_condition AI_RESPONSE_SLOW false warning AI_RESPONSE_SLOW \
+    "max_duration_seconds=${admission_max_duration}"
+fi
+
+disk_percent="$(df -P / | awk 'NR == 2 { gsub(/%/, "", $5); print $5 }')"
+if (( disk_percent >= 90 )); then
+  set_condition ROOT_DISK_CRITICAL true critical ROOT_DISK_CRITICAL \
+    "usage_percent=${disk_percent} threshold_percent=90"
+  set_condition ROOT_DISK_WARNING false warning ROOT_DISK_WARNING "usage_percent=${disk_percent}"
+elif (( disk_percent >= 80 )); then
+  set_condition ROOT_DISK_CRITICAL false critical ROOT_DISK_CRITICAL "usage_percent=${disk_percent}"
+  set_condition ROOT_DISK_WARNING true warning ROOT_DISK_WARNING \
+    "usage_percent=${disk_percent} threshold_percent=80"
+else
+  set_condition ROOT_DISK_CRITICAL false critical ROOT_DISK_CRITICAL "usage_percent=${disk_percent}"
+  set_condition ROOT_DISK_WARNING false warning ROOT_DISK_WARNING "usage_percent=${disk_percent}"
+fi

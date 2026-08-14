@@ -1,0 +1,112 @@
+:root {
+  --page-bg: #020507;
+  --blue-bg: #041d27;
+  --panel: #181f21;
+  --panel-deep: #071016;
+  --line: #323b3f;
+  --text: #f4f7f8;
+  --muted: #8c9699;
+  --accent: #f4a313;
+
+  /* 테마별로 바뀌는 표면/경계/네비 색상 토큰 */
+  --page-gradient: linear-gradient(180deg, #020407 0%, #020407 20%, #061c27 72%, #020407 100%);
+  --panel-border: rgba(255, 255, 255, 0.05);
+  --nav-text: #d6dbdc;
+  --input-text: #ffffff;
+  --logo-ink: #f7f9fb;
+
+  color: var(--text);
+  background: var(--page-bg);
+  font-family: Arial, "Noto Sans KR", sans-serif;
+  font-synthesis: none;
+}
+
+/* 라이트 모드: 같은 토큰을 밝은 값으로 덮어써서 전체 UI 톤을 전환한다. */
+:root[data-theme="light"] {
+  --page-bg: #eef1f4;
+  --blue-bg: #dce7ec;
+  --panel: #ffffff;
+  --panel-deep: #e9eef2;
+  --line: #d3dbe0;
+  --text: #182029;
+  --muted: #5d6b74;
+  --accent: #F08C00;
+
+  --page-gradient: linear-gradient(180deg, #f6f8fa 0%, #eaf1f4 60%, #f6f8fa 100%);
+  --panel-border: rgba(20, 30, 40, 0.1);
+  --nav-text: #2a3640;
+  --input-text: #182029;
+  --logo-ink: #2d3c5d;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  /* clip을 쓰면 가로만 잘라내고 세로 overflow는 visible로 유지된다.
+     hidden을 쓰면 세로 overflow가 auto로 승격돼 html/body가 각자 스크롤바를
+     만들어 스크롤바가 두 개로 보인다. */
+  overflow-x: clip;
+}
+
+body {
+  margin: 0;
+  overflow-x: clip;
+  background: var(--page-gradient);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.app-shell {
+  width: 100%;
+  min-width: 0;
+  min-height: 100vh;
+}
+
+.page {
+  width: min(1620px, calc(100% - 96px));
+  margin: 0 auto;
+  padding: 25px 0 46px;
+}
+
+/* 홈 내비게이션의 절대 좌표 기준을 지연 로딩되는 홈 CSS보다 먼저 확정한다. */
+.page.has-home-nav {
+  padding-top: 0;
+  position: relative;
+}
+
+.app-shell.is-arriving-from-onboarding .home3-cinema-nav > :not(.home3-cinema-nav__logo),
+.app-shell.is-arriving-from-onboarding .page > :not(.home3-cinema-nav) {
+  animation: homeContentArrive 520ms 90ms ease-out both;
+}
+
+@keyframes homeContentArrive {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell.is-arriving-from-onboarding .home3-cinema-nav > :not(.home3-cinema-nav__logo),
+  .app-shell.is-arriving-from-onboarding .page > :not(.home3-cinema-nav) {
+    animation: none;
+  }
+}
+
+@media (max-width: 1200px) {
+  .page {
+    width: calc(100% - 56px);
+  }
+}
+
+@media (max-width: 768px) {
+  .page {
+    width: 100%;
+    padding: 16px 16px 36px;
+  }
+}

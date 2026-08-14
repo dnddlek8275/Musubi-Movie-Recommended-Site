@@ -1,0 +1,13 @@
+fastapi
+FlagEmbedding
+numpy
+openai
+pandas
+pydantic
+pymilvus
+python-dotenv
+requests
+sentence-transformers
+tqdm
+uvicorn
+

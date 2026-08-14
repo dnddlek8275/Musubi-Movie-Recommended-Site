@@ -1,0 +1,53 @@
+[
+  {
+    "id": "light_mood",
+    "message": "가볍게 볼 영화 추천해줘",
+    "required_genres_any": ["코미디", "가족", "애니메이션", "로맨스", "모험", "음악"],
+    "blocked_genres": ["공포", "스릴러", "범죄", "전쟁", "다큐멘터리"]
+  },
+  {
+    "id": "comedy",
+    "message": "웃긴 코미디 영화 추천해줘",
+    "required_genres_any": ["코미디"],
+    "blocked_genres": []
+  },
+  {
+    "id": "action",
+    "message": "긴장감 있는 액션 영화 추천해줘",
+    "required_genres_any": ["액션"],
+    "blocked_genres": []
+  },
+  {
+    "id": "latest",
+    "message": "최신 영화 추천해줘",
+    "required_genres_any": [],
+    "blocked_genres": [],
+    "release_date_desc": true
+  },
+  {
+    "id": "touching",
+    "message": "감동적인 영화 추천해줘",
+    "required_genres_any": ["드라마", "가족", "애니메이션", "로맨스"],
+    "blocked_genres": ["공포"]
+  },
+  {
+    "id": "uplift",
+    "message": "우울할 때 보기 좋은 영화 추천해줘",
+    "required_genres_any": ["코미디", "가족", "애니메이션", "로맨스", "모험", "음악"],
+    "blocked_genres": ["공포", "스릴러", "범죄", "전쟁", "다큐멘터리"]
+  },
+  {
+    "id": "date",
+    "message": "데이트할 때 볼 영화 추천해줘",
+    "required_genres_any": ["로맨스", "코미디"],
+    "blocked_genres": ["공포", "스릴러", "범죄", "전쟁", "다큐멘터리"],
+    "min_rating": 5.5
+  },
+  {
+    "id": "with_children",
+    "message": "아이와 함께 볼 영화 추천해줘",
+    "required_genres_any": ["가족", "애니메이션", "모험", "판타지", "코미디"],
+    "blocked_genres": ["공포", "스릴러", "범죄", "전쟁", "다큐멘터리"],
+    "child_safe_certification": true
+  }
+]
