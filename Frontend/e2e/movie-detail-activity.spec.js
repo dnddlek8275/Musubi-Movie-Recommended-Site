@@ -101,7 +101,7 @@ test('스포일러 평가를 저장하고 리뷰 카드에서 다른 회원 활�
 
   await page.goto('/movies/196');
   await page.getByRole('button', { name: '평가하기' }).click();
-  await page.getByRole('button', { name: '5점' }).click();
+  await page.getByRole('button', { name: '4.5점 또는 5점 선택', exact: true }).press('Enter');
   await page.getByPlaceholder('이 영화에 대한 생각을 남겨주세요.').fill('스포일러 리뷰');
   await page.getByLabel('스포일러가 포함된 리뷰예요').check();
   await page.getByRole('button', { name: '평가 및 리뷰 등록' }).click();
