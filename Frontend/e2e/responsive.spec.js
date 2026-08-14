@@ -33,6 +33,43 @@ for (const path of ['/home', '/chat/group', '/recommendations']) {
   });
 }
 
+for (const viewport of [
+  { width: 1512, height: 982, expectedColumns: 3 },
+  { width: 1210, height: 768, expectedColumns: 2 },
+  { width: 900, height: 700, expectedColumns: 1 },
+]) {
+  test(`/home 핵심 카드가 ${viewport.width}px 폭에서 잘리지 않고 ${viewport.expectedColumns}열로 보인다`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.goto('/home');
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+
+    const middleGrid = page.locator('.index-middle-grid');
+    await expect(middleGrid).toBeVisible({ timeout: 10_000 });
+
+    const layout = await middleGrid.evaluate((element) => {
+      const viewportWidth = document.documentElement.clientWidth;
+      const children = Array.from(element.children).map((child) => {
+        const rect = child.getBoundingClientRect();
+        return { left: rect.left, right: rect.right, width: rect.width };
+      });
+      const rows = new Set(children.map(({ left }) => Math.round(left)));
+
+      return {
+        viewportWidth,
+        children,
+        columns: rows.size,
+      };
+    });
+
+    expect(layout.columns).toBe(viewport.expectedColumns);
+    for (const child of layout.children) {
+      expect(child.width).toBeGreaterThan(0);
+      expect(child.left).toBeGreaterThanOrEqual(-1);
+      expect(child.right).toBeLessThanOrEqual(layout.viewportWidth + 1);
+    }
+  });
+}
+
 test('추천 페이지에서도 공통 상단 메뉴 레이아웃이 유지된다', async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 768 });
   await page.goto('/recommendations');
