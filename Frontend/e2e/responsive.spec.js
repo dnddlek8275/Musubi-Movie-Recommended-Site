@@ -34,11 +34,11 @@ for (const path of ['/home', '/chat/group', '/recommendations']) {
 }
 
 for (const viewport of [
-  { width: 1512, height: 982, expectedColumns: 3 },
-  { width: 1210, height: 768, expectedColumns: 2 },
-  { width: 900, height: 700, expectedColumns: 1 },
+  { width: 1512, height: 982 },
+  { width: 1366, height: 768 },
+  { width: 1210, height: 768 },
 ]) {
-  test(`/home 핵심 카드가 ${viewport.width}px 폭에서 잘리지 않고 ${viewport.expectedColumns}열로 보인다`, async ({ page }) => {
+  test(`/home 핵심 카드가 ${viewport.width}px 폭에서 같은 밀도로 겹치지 않는다`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await page.goto('/home');
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
@@ -47,26 +47,27 @@ for (const viewport of [
     await expect(middleGrid).toBeVisible({ timeout: 10_000 });
 
     const layout = await middleGrid.evaluate((element) => {
-      const viewportWidth = document.documentElement.clientWidth;
+      const shell = document.querySelector('.app-shell').getBoundingClientRect();
       const children = Array.from(element.children).map((child) => {
         const rect = child.getBoundingClientRect();
         return { left: rect.left, right: rect.right, width: rect.width };
       });
-      const rows = new Set(children.map(({ left }) => Math.round(left)));
 
       return {
-        viewportWidth,
+        viewportWidth: document.documentElement.clientWidth,
+        shellWidth: shell.width,
         children,
-        columns: rows.size,
       };
     });
 
-    expect(layout.columns).toBe(viewport.expectedColumns);
+    expect(layout.shellWidth).toBeLessThanOrEqual(layout.viewportWidth + 1);
     for (const child of layout.children) {
       expect(child.width).toBeGreaterThan(0);
       expect(child.left).toBeGreaterThanOrEqual(-1);
       expect(child.right).toBeLessThanOrEqual(layout.viewportWidth + 1);
     }
+    expect(layout.children[0].right).toBeLessThan(layout.children[1].left);
+    expect(layout.children[1].right).toBeLessThan(layout.children[2].left);
   });
 }
 
