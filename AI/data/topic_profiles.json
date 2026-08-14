@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "profiles": [
+    {
+      "id": "coding",
+      "label": "코딩·프로그래밍",
+      "aliases": [
+        "코딩",
+        "프로그래밍",
+        "프로그래머",
+        "소프트웨어 개발",
+        "개발자",
+        "해킹",
+        "해커"
+      ],
+      "search_terms": [
+        "컴퓨터",
+        "프로그래밍",
+        "소프트웨어 개발자",
+        "코딩",
+        "해킹",
+        "해커",
+        "알고리즘",
+        "인공지능",
+        "기술 스타트업"
+      ],
+      "evidence_terms": [
+        "코딩",
+        "프로그래밍",
+        "프로그래머",
+        "소프트웨어",
+        "개발자",
+        "컴퓨터",
+        "해킹",
+        "해커",
+        "알고리즘",
+        "인공지능",
+        "머신 러닝",
+        "스타트업",
+        "programming",
+        "programmer",
+        "software",
+        "developer",
+        "computer",
+        "hacking",
+        "hacker",
+        "algorithm",
+        "artificial intelligence",
+        "machine learning",
+        "startup"
+      ]
+    }
+  ]
+}

@@ -12,6 +12,7 @@ docs/
 scripts/
 !scripts/
 scripts/*
+!scripts/dispatch_movie_vectors.py
 !scripts/__init__.py
 !scripts/sync_tmdb_daily.py
 !scripts/import_movies_csv.py
@@ -27,6 +28,7 @@ scripts/*
 !scripts/rebuild_preference_scores.py
 !scripts/backfill_movie_titles.py
 !scripts/migrate_profile_images_to_object_storage.py
+!scripts/normalize_actor_names.py
 
 .venv/
 .vscode/

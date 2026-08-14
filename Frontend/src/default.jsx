@@ -1,15 +1,12 @@
 import Footer from './components/HeaderFooter/Footer.jsx';
-import Header from './components/HeaderFooter/Header.jsx';
+import CinemaNav from './components/HeaderFooter/CinemaNav.jsx';
 
 function DefaultLayout({ authUser, children, footer, isHomeArriving = false, navigation, onLogout }) {
+  const isHome = window.location.pathname === '/home';
   return (
     <div className={`app-shell${isHomeArriving ? ' is-arriving-from-onboarding' : ''}`}>
-      <div className="page">
-        <Header
-          navigation={navigation}
-          onLogout={onLogout}
-          user={authUser}
-        />
+      <div className={`page ${isHome ? 'has-home-nav' : 'has-cinema-nav'}`}>
+        <CinemaNav authUser={authUser} onLogout={onLogout} overlay={isHome} />
 
         {children}
 

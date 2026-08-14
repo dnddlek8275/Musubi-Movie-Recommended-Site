@@ -5,10 +5,12 @@ CrossEncoder (BGE-Reranker-v2-m3) 싱글턴
 
 import os
 from functools import lru_cache
+from threading import Lock
 from sentence_transformers import CrossEncoder
 
 MODEL_NAME = "BAAI/bge-reranker-v2-m3"
 RERANK_BATCH_SIZE = max(1, int(os.getenv("RERANK_BATCH_SIZE", "8")))
+_RERANK_LOCK = Lock()
 
 
 @lru_cache(maxsize=1)
@@ -46,7 +48,11 @@ def rerank(
 
     reranker = get_reranker()
     pairs  = [[query, c[text_key]] for c in candidates]
-    scores = reranker.predict(pairs, batch_size=RERANK_BATCH_SIZE)
+    # The reranker and llama-server share one T4. Concurrent predict() calls do
+    # not add GPU throughput; they contend with one another and with LLM slots.
+    # A short serialized rerank is faster and more predictable under bursts.
+    with _RERANK_LOCK:
+        scores = reranker.predict(pairs, batch_size=RERANK_BATCH_SIZE)
 
     ranked = sorted(
         [dict(c, _score=float(s)) for c, s in zip(candidates, scores)],

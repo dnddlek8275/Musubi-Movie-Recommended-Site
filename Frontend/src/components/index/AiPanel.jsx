@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { fetchAiRecommendation } from '../../api.js';
+import { navigateTo } from '../../navigation.js';
 import PosterArt from './PosterArt.jsx';
 import { SkeletonBlock } from '../common/LoadingSkeleton.jsx';
 
@@ -84,7 +85,7 @@ function AiPanel() {
                   key={movie.movie_id || movie.movie || index}
                   onClick={() => {
                     if (position === 'active' && movie.movie_id) {
-                      window.location.href = `/movies/${movie.movie_id}`;
+                      navigateTo(`/movies/${movie.movie_id}`);
                       return;
                     }
                     setSlideIndex(index);

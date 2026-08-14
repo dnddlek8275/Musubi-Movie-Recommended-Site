@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { checkAdminAccess, fetchSearchSuggestions } from '../../api.js';
+import { navigateTo } from '../../navigation.js';
 import Logo from './Logo.jsx';
 import ThemeToggle from './ThemeToggle.jsx';
 import './headerFooter.css';
@@ -58,7 +59,7 @@ function CinemaSearch() {
     if (!normalized) return;
     const params = new URLSearchParams({ keyword: normalized });
     if (type) params.set('type', type);
-    window.location.href = `/recommendations?${params.toString()}`;
+    navigateTo(`/recommendations?${params.toString()}`);
   };
 
   const handleSubmit = (event) => {

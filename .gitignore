@@ -53,6 +53,9 @@ AI/gemma4-cineverse/
 AI/checkpoint-*/
 AI/model/
 AI/data/
+!AI/data/
+AI/data/*
+!AI/data/topic_profiles.json
 AI/output/
 AI/outputs/
 **/*.gguf

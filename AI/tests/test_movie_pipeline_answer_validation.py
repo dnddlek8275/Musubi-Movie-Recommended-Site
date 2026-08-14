@@ -7,6 +7,26 @@ from pipeline.recommendation_presenter import (
 
 
 class GeneralRecommendationValidationTests(unittest.TestCase):
+    def test_rejects_one_genre_label_for_mixed_unnamed_cards(self):
+        movies = [
+            {"title": "액션 카드", "genres": "액션, 모험"},
+            {"title": "공포 카드", "genres": "공포, 미스터리"},
+        ]
+        answer = "액션 영화 어때? ‘액션 카드’와 ‘공포 카드’를 골랐어."
+
+        self.assertFalse(is_fact_grounded_recommendation(answer, movies))
+
+    def test_family_conversation_is_not_mistaken_for_a_set_genre_label(self):
+        movies = [
+            {"title": "첫 카드", "genres": "코미디"},
+            {"title": "둘째 카드", "genres": "애니메이션"},
+        ]
+        answer = "가족과 함께 보기엔 ‘첫 카드’와 ‘둘째 카드’가 괜찮아."
+
+        self.assertTrue(
+            is_fact_grounded_recommendation(answer, movies, "가족과 볼 영화 추천해줘")
+        )
+
     def setUp(self):
         self.movies = [
             {"title": "물괴"},

@@ -4,15 +4,113 @@ import {
   addLikedMovie,
   fetchDiscoverySections,
   fetchLikedMovies,
-  fetchMovies,
+  fetchMoviesByCountry,
+  fetchMoviesByGenre,
+  fetchSearchSections,
   getLocalPreferences,
   removeLikedMovie,
 } from '../../api.js';
 import { normalizeMovie } from '../index/RecommendationRow.jsx';
-import CinemaNav from '../HeaderFooter/CinemaNav.jsx';
 import MovieCard from '../movieCard/MovieCard.jsx';
+import HorizontalScroller from '../common/HorizontalScroller.jsx';
 import { getKeywordLabel } from '../../utils/keywordLabels.js';
+import { navigateTo } from '../../navigation.js';
 import './recomendation.css';
+
+const ROTATING_GENRES = [
+  '한국영화',
+  '드라마', '코미디', '스릴러', '액션', '공포', '로맨스', '범죄', '모험',
+  '애니메이션', 'SF', '가족', '판타지', '미스터리', '다큐멘터리', '음악',
+  '역사', '전쟁',
+];
+const GENRE_ROTATION_KEY = 'musubi.recommendationGenreRotation';
+
+function GenreSelector({ value, onChange }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const selectorRef = useRef(null);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const closeOnOutsideClick = (event) => {
+      if (!selectorRef.current?.contains(event.target)) setIsOpen(false);
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setIsOpen(false);
+    };
+
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [isOpen]);
+
+  return (
+    <span className="recommendation-genre-select" ref={selectorRef}>
+      <button
+        type="button"
+        className="recommendation-genre-select__trigger"
+        aria-label="장르 선택"
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((current) => !current)}
+      >
+        <span>{value}</span>
+        <span className="recommendation-genre-select__arrow" aria-hidden="true">⌄</span>
+      </button>
+      {isOpen && (
+        <span className="recommendation-genre-select__menu" role="listbox" aria-label="장르 목록">
+          {ROTATING_GENRES.map((genre) => (
+            <button
+              type="button"
+              role="option"
+              aria-selected={genre === value}
+              className={genre === value ? 'is-selected' : ''}
+              onClick={() => {
+                onChange(genre);
+                setIsOpen(false);
+              }}
+              key={genre}
+            >
+              {genre}
+            </button>
+          ))}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function shuffledGenres() {
+  const genres = [...ROTATING_GENRES];
+  for (let index = genres.length - 1; index > 0; index -= 1) {
+    const target = Math.floor(Math.random() * (index + 1));
+    [genres[index], genres[target]] = [genres[target], genres[index]];
+  }
+  return genres;
+}
+
+function nextRotatingGenre() {
+  try {
+    const stored = JSON.parse(window.sessionStorage.getItem(GENRE_ROTATION_KEY) || 'null');
+    const validQueue = Array.isArray(stored?.queue)
+      && stored.queue.length === ROTATING_GENRES.length
+      && ROTATING_GENRES.every((genre) => stored.queue.includes(genre));
+    const queue = validQueue && Number(stored.index) < stored.queue.length
+      ? stored.queue
+      : shuffledGenres();
+    const index = validQueue && Number(stored.index) < stored.queue.length
+      ? Math.max(Number(stored.index), 0)
+      : 0;
+    const genre = queue[index];
+    window.sessionStorage.setItem(GENRE_ROTATION_KEY, JSON.stringify({ queue, index: index + 1 }));
+    return genre;
+  } catch {
+    return ROTATING_GENRES[Math.floor(Math.random() * ROTATING_GENRES.length)];
+  }
+}
 
 function sectionTitle(section, displayName) {
   if (section.key === 'for-you') {
@@ -20,9 +118,6 @@ function sectionTitle(section, displayName) {
   }
   if (section.key === 'recent-likes') {
     return `${displayName}님이 마음을 남긴 영화, 최근 순서로 모았어요`;
-  }
-  if (section.key === 'preferred-genres') {
-    return `${displayName}님의 장르 취향을 조금 더 넓혀볼까요?`;
   }
   if (section.key === 'preferred-actors') {
     return `${displayName}님이 눈여겨본 배우들의 다른 작품이에요`;
@@ -44,47 +139,32 @@ function sectionTitle(section, displayName) {
   return `${displayName}님의 ${label} 취향까지 놓치지 않았어요`;
 }
 
-function MovieSection({ section, displayName, likedMovies, onToggleLike }) {
-  const rowRef = useRef(null);
+function MovieSection({
+  section,
+  displayName,
+  likedMovies,
+  onToggleLike,
+  source = '',
+  titleContent = null,
+  onReachEnd = null,
+  isLoadingMore = false,
+}) {
   const movies = section.movies.map(normalizeMovie);
   const title = sectionTitle(section, displayName);
-  const [scrollState, setScrollState] = useState({ canGoBack: false, canGoForward: false });
-
-  const updateScrollState = () => {
-    const row = rowRef.current;
-    if (!row) return;
-    const maxScrollLeft = Math.max(row.scrollWidth - row.clientWidth, 0);
-    setScrollState({
-      canGoBack: row.scrollLeft > 4,
-      canGoForward: row.scrollLeft < maxScrollLeft - 4,
-    });
-  };
-
-  useEffect(() => {
-    const frame = window.requestAnimationFrame(updateScrollState);
-    window.addEventListener('resize', updateScrollState);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      window.removeEventListener('resize', updateScrollState);
-    };
-  }, [movies.length]);
-
-  const scroll = (direction) => {
-    const distance = Math.max((rowRef.current?.clientWidth || 1160) * 0.86, 320);
-    rowRef.current?.scrollBy({ left: direction * distance, behavior: 'smooth' });
-  };
 
   return (
     <section className="recommendation-row" aria-label={title}>
       <header className="recommendation-row__header">
         <div>
-          <h3>{title}</h3>
+          <h3>{titleContent || title}</h3>
         </div>
       </header>
 
-      <div className={`recommendation-row__slider${scrollState.canGoBack ? ' has-prev' : ''}${scrollState.canGoForward ? ' has-more' : ''}`}>
-        <button className="recommendation-row__arrow is-prev" type="button" onClick={() => scroll(-1)} disabled={!scrollState.canGoBack} aria-label="이전 영화 보기">‹</button>
-        <div className="recommendation-row__movies" ref={rowRef} onScroll={updateScrollState}>
+      <HorizontalScroller
+        className="recommendation-row__movies"
+        ariaLabel={`${title} 영화 목록`}
+        onReachEnd={onReachEnd}
+      >
           {movies.map((movie, index) => (
             <div className="recommendation-row__item" key={movie.id ?? `${movie.title}-${index}`}>
               {section.key === 'box-office' || section.key === 'site-popular' ? (
@@ -97,13 +177,18 @@ function MovieSection({ section, displayName, likedMovies, onToggleLike }) {
                 isLiked={likedMovies.includes(movie.title)}
                 movie={movie}
                 onToggleLike={onToggleLike}
-                onSelect={(selected) => { window.location.href = `/movies/${selected.id}`; }}
+                onSelect={(selected) => navigateTo(`/movies/${selected.id}${source ? `?source=${source}` : ''}`)}
               />
             </div>
           ))}
-        </div>
-        <button className="recommendation-row__arrow is-next" type="button" onClick={() => scroll(1)} disabled={!scrollState.canGoForward} aria-label="다음 영화 보기">›</button>
-      </div>
+          {isLoadingMore ? (
+            <div className="recommendation-row__item recommendation-row__item--loading" aria-label="다음 영화 불러오는 중">
+              <div className="recommendation-skeleton__poster" />
+              <div className="recommendation-skeleton__line is-title" />
+              <div className="recommendation-skeleton__line" />
+            </div>
+          ) : null}
+      </HorizontalScroller>
     </section>
   );
 }
@@ -142,64 +227,44 @@ function SearchResultsSkeleton() {
   );
 }
 
-function SearchResults({ query, movies, likedMovies, onToggleLike, hasMore, loadingMore, onLoadMore }) {
-  const normalizedMovies = movies.map(normalizeMovie);
-  const loadMoreRef = useRef(null);
-
-  useEffect(() => {
-    const target = loadMoreRef.current;
-    if (!target || !hasMore || loadingMore) return undefined;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) onLoadMore();
-      },
-      { rootMargin: '500px 0px' },
-    );
-    observer.observe(target);
-    return () => observer.disconnect();
-  }, [hasMore, loadingMore, onLoadMore]);
-
+function SearchResults({ query, sections, likedMovies, onToggleLike, onLoadMore, loadingSections }) {
   return (
     <section className="recommendation-search" aria-label={`${query} 검색 결과`}>
       <header className="recommendation-search__header">
-        <h1><span>“{query}”</span> 관련 영화</h1>
-        <p>{movies.length > 0 ? '검색어와 관련된 영화를 관련도순으로 모았어요' : '일치하는 영화를 찾지 못했어요'}</p>
+        <h1><span>“{query}”</span> 검색 결과</h1>
+        <p>{sections.length > 0 ? '검색 필드별 결과를 최신 개봉일순으로 모았어요' : '일치하는 영화를 찾지 못했어요'}</p>
       </header>
 
-      {normalizedMovies.length > 0 ? (
-        <div className="recommendation-search__grid">
-          {normalizedMovies.map((movie, index) => (
-            <MovieCard
-              index={index}
-              isLiked={likedMovies.includes(movie.title)}
-              key={movie.id ?? `${movie.title}-${index}`}
-              movie={movie}
-              onToggleLike={onToggleLike}
-              onSelect={(selected) => { window.location.href = `/movies/${selected.id}?source=search`; }}
-            />
-          ))}
-        </div>
-      ) : null}
-
-      {hasMore ? (
-        <div className="recommendation-search__loader" ref={loadMoreRef} role="status">
-          {loadingMore ? '검색 결과를 이어서 불러오는 중…' : ''}
-        </div>
-      ) : null}
+      <div className="recommendation-search__sections">
+        {sections.map((section) => (
+          <MovieSection
+            key={section.key || section.type}
+            section={section}
+            displayName=""
+            likedMovies={likedMovies}
+            onToggleLike={onToggleLike}
+            source="search"
+            onReachEnd={section.has_more ? () => onLoadMore(section) : null}
+            isLoadingMore={loadingSections.has(section.type)}
+          />
+        ))}
+      </div>
     </section>
   );
 }
 
 function Recommendation({ authUser, onLogout }) {
   const [sections, setSections] = useState([]);
-  const [searchResults, setSearchResults] = useState([]);
-  const [searchPage, setSearchPage] = useState(1);
-  const [hasMoreSearchResults, setHasMoreSearchResults] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const [searchSections, setSearchSections] = useState([]);
+  const [loadingSearchSections, setLoadingSearchSections] = useState(() => new Set());
+  const searchLoadRef = useRef(new Set());
+  const searchQueryRef = useRef('');
   const [likedMovies, setLikedMovies] = useState([]);
   const [status, setStatus] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedGenre, setSelectedGenre] = useState(nextRotatingGenre);
+  const [genreMovies, setGenreMovies] = useState([]);
+  const [genreLoading, setGenreLoading] = useState(true);
   const query = new URLSearchParams(window.location.search).get('keyword')?.trim() || '';
   const searchType = new URLSearchParams(window.location.search).get('type')?.trim() || '';
   const displayName = authUser?.nickname
@@ -216,23 +281,23 @@ function Recommendation({ authUser, onLogout }) {
 
   useEffect(() => {
     const controller = new AbortController();
+    searchQueryRef.current = query;
     setIsLoading(true);
     setStatus('');
-    setSearchPage(1);
 
     const request = query
-      ? fetchMovies(controller.signal, query, { page: 1, limit: 80, searchType }).then((movies) => {
+      ? fetchSearchSections(controller.signal, query, { limit: 20, searchType }).then((groupedSections) => {
           setSections([]);
-          setSearchResults(movies);
-          setHasMoreSearchResults(movies.length === 80);
+          setSearchSections(groupedSections);
+          searchLoadRef.current.clear();
+          setLoadingSearchSections(new Set());
         })
       : fetchDiscoverySections(
           controller.signal,
           authUser ? null : getLocalPreferences(),
           25,
         ).then((sectionData) => {
-          setSearchResults([]);
-          setHasMoreSearchResults(false);
+          setSearchSections([]);
           setSections(sectionData.filter((section) => Array.isArray(section.movies) && section.movies.length > 0));
         });
 
@@ -248,29 +313,72 @@ function Recommendation({ authUser, onLogout }) {
     return () => controller.abort();
   }, [authUser, query, searchType]);
 
-  const loadMoreSearchResults = async () => {
-    if (!query || loadingMore || !hasMoreSearchResults) return;
-    const nextPage = searchPage + 1;
-    setLoadingMore(true);
-    setStatus('');
+  const loadMoreSearchSection = async (section) => {
+    const category = String(section?.type || '').trim();
+    if (!query || !category || !section?.has_more || searchLoadRef.current.has(category)) return;
+
+    searchLoadRef.current.add(category);
+    setLoadingSearchSections((current) => new Set(current).add(category));
     try {
-      const movies = await fetchMovies(undefined, query, {
-        page: nextPage,
-        limit: 80,
+      const nextPage = Math.max(Number(section.page) || 1, 1) + 1;
+      const excludeIds = searchSections.flatMap((item) => (
+        item.movies.map((movie) => movie.id ?? movie.movie_id).filter(Boolean)
+      ));
+      const nextSections = await fetchSearchSections(undefined, query, {
+        limit: 20,
         searchType,
+        category,
+        page: nextPage,
+        excludeIds,
       });
-      setSearchResults((current) => {
-        const knownIds = new Set(current.map((movie) => movie.movie_id ?? movie.id));
-        return [...current, ...movies.filter((movie) => !knownIds.has(movie.movie_id ?? movie.id))];
-      });
-      setSearchPage(nextPage);
-      setHasMoreSearchResults(movies.length === 80);
+      if (searchQueryRef.current !== query) return;
+      const nextSection = nextSections.find((item) => item.type === category);
+      setSearchSections((current) => current.map((item) => {
+        if (item.type !== category) return item;
+        if (!nextSection) return { ...item, has_more: false };
+        const knownIds = new Set(item.movies.map((movie) => String(movie.id)));
+        const appended = nextSection.movies.filter((movie) => !knownIds.has(String(movie.id)));
+        return {
+          ...item,
+          movies: [...item.movies, ...appended],
+          page: nextSection.page,
+          has_more: nextSection.has_more,
+        };
+      }));
     } catch (error) {
-      setStatus(error.message);
+      if (error.name !== 'AbortError') setStatus(error.message);
     } finally {
-      setLoadingMore(false);
+      searchLoadRef.current.delete(category);
+      setLoadingSearchSections((current) => {
+        const next = new Set(current);
+        next.delete(category);
+        return next;
+      });
     }
   };
+
+  useEffect(() => {
+    if (query) {
+      setGenreMovies([]);
+      setGenreLoading(false);
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    setGenreLoading(true);
+    const request = selectedGenre === '한국영화'
+      ? fetchMoviesByCountry('KR', controller.signal, { limit: 25 })
+      : fetchMoviesByGenre(selectedGenre, controller.signal, { limit: 25, sort: 'latest' });
+    request
+      .then(setGenreMovies)
+      .catch((error) => {
+        if (error.name !== 'AbortError') setStatus(error.message);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setGenreLoading(false);
+      });
+    return () => controller.abort();
+  }, [query, selectedGenre]);
 
   useEffect(() => {
     if (!authUser) return undefined;
@@ -325,9 +433,27 @@ function Recommendation({ authUser, onLogout }) {
     }
   };
 
+  const genreTitle = (
+    <span className="recommendation-genre-title">
+      <GenreSelector value={selectedGenre} onChange={setSelectedGenre} />
+      <span>{selectedGenre === '한국영화' ? '최신순으로 모아봤어요.' : '영화만 모아봤어요.'}</span>
+    </span>
+  );
+
+  const genreSection = {
+    key: 'rotating-genre',
+    title: `${selectedGenre} 영화만 모아봤어요.`,
+    movies: genreMovies,
+  };
+
+  const sectionsWithGenre = displayedSections.flatMap((section) => (
+    section.key === 'box-office'
+      ? [section, genreSection]
+      : [section]
+  ));
+
   return (
     <main className="recommendation cinema-nav-page">
-      <CinemaNav authUser={authUser} onLogout={onLogout} />
       {status ? <p className="recommendation__status" role="status">{status}</p> : null}
 
       <div className="recommendation__sections">
@@ -336,21 +462,36 @@ function Recommendation({ authUser, onLogout }) {
         ) : query ? (
           <SearchResults
             query={query}
-            movies={searchResults}
+            sections={searchSections}
             likedMovies={likedMovies}
             onToggleLike={handleToggleLike}
-            hasMore={hasMoreSearchResults}
-            loadingMore={loadingMore}
-            onLoadMore={loadMoreSearchResults}
+            onLoadMore={loadMoreSearchSection}
+            loadingSections={loadingSearchSections}
           />
-        ) : displayedSections.map((section) => (
+        ) : sectionsWithGenre.map((section) => (
+            section.key === 'rotating-genre' && genreLoading ? (
+              <section className="recommendation-row recommendation-row--skeleton" aria-hidden="true" key={section.key}>
+                <div className="recommendation-skeleton__heading" />
+                <div className="recommendation-skeleton__movies">
+                  {Array.from({ length: 8 }, (_, index) => (
+                    <div className="recommendation-skeleton__card" key={index}>
+                      <div className="recommendation-skeleton__poster" />
+                      <div className="recommendation-skeleton__line is-title" />
+                      <div className="recommendation-skeleton__line" />
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : (
             <MovieSection
               key={section.key}
               section={section}
               displayName={displayName}
               likedMovies={likedMovies}
               onToggleLike={handleToggleLike}
+              titleContent={section.key === 'rotating-genre' ? genreTitle : null}
             />
+            )
           ))}
       </div>
     </main>

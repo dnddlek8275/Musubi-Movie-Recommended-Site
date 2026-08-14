@@ -7,6 +7,7 @@ from app.services.movies.recommendation_service import (
     PREFERENCE_WEIGHT,
     bayesian_rating,
     diversify_recommendations,
+    preference_confidence,
     qualifies_content_candidate,
 )
 from app.services.preference_service import (
@@ -16,6 +17,8 @@ from app.services.preference_service import (
     canonicalize_keyword,
     core_movie_preference_items,
     is_learnable_keyword,
+    PreferenceSignal,
+    rating_preference_signal,
 )
 from app.services.movies.genre_relevance import (
     genre_relevance_score,
@@ -24,6 +27,31 @@ from app.services.movies.genre_relevance import (
 
 
 class RecommendationQualityTests(unittest.TestCase):
+    def test_single_weak_view_does_not_become_full_preference(self):
+        weak = PreferenceSignal("genre", "SF", 0.057, behavior_score=0.057)
+        repeated = PreferenceSignal("genre", "SF", 6.0, behavior_score=6.0)
+
+        self.assertLess(preference_confidence(weak), 0.02)
+        self.assertGreater(preference_confidence(repeated), 0.6)
+
+    def test_explicit_preference_remains_strong_without_forcing_full_score(self):
+        explicit = PreferenceSignal(
+            "genre", "SF", 3.0, behavior_score=0.0, explicit=True
+        )
+
+        self.assertEqual(preference_confidence(explicit), 0.75)
+
+    def test_negative_rating_signal_can_reduce_a_preference(self):
+        disliked = PreferenceSignal("genre", "공포", -1.0, behavior_score=-1.0)
+
+        self.assertLess(preference_confidence(disliked), 0)
+
+    def test_rating_signal_is_negative_neutral_or_positive(self):
+        self.assertLess(rating_preference_signal(1.0), 0)
+        self.assertEqual(rating_preference_signal(3.0), 0)
+        self.assertGreater(rating_preference_signal(5.0), 0)
+        self.assertLess(abs(rating_preference_signal(1.0)), rating_preference_signal(5.0))
+
     def test_few_vote_ten_is_shrunk_toward_average(self):
         sparse = Movie(title="sparse", vote_average=10.0, vote_count=2)
         trusted = Movie(title="trusted", vote_average=8.0, vote_count=10_000)

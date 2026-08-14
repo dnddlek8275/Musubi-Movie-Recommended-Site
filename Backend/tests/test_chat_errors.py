@@ -6,7 +6,9 @@ from fastapi import HTTPException
 from starlette.requests import Request
 
 from app.ai_client.chat import open_character_chat_stream
+from app.ai_client.base import post_ai
 from app.api.chat import chat
+from app.core.config import settings
 from app.schemas.chat import AutoChatRequest
 from app.services.chat_stream_service import stream_and_save_character_answer
 from app.services.guest_chat_service import _daily_usage, reserve_guest_request
@@ -114,6 +116,37 @@ class CharacterStreamConnectionTests(unittest.IsolatedAsyncioTestCase):
                 )
 
         self.assertEqual(raised.exception.status_code, 504)
+
+
+class AiSyncTimeoutTests(unittest.IsolatedAsyncioTestCase):
+    async def test_sync_chat_uses_configured_read_timeout(self):
+        class FakeResponse:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {"answer": "ok"}
+
+        class CapturingClient:
+            timeout = None
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, _exc_type, _exc, _traceback):
+                return None
+
+            async def post(self, _url, *, json, timeout):
+                self.timeout = timeout
+                return FakeResponse()
+
+        client = CapturingClient()
+        with patch("app.ai_client.base.httpx.AsyncClient", return_value=client):
+            response = await post_ai("/chat/auto", {"message": "안녕"})
+
+        self.assertEqual(response, {"answer": "ok"})
+        self.assertEqual(client.timeout.connect, 5.0)
+        self.assertEqual(client.timeout.read, settings.AI_CHAT_TIMEOUT_SECONDS)
 
 
 class CharacterStreamForwardingTests(unittest.IsolatedAsyncioTestCase):

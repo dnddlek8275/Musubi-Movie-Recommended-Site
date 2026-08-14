@@ -1,0 +1,45 @@
+.horizontal-scroller {
+  min-width: 0;
+  position: relative;
+}
+
+.horizontal-scroller__arrow {
+  width: 42px;
+  height: 58px;
+  padding: 0 0 4px;
+  border: 1px solid color-mix(in srgb, var(--text) 17%, transparent);
+  border-radius: 999px;
+  position: absolute;
+  top: 43%;
+  z-index: 12;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 28%);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 34px;
+  line-height: 1;
+  backdrop-filter: blur(8px);
+}
+
+.horizontal-scroller__arrow:hover,
+.horizontal-scroller__arrow:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+  outline: none;
+}
+
+.horizontal-scroller__arrow.is-prev { left: 8px; }
+.horizontal-scroller__arrow.is-next { right: 8px; }
+
+@media (max-width: 560px) {
+  .horizontal-scroller__arrow { width: 36px; height: 50px; font-size: 29px; }
+  .horizontal-scroller__arrow.is-prev { left: 4px; }
+  .horizontal-scroller__arrow.is-next { right: 4px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .horizontal-scroller__arrow { backdrop-filter: none; }
+}

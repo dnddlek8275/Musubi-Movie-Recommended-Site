@@ -5,11 +5,11 @@ import { SkeletonBlock } from '../common/LoadingSkeleton.jsx';
 import { getKeywordLabel } from '../../utils/keywordLabels.js';
 
 const MU_MASCOTS = [
-  { src: '/images/character/mu/mu-default-v1.png', shiftX: '-2.4%', shiftY: '1%' },
-  { src: '/images/character/mu/mu-searching-v2.png', shiftX: '4.2%', shiftY: '1.3%' },
-  { src: '/images/character/mu/mu-pose-popcorn-v1.png', shiftX: '3%', shiftY: '0.7%' },
-  { src: '/images/character/mu/mu-pose-drink-v1.png', shiftX: '-1.2%', shiftY: '0' },
-  { src: '/images/character/mu/mu-pose-watching-v1.png', shiftX: '3.9%', shiftY: '-3%' },
+  { src: '/images/character/mu/mu-default-v1.webp', shiftX: '-2.4%', shiftY: '1%' },
+  { src: '/images/character/mu/mu-searching-v2.webp', shiftX: '4.2%', shiftY: '1.3%' },
+  { src: '/images/character/mu/mu-pose-popcorn-v1.webp', shiftX: '3%', shiftY: '0.7%' },
+  { src: '/images/character/mu/mu-pose-drink-v1.webp', shiftX: '-1.2%', shiftY: '0' },
+  { src: '/images/character/mu/mu-pose-watching-v1.webp', shiftX: '3.9%', shiftY: '-3%' },
 ];
 
 function PreferenceCard({ authUser }) {

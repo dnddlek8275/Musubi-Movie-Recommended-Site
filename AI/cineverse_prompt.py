@@ -308,6 +308,17 @@ def clean_llm_output(text: str, character_name: str | None = None) -> str:
 
     out = text
 
+    # reasoning 영역에서 질문을 재구성한 다음 실제 답을 별도의 model 턴에
+    # 쓰는 출력이 있다. 첫 end_of_turn에서 자르기 전에 마지막 model 턴의
+    # 본문을 우선 추출해야 실제 답변이 사라지지 않는다.
+    model_turns = list(re.finditer(
+        r"<[|/]?start[_/\\]*of[_/\\]*turn[|/]?>\s*model\s*",
+        out,
+        flags=re.IGNORECASE,
+    ))
+    if model_turns:
+        out = out[model_turns[-1].end():]
+
     # 1) thinking/reasoning 블록 제거
     for pat in _THINK_PATTERNS:
         out = pat.sub("", out)

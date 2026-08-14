@@ -95,6 +95,20 @@ class TmdbMetadataTests(unittest.TestCase):
         }
         self.assertEqual(extract_display_title(payload), "English title")
 
+    def test_korean_detail_title_is_used_before_english_translation(self):
+        payload = {
+            "id": 793058,
+            "original_language": "ko",
+            "original_title": "하이파이브",
+            "title": "하이파이브",
+            "translations": {"translations": [
+                {"iso_639_1": "ko", "data": {"title": ""}},
+                {"iso_639_1": "en", "data": {"title": "Hi-Five"}},
+            ]},
+        }
+        self.assertEqual(extract_display_title(payload), "하이파이브")
+
+
 
 if __name__ == "__main__":
     unittest.main()

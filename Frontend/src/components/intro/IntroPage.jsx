@@ -7,17 +7,17 @@ import './intro.css';
 
 const SCENE_DURATIONS = [3400, 4600, 5200, 5200];
 const GENRES = [
-  '로맨스',
-  'SF',
-  '스릴러',
-  '코미디',
-  '다큐멘터리',
-  '애니메이션',
-  '공포',
-  '액션',
-  '드라마',
-  '판타지',
-  '미스터리',
+  '#로맨스',
+  '#SF',
+  '#스릴러',
+  '#코미디',
+  '취향에 맞게 쏙',
+  '이제 고민은 끝',
+  '#공포',
+  '#액션',
+  '#드라마',
+  '#판타지',
+  '#미스터리',
   '10,000+ 개의 영화',
 ];
 
@@ -46,10 +46,26 @@ const POPCORN = Array.from({ length: 34 }, (_, index) => ({
 }));
 
 const MU_INTRO_STATES = [
-  '/images/character/mu/upper-body/mu-upper-default-v1.png',
-  '/images/character/mu/upper-body/mu-upper-joy-v1.png',
-  '/images/character/mu/upper-body/mu-upper-thinking-v1.png',
-  '/images/character/mu/upper-body/mu-upper-searching-v1.png',
+  {
+    src: '/images/character/mu/upper-body/mu-upper-default-v1.webp',
+    scale: 1,
+    positionY: '16%',
+  },
+  {
+    src: '/images/character/mu/upper-body/mu-upper-joy-v1.webp',
+    scale: 1.13,
+    positionY: '17%',
+  },
+  {
+    src: '/images/character/mu/upper-body/mu-upper-thinking-v1.webp',
+    scale: 1.02,
+    positionY: '16%',
+  },
+  {
+    src: '/images/character/mu/upper-body/mu-upper-searching-v1.webp',
+    scale: 1.04,
+    positionY: '17%',
+  },
 ];
 
 function getInitialTheme() {
@@ -79,7 +95,15 @@ function IntroPage({ entryClassName = '', entryContent, initialScene, onLogin, o
     const params = new URLSearchParams(window.location.search);
     return params.get('resetToken') || '';
   });
-  const promos = data.hero.promos.slice(0, 4);
+  const promos = data.introHero?.promos || data.hero.promos;
+  const bannerFlowDurations = [68, 54, 61, 47];
+  const bannerRows = useMemo(
+    () => Array.from(
+      { length: 4 },
+      (_, rowIndex) => promos.filter((_, index) => index % 4 === rowIndex),
+    ),
+    [promos],
+  );
 
   const chips = useMemo(
     () =>
@@ -174,12 +198,12 @@ function IntroPage({ entryClassName = '', entryContent, initialScene, onLogin, o
       >
         <img
           className="intro-skip-logo__image intro-skip-logo__image--dark"
-          src="/images/brand/musubi-logo-dark.png"
+          src="/images/brand/musubi-logo-dark.webp"
           alt=""
         />
         <img
           className="intro-skip-logo__image intro-skip-logo__image--light"
-          src="/images/brand/musubi-logo.png"
+          src="/images/brand/musubi-logo.webp"
           alt=""
         />
       </button>
@@ -227,8 +251,10 @@ function IntroPage({ entryClassName = '', entryContent, initialScene, onLogin, o
       >
         <div className="intro-popcorn-layer" aria-hidden="true">
           {POPCORN.map((kernel, index) => (
-            <span
+            <img
               className="intro-kernel"
+              src="/images/intro/popcorn-v1.webp"
+              alt=""
               key={index}
               style={{
                 '--kernel-left': `${kernel.left}%`,
@@ -236,15 +262,13 @@ function IntroPage({ entryClassName = '', entryContent, initialScene, onLogin, o
                 '--kernel-rotation': `${kernel.rotation}deg`,
                 '--kernel-duration': `${kernel.duration}s`,
                 '--kernel-delay': `${kernel.delay}s`,
-                '--kernel-size': `${kernel.size}px`,
+                '--kernel-size': `${kernel.size * 1.5}px`,
               }}
-            >
-              🍿
-            </span>
+            />
           ))}
         </div>
         <div className="intro-scene__content">
-          <span className="intro-badge">🍿 팝! 등장</span>
+          <span className="intro-badge">팝! 등장</span>
           <h2>
             나한테 <strong>딱 맞는 영화</strong>를
             <br />
@@ -283,7 +307,9 @@ function IntroPage({ entryClassName = '', entryContent, initialScene, onLogin, o
                   <div className="intro-movie-card">
                     <img
                       className="intro-movie-card__poster"
-                      src="/images/posters/today-us.png?v=20260804-1"
+                      src="/images/posters/today-us.webp?v=20260812-1"
+                      decoding="async"
+                      loading="lazy"
                       alt="오늘, 우리 포스터"
                     />
                     <div>
@@ -310,10 +336,14 @@ function IntroPage({ entryClassName = '', entryContent, initialScene, onLogin, o
           {MU_INTRO_STATES.map((avatar, index) => (
             <span
               className={`intro-avatar${index === 0 || index === 2 ? ' intro-avatar--pick' : ''}`}
-              key={avatar}
-              style={{ '--delay': `${0.15 + index * 0.12}s` }}
+              key={avatar.src}
+              style={{
+                '--delay': `${0.15 + index * 0.12}s`,
+                '--avatar-scale': avatar.scale,
+                '--avatar-position-y': avatar.positionY,
+              }}
             >
-              <img src={avatar} alt="" />
+              <img src={avatar.src} alt="" />
             </span>
           ))}
         </div>
@@ -362,15 +392,28 @@ function IntroPage({ entryClassName = '', entryContent, initialScene, onLogin, o
             {resolvedEntryContent}
           </section>
 
-          <section className="intro-entry__posters" aria-label="Musubi 영화 포스터">
-            <div className="intro-entry__poster-grid" aria-hidden="true">
-              {promos.map((promo, index) => (
-                <img
-                  className={`intro-entry__poster intro-entry__poster--${index + 1}`}
-                  src={promo.image}
-                  alt=""
-                  key={promo.id}
-                />
+          <section className="intro-entry__posters" aria-label="Musubi 영화 배너">
+            <div className="intro-entry__banner-stage" aria-hidden="true">
+              {bannerRows.map((row, rowIndex) => (
+                <div
+                  className={`intro-entry__banner-track intro-entry__banner-track--${rowIndex + 1}`}
+                  key={`banner-row-${rowIndex + 1}`}
+                  style={{ '--intro-banner-flow-duration': `${bannerFlowDurations[rowIndex]}s` }}
+                >
+                  {[0, 1].map((copyIndex) => (
+                    <div className="intro-entry__banner-group" key={`banner-copy-${copyIndex}`}>
+                      {row.map((promo, promoIndex) => (
+                        <img
+                          className="intro-entry__banner"
+                          src={promo.highResolutionImage || promo.image}
+                          alt=""
+                          key={`${copyIndex}-${promo.id}`}
+                          loading={copyIndex === 0 && promoIndex === 0 ? 'eager' : 'lazy'}
+                        />
+                      ))}
+                    </div>
+                  ))}
+                </div>
               ))}
             </div>
             <div className="intro-entry__poster-copy">

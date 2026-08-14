@@ -29,6 +29,7 @@ scripts/*
 !scripts/backfill_movie_titles.py
 !scripts/__init__.py
 !scripts/sync_tmdb_daily.py
+!scripts/dispatch_movie_vectors.py
 outputs
 external
 *.log

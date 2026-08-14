@@ -11,12 +11,13 @@ import {
   sendChat,
   sendRoomMessage,
 } from '../../api.js';
+import { navigateTo } from '../../navigation.js';
 
 import './chat.css';
-import CinemaNav from '../HeaderFooter/CinemaNav.jsx';
-import PosterArt from '../index/PosterArt.jsx';
 import GuestChatNotice from './GuestChatNotice.jsx';
+import ChatMovieRecommendations from './ChatMovieRecommendations.jsx';
 import { rankCharactersForRecommendation } from '../../utils/characterRecommendation.js';
+import { optimizeImageUrl } from '../../utils/imagePerformance.js';
 import '../homeVariants/homeVariants.css';
 
 // 배우대기실(menu2). /chat 과 /chat/group 을 한 페이지에서 다룬다.
@@ -25,7 +26,7 @@ import '../homeVariants/homeVariants.css';
 // 사이드바 아래 대화 내역은 대화한 캐릭터들의 이름을 제목으로 보여준다.
 const STORAGE_KEY = 'cineverse.groupchat.conversations';
 const AUTH_SESSION_KEY = 'cineverse.authSession';
-const MUMU_DEFAULT_IMAGE = '/images/character/mu/upper-body/mu-upper-default-v1.png';
+const MUMU_DEFAULT_IMAGE = '/images/character/mu/upper-body/mu-upper-default-v1.webp';
 
 // 장르별 캐릭터는 한 캐릭터가 한 줄에만 노출되도록 영화의 대표 장르 하나로 정규화한다.
 // 복수 장르 성격이 강한 작품은 KOFIC·DC·Disney의 작품 분류를 확인해 대표 축을 정했다.
@@ -265,12 +266,13 @@ function normalizeCharacter(rawCharacter, index) {
     keywords: Array.isArray(rawCharacter?.keywords) ? rawCharacter.keywords : [],
     movieTitle: String(rawCharacter?.movie_title || rawCharacter?.movieTitle || '').trim(),
     greetingMessage: String(rawCharacter?.greeting_message || rawCharacter?.greetingMessage || '').trim(),
-    image:
+    image: optimizeImageUrl(
       rawCharacter?.image ||
       rawCharacter?.image_url ||
       rawCharacter?.avatar_url ||
       rawCharacter?.profile_image ||
       '',
+    ),
   };
 }
 
@@ -289,7 +291,7 @@ function CharacterDiscoveryRow({ title, description, characters, onSelect }) {
         {characters.map((character) => (
           <button type="button" key={character.id} onClick={() => onSelect(character)}>
             <span className="group-character-row__image">
-              {character.image ? <img src={character.image} alt="" /> : null}
+              {character.image ? <img src={character.image} alt="" decoding="async" loading="lazy" /> : null}
             </span>
             <strong>{character.name}</strong>
             <small>{character.movieTitle || '출연 영화 정보 없음'}</small>
@@ -310,6 +312,7 @@ function GroupChatPage({ authUser, onLogout }) {
   const [conversations, setConversations] = useState(() =>
     authUser ? readSessionConversations() : []
   );
+  const [linkedConversations, setLinkedConversations] = useState([]);
   const [activeId, setActiveId] = useState('');
 
   const [isPickerOpen, setPickerOpen] = useState(false);
@@ -455,6 +458,25 @@ function GroupChatPage({ authUser, onLogout }) {
     const controller = new AbortController();
     fetchChatRooms(controller.signal)
       .then((rooms) => {
+        const generalRooms = (rooms || [])
+          .filter((room) => String(room?.room_type || room?.roomType || 'general') === 'general')
+          .map((room) => {
+            const roomId = String(room.room_id ?? room.roomId ?? '');
+            return {
+              id: `linked-general-${roomId}`,
+              roomId,
+              roomType: 'general',
+              title: String(room.title || '').trim()
+                || String(room.title_seed || room.titleSeed || '').trim().slice(0, 30)
+                || '무무와 영화 이야기',
+              createdAt: room.created_at || room.createdAt || new Date().toISOString(),
+              updatedAt: room.updated_at || room.updatedAt || room.created_at || room.createdAt || new Date().toISOString(),
+              href: `/home?room=${encodeURIComponent(roomId)}`,
+              linked: true,
+            };
+          });
+        setLinkedConversations(generalRooms);
+
         const characterRooms = (rooms || []).filter((room) => {
           const type = String(room?.room_type || room?.roomType || '');
           return type === 'character' || type === 'group';
@@ -492,7 +514,10 @@ function GroupChatPage({ authUser, onLogout }) {
         });
       })
       .catch((loadError) => {
-        if (loadError.name !== 'AbortError') setCharacterLoadError(loadError.message);
+        if (loadError.name !== 'AbortError') {
+          setLinkedConversations([]);
+          setCharacterLoadError(loadError.message);
+        }
       });
 
     return () => controller.abort();
@@ -1470,7 +1495,7 @@ function GroupChatPage({ authUser, onLogout }) {
     }
   };
 
-  const statusText = busy ? 'AI가 답변 중입니다.' : error || characterLoadError || '';
+  const statusText = error || characterLoadError || '';
   const normalizedPickerQuery = normalizeCharacterSearchText(pickerQuery);
   const pickerCharacters = normalizedPickerQuery
     ? characters.filter((character) => (
@@ -1484,8 +1509,6 @@ function GroupChatPage({ authUser, onLogout }) {
 
   return (
     <main className="home-variant home3-page group-chat-home-page" aria-label="캐릭터와 대화">
-      <CinemaNav authUser={authUser} onLogout={onLogout} />
-
       <div className="group-character-recommended">
         <CharacterDiscoveryRow
           title="추천 캐릭터"
@@ -1506,6 +1529,10 @@ function GroupChatPage({ authUser, onLogout }) {
               {historyConversations.map((conversation) => (
                 <div className="home3-chat-history__row" key={conversation.id}>
                   <button type="button" onClick={() => {
+                    if (conversation.href) {
+                      navigateTo(conversation.href);
+                      return;
+                    }
                     prepareChatActivation();
                     setActiveId(conversation.id);
                     setHistoryOpen(false);
@@ -1516,7 +1543,7 @@ function GroupChatPage({ authUser, onLogout }) {
                       {formatConversationStartedAt(conversation)}
                     </time>
                   </button>
-                  <div className="home3-chat-history__actions">
+                  {!conversation.linked ? <div className="home3-chat-history__actions">
                     <button
                       className={`home3-chat-history__pin${conversation.pinned ? ' is-pinned' : ''}`}
                       type="button"
@@ -1552,10 +1579,10 @@ function GroupChatPage({ authUser, onLogout }) {
                         <button className="is-danger" type="button" onClick={() => handleDeleteConversation(conversation)}>삭제하기</button>
                       </div>
                     ) : null}
-                  </div>
+                  </div> : null}
                 </div>
               ))}
-              {conversations.length === 0 ? <p className="home3-chat-history__empty">저장된 대화가 없습니다.</p> : null}
+              {historyConversations.length === 0 ? <p className="home3-chat-history__empty">저장된 대화가 없습니다.</p> : null}
             </div>
           </aside>
         ) : null}
@@ -1702,7 +1729,7 @@ function GroupChatPage({ authUser, onLogout }) {
           ) : null}
 
           {messages.length > 0 || typingCharacter ? (
-            <div className="home-variant-chat__messages is-drag-scroll" ref={messagesRef} aria-live="polite" onScroll={showScrollbarWhileScrolling}>
+            <div className="home-variant-chat__messages" ref={messagesRef} aria-live="polite" onScroll={showScrollbarWhileScrolling}>
               {messages.map((message) => {
                 if (message.memberChange) {
                   return <div className="group-chat-member-event" key={message.id}>{message.content}</div>;
@@ -1728,24 +1755,7 @@ function GroupChatPage({ authUser, onLogout }) {
                           <small>{message.selectedCharacter.movieTitle || '출연 영화 정보 없음'}</small>
                         </div>
                       ) : null}
-                      {message.movies?.length ? (
-                        <div className="home-variant-message__movies" aria-label="추천 영화">
-                          {message.movies.slice(0, 3).map((movie, index) => {
-                            const movieId = movie.movie_id || movie.id;
-                            const title = movie.title || movie.name || `추천 영화 ${index + 1}`;
-                            return (
-                              <button type="button" key={movieId || `${title}-${index}`} onClick={() => {
-                                if (movieId) window.location.href = `/movies/${movieId}`;
-                              }}>
-                                <PosterArt movie={{ ...movie, title }} compact />
-                                {movie.recommendation_role ? <small className="home-variant-message__movie-role">{movie.recommendation_role}</small> : null}
-                                <strong>{title}</strong>
-                                {movie.recommendation_reason ? <span className="home-variant-message__movie-reason">{movie.recommendation_reason}</span> : null}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      ) : null}
+                      <ChatMovieRecommendations movies={message.movies} />
                     </div>
                   </div>
                 );
@@ -1778,10 +1788,15 @@ function GroupChatPage({ authUser, onLogout }) {
               <button ref={promptAddButtonRef} className="home3-prompt__add" type="button" aria-label="채팅 메뉴 열기" aria-expanded={promptMenuOpen} onClick={() => setPromptMenuOpen((current) => !current)}>+</button>
               {promptMenuOpen ? (
                 <div className="home3-prompt-menu" ref={promptMenuRef}>
-                  <button type="button" onClick={() => { window.location.href = '/home'; }}>무무와 새 채팅</button>
+                  <button type="button" onClick={() => navigateTo('/home')}>무무와 새 채팅</button>
                   <button type="button" onClick={returnToCharacterSearch}>캐릭터와 새 채팅</button>
                   <button type="button" onClick={() => { setHistoryOpen(true); setPromptMenuOpen(false); }}>대화 기록</button>
-                  <button type="button" onClick={() => { photoInputRef.current?.click(); setPromptMenuOpen(false); }}>사진 첨부</button>
+                  <button
+                    type="button"
+                    className="home3-prompt-menu__image"
+                    data-tooltip="이미지 첨부 기능은 준비중이에요."
+                    onClick={() => { photoInputRef.current?.click(); setPromptMenuOpen(false); }}
+                  >이미지 첨부</button>
                 </div>
               ) : null}
               <input className="home3-photo-input" type="file" accept="image/*" ref={photoInputRef} onChange={(event) => setPhotoName(event.target.files?.[0]?.name || '')} />

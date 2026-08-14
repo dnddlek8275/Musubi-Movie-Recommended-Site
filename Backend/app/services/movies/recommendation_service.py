@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.ai_client.recommend import request_recommend_today_movie
 from app.models.daily_ai_recommendation import DailyAiRecommendation, DailyAiRecommendationMovie
-from app.models.interactions import UserMovieInteraction
+from app.models.interactions import MovieRating, MovieWishlist, UserMovieInteraction
 from app.models.movies import Movie, MovieGenreWeight, MovieStats
 from app.models.users import User
 from app.services.movies.overview_utils import shorten_text
@@ -28,7 +28,7 @@ from app.services.preference_service import (
 # 추천 흐름
 # 배우 한 명의 폭넓은 필모그래피가 추천 목록을 과도하게 확장하지 않도록
 # 배우 일치는 장르·키워드를 보조하는 신호로만 사용한다.
-PREFERENCE_WEIGHT = {"genre": 3.5, "actor": 0.5, "keyword": 2.5}
+PREFERENCE_WEIGHT = {"genre": 3.5, "actor": 0.5, "director": 0.7, "keyword": 2.5}
 GUEST_PREFERENCE_WEIGHT = {"genre": 4.0, "actor": 2.0, "keyword": 6.0}
 INTEREST_ACTION_WEIGHT = {"view": 0.1, "search_click": 1.5, "like": 3.0}
 CONTENT_SIMILARITY_WEIGHTS = {
@@ -44,7 +44,10 @@ CONTENT_SIMILARITY_WEIGHTS = {
 CONTENT_SIMILARITY_MINIMUM = 0.25
 CONTENT_MINIMUM_VOTES = 300
 CONTENT_DUPLICATE_GENRE_PENALTY = 0.03
+CONTENT_CANDIDATE_POOL_LIMIT = 400
 INTERACTED_RECOMMENDATION_MAX_SHARE = 0.33
+PREFERENCE_SCORE_SATURATION = 3.0
+BEHAVIOR_HALF_LIFE_DAYS = 30.0
 DAILY_RECOMMENDATION_GENRES = [
     "액션", "드라마", "코미디", "로맨스", "스릴러",
     "공포", "SF", "판타지", "범죄", "애니메이션",
@@ -174,7 +177,7 @@ def get_user_recommend_movies_result(
     base_movies = get_recommend_movies_result(db, limit=max(limit * 3, 30))
     preferences = [
         preference for preference in get_combined_user_preference_signals(db, user_id)
-        if preference.preference_type in PREFERENCE_WEIGHT and (preference.score or 0) > 0
+        if preference.preference_type in PREFERENCE_WEIGHT and abs(preference.score or 0) > 1e-9
     ]
     context = build_behavior_context(db, user_id)
     if not preferences and not context["movie_interest"]:
@@ -182,6 +185,8 @@ def get_user_recommend_movies_result(
 
     top_values: dict[str, list[str]] = defaultdict(list)
     for preference in preferences:
+        if preference.score <= 0:
+            continue
         if len(top_values[preference.preference_type]) < 30:
             top_values[preference.preference_type].append(preference.preference_value)
 
@@ -195,6 +200,12 @@ def get_user_recommend_movies_result(
         ))
     if top_values["actor"]:
         match_filters.append(Movie.cast.op("&&")(top_values["actor"]))
+    if top_values["director"]:
+        match_filters.append(or_(*[
+            func.lower(Movie.director).contains(value.strip().casefold())
+            for value in top_values["director"]
+            if value.strip()
+        ]))
     if top_values["keyword"]:
         keyword_candidates = list(dict.fromkeys(
             alias
@@ -208,18 +219,24 @@ def get_user_recommend_movies_result(
         match_filters.append(Movie.id.in_(list(context["movie_interest"])))
 
     today = datetime.now(ZoneInfo("Asia/Seoul")).date()
-    liked_movie_ids = {
-        movie_id
-        for movie_id, action_type in context["interaction_kind"].items()
-        if action_type == "like"
-    }
+    # 초기화는 학습 효과만 끄며, 현재 좋아요 상태와 추천 제외 정책은 유지한다.
+    liked_movie_ids = set(db.scalars(
+        select(UserMovieInteraction.movie_id).where(
+            UserMovieInteraction.user_id == user_id,
+            UserMovieInteraction.action_type == "like",
+        )
+    ).all())
+    excluded_movie_ids = (
+        liked_movie_ids
+        | context["wishlisted_movie_ids"]
+        | context["disliked_movie_ids"]
+    )
     query = (
         select(Movie, MovieStats)
         .outerjoin(MovieStats, MovieStats.movie_id == Movie.id)
         .where(Movie.poster_path.is_not(None))
         .where((Movie.release_date.is_(None)) | (Movie.release_date <= today))
-        .where(~Movie.id.in_(liked_movie_ids) if liked_movie_ids else True)
-        .where(or_(*match_filters))
+        .where(~Movie.id.in_(excluded_movie_ids) if excluded_movie_ids else True)
         .order_by(
             case(
                 (Movie.id.in_(list(context["movie_interest"])), 1),
@@ -230,6 +247,8 @@ def get_user_recommend_movies_result(
         )
         .limit(max(limit * 25, 300))
     )
+    if match_filters:
+        query = query.where(or_(*match_filters))
     candidates = db.execute(query).all()
     stored_genre_weights = load_genre_weight_map(
         db, [movie.id for movie, _ in candidates]
@@ -237,13 +256,6 @@ def get_user_recommend_movies_result(
     global_average = db.scalar(
         select(func.avg(Movie.vote_average)).where(Movie.vote_count >= 50)
     ) or 6.0
-    max_scores = {
-        preference_type: max(
-            (preference.score or 0 for preference in preferences if preference.preference_type == preference_type),
-            default=1.0,
-        )
-        for preference_type in PREFERENCE_WEIGHT
-    }
     preferences_by_type = {
         preference_type: {
             preference.preference_value.strip().casefold(): preference
@@ -273,7 +285,7 @@ def get_user_recommend_movies_result(
             normalized_matches = sorted(
                 (
                     (
-                        min((preference.score or 0) / max_scores[preference_type], 1.0)
+                        preference_confidence(preference)
                         * (
                             get_genre_weight(
                                 movie,
@@ -301,9 +313,12 @@ def get_user_recommend_movies_result(
         )
         language_score = context["languages"].get(movie.language, 0.0) if movie.language else 0.0
         context_score = min(country_score + language_score, 1.0)
-        release_score = release_similarity_score(movie, context["average_year"])
+        release_score = (
+            release_similarity_score(movie, context["average_year"])
+            * context["year_confidence"]
+        )
         interaction_kind = context["interaction_kind"].get(movie.id)
-        interaction_bonus_cap = {"like": 1.2, "search_click": 0.6, "view": 0.15}.get(
+        interaction_bonus_cap = {"like": 1.2, "wishlist": 0.8, "search_click": 0.6, "view": 0.15}.get(
             interaction_kind, 0.0
         )
         interest_bonus = min(
@@ -348,13 +363,18 @@ def get_user_recommend_movies_result(
 
 def build_behavior_context(db: Session, user_id: int) -> dict:
     """최근 1년 행동에서 국가·언어·개봉 시기와 직접 관심 영화를 계산한다."""
-    cutoff = datetime.now(ZoneInfo("Asia/Seoul")) - timedelta(days=365)
-    rows = db.execute(
+    now = datetime.now(ZoneInfo("Asia/Seoul"))
+    cutoff = now - timedelta(days=365)
+    user = db.get(User, user_id)
+    if user and user.preference_learning_reset_at:
+        cutoff = max(cutoff, user.preference_learning_reset_at)
+    interaction_query = (
         select(UserMovieInteraction, Movie)
         .join(Movie, Movie.id == UserMovieInteraction.movie_id)
         .where(UserMovieInteraction.user_id == user_id, UserMovieInteraction.created_at >= cutoff)
         .order_by(UserMovieInteraction.created_at.desc())
-    ).all()
+    )
+    rows = db.execute(interaction_query).all()
     seen = set()
     countries: dict[str, float] = defaultdict(float)
     languages: dict[str, float] = defaultdict(float)
@@ -369,7 +389,9 @@ def build_behavior_context(db: Session, user_id: int) -> dict:
         if key in seen:
             continue
         seen.add(key)
-        weight = INTEREST_ACTION_WEIGHT.get(interaction.action_type, 0.0)
+        age_days = max((now - interaction.created_at).total_seconds() / 86_400, 0.0)
+        decay = 0.5 ** (age_days / BEHAVIOR_HALF_LIFE_DAYS)
+        weight = INTEREST_ACTION_WEIGHT.get(interaction.action_type, 0.0) * decay
         if not weight:
             continue
         movie_interest[movie.id] += weight
@@ -390,9 +412,37 @@ def build_behavior_context(db: Session, user_id: int) -> dict:
             year_total += movie_year * weight
             year_weight += weight
 
+    wishlist_query = (
+        select(MovieWishlist, Movie)
+        .join(Movie, Movie.id == MovieWishlist.movie_id)
+        .where(MovieWishlist.user_id == user_id, MovieWishlist.created_at >= cutoff)
+    )
+    wishlisted_movie_ids: set[int] = set()
+    for wishlist, movie in db.execute(wishlist_query).all():
+        age_days = max((now - wishlist.created_at).total_seconds() / 86_400, 0.0)
+        weight = 2.0 * (0.5 ** (age_days / BEHAVIOR_HALF_LIFE_DAYS))
+        movie_interest[movie.id] += weight
+        strong_interest[movie.id] += weight
+        interacted_movie_ids.add(movie.id)
+        wishlisted_movie_ids.add(movie.id)
+        interaction_kind.setdefault(movie.id, "wishlist")
+
+    rating_query = (
+        select(MovieRating)
+        .where(MovieRating.user_id == user_id, MovieRating.updated_at >= cutoff)
+    )
+    disliked_movie_ids = {
+        rating.movie_id for rating in db.scalars(rating_query).all()
+        if float(rating.score) <= 2.0
+    }
+
     def normalize(values):
-        maximum = max(values.values(), default=0.0)
-        return {key: value / maximum for key, value in values.items()} if maximum else {}
+        # 보조 취향도 상대 최고점이 아니라 절대 행동량에 따라 점차 포화시킨다.
+        return {
+            key: value / (value + PREFERENCE_SCORE_SATURATION)
+            for key, value in values.items()
+            if value > 0
+        }
 
     return {
         "countries": normalize(countries),
@@ -401,8 +451,21 @@ def build_behavior_context(db: Session, user_id: int) -> dict:
         "strong_interest": dict(strong_interest),
         "interaction_kind": interaction_kind,
         "interacted_movie_ids": interacted_movie_ids,
+        "wishlisted_movie_ids": wishlisted_movie_ids,
+        "disliked_movie_ids": disliked_movie_ids,
         "average_year": year_total / year_weight if year_weight else None,
+        "year_confidence": year_weight / (year_weight + PREFERENCE_SCORE_SATURATION) if year_weight else 0.0,
     }
+
+
+def preference_confidence(preference) -> float:
+    """상대 최고점 대신 절대 점수에 포화 함수를 적용한다."""
+    behavior_score = float(getattr(preference, "behavior_score", preference.score) or 0.0)
+    behavior_confidence = behavior_score / (abs(behavior_score) + PREFERENCE_SCORE_SATURATION)
+    if not getattr(preference, "explicit", False):
+        return behavior_confidence
+    # 직접 선택은 강한 신호로 유지하되 이후 행동이 최대 25% 범위에서 보정한다.
+    return max(min(0.75 + (0.25 * behavior_confidence), 1.0), 0.5)
 
 
 def bayesian_rating(movie: Movie, global_average: float = 6.0, minimum_votes: int = 100) -> float:
@@ -626,6 +689,10 @@ def get_similar_movies_result(
         )
         .where(or_(*match_filters))
         .where(vote_filter)
+        # 전체 영화 행을 Python으로 가져와 점수 계산하던 병목을 제한한다.
+        # 충분한 후보 다양성을 유지하면서 우선 검토할 고신뢰 후보만 읽는다.
+        .order_by(Movie.vote_count.desc().nullslast(), Movie.vote_average.desc().nullslast(), Movie.id.asc())
+        .limit(CONTENT_CANDIDATE_POOL_LIMIT)
     ).all()
 
     global_average = float(

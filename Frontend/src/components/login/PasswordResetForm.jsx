@@ -1,6 +1,12 @@
 import { useState } from 'react';
 
 import { confirmPasswordReset, requestPasswordReset } from '../../api.js';
+import {
+  getPasswordChecks,
+  getPasswordPolicyError,
+  MAX_PASSWORD_LENGTH,
+  MIN_PASSWORD_LENGTH,
+} from '../../utils/passwordPolicy.js';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -13,6 +19,7 @@ function PasswordResetForm({ onBack, token = '' }) {
   const [sent, setSent] = useState(false);
   const [completed, setCompleted] = useState(false);
   const [busy, setBusy] = useState(false);
+  const passwordChecks = getPasswordChecks(newPassword);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -39,8 +46,9 @@ function PasswordResetForm({ onBack, token = '' }) {
       return;
     }
 
-    if (newPassword.length < 8 || newPassword.length > 128) {
-      setStatus('새 비밀번호는 8~128자로 입력해 주세요.');
+    const passwordPolicyError = getPasswordPolicyError(newPassword);
+    if (passwordPolicyError) {
+      setStatus(passwordPolicyError);
       return;
     }
 
@@ -81,13 +89,20 @@ function PasswordResetForm({ onBack, token = '' }) {
               <input
                 autoComplete="new-password"
                 disabled={busy || completed}
-                maxLength={128}
-                minLength={8}
+                maxLength={MAX_PASSWORD_LENGTH}
+                minLength={MIN_PASSWORD_LENGTH}
                 onChange={(event) => setNewPassword(event.target.value)}
-                placeholder="8자 이상"
+                placeholder="10자 이상"
                 type="password"
                 value={newPassword}
               />
+              <span className="password-reset-inline__rules" aria-label="비밀번호 생성 조건">
+                <small className={passwordChecks.length ? 'is-valid' : ''}>10자 이상</small>
+                <small className={passwordChecks.letter ? 'is-valid' : ''}>영문</small>
+                <small className={passwordChecks.number ? 'is-valid' : ''}>숫자</small>
+                <small className={passwordChecks.special ? 'is-valid' : ''}>특수문자</small>
+                <small className={passwordChecks.noSpace ? 'is-valid' : ''}>공백 없음</small>
+              </span>
             </label>
 
             <label className="login-field">
@@ -95,8 +110,8 @@ function PasswordResetForm({ onBack, token = '' }) {
               <input
                 autoComplete="new-password"
                 disabled={busy || completed}
-                maxLength={128}
-                minLength={8}
+                maxLength={MAX_PASSWORD_LENGTH}
+                minLength={MIN_PASSWORD_LENGTH}
                 onChange={(event) => setPasswordConfirm(event.target.value)}
                 placeholder="비밀번호 재입력"
                 type="password"

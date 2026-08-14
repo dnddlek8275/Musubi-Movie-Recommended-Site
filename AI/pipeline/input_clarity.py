@@ -12,6 +12,9 @@ _ELLIPSIS = re.compile(r"^(?:\.{2,}|…+)$")
 _JAMO_ONLY = re.compile(r"^[ㄱ-ㅎㅏ-ㅣ\s!?.~]+$")
 _PUNCTUATION_ONLY = re.compile(r"^[\s.,!~;:'\"`()\[\]{}\-_=+*/\\|]+$")
 MEANINGFUL_JAMO_SHORTHANDS = {"ㅇㅇ", "ㄴㄴ", "ㄱㄱ", "ㅎㅇ"}
+# 운영 제보로 의미 불명 입력임이 확인된 값만 차단한다. 짧은 영문 전체를
+# 차단하면 Up/Hope 같은 영화 제목이나 SF/AI 같은 정상 입력까지 막을 수 있다.
+KNOWN_AMBIGUOUS_ASCII_INPUTS = {"cd", "cfr"}
 
 _CONTEXT_FREE_SHORT_REPLIES = {
     "ㅇㅇ": "응, 이어서 말해줘.",
@@ -19,6 +22,25 @@ _CONTEXT_FREE_SHORT_REPLIES = {
     "ㄱㄱ": "좋아, 해보자.",
     "ㅎㅇ": "안녕! 오늘은 어떤 이야기 해볼까?",
 }
+
+_GENERAL_TEMPLATE_RULES = (
+    (
+        re.compile(r"^(?:고마워|고맙다|감사해|감사합니다|땡큐)[\s!?.~]*$", re.IGNORECASE),
+        "별말을 다 해. 또 궁금한 영화나 이야기가 있으면 말해줘.",
+    ),
+    (
+        re.compile(r"^(?:잘\s*가|안녕히\s*가세요|바이|다음에\s*(?:봐|보자))[\s!?.~]*$", re.IGNORECASE),
+        "그래, 다음에 또 영화 이야기하자.",
+    ),
+    (
+        re.compile(
+            r"^(?:(?:너|무무)(?:는|가)?\s*)?(?:뭘|뭐를|무엇을|어떤\s*걸?)\s*"
+            r"(?:할\s*수\s*있어|도와줄\s*수\s*있어|해줄\s*수\s*있어)[\s?!.~]*$",
+            re.IGNORECASE,
+        ),
+        "영화를 검색하거나 추천하고, 영화 정보와 네 취향에 관해 이야기할 수 있어.",
+    ),
+)
 
 _MUMU_IDENTITY_REPLY = "나는 Musubi에서 영화 이야기를 함께하는 AI 친구, 무무야."
 _IDENTITY_MEDIA_WORDS = ("영화", "작품", "배우", "캐릭터", "노래", "감독")
@@ -95,6 +117,11 @@ def get_input_recovery(message: str) -> AIInputRecovery | None:
             answer="혹시 입력 중이었어? 편하게 이어서 말해줘.",
             kind="punctuation",
         )
+    if text.casefold() in KNOWN_AMBIGUOUS_ASCII_INPUTS:
+        return AIInputRecovery(
+            answer="방금 입력은 뜻을 정확히 알기 어려워. 어떤 말을 하려던 건지 한 번만 더 알려줘.",
+            kind="ambiguous_short_ascii",
+        )
     return None
 
 
@@ -118,6 +145,17 @@ def get_general_short_reply(message: str, *, has_history: bool) -> str | None:
     if has_history and shorthand != "ㅎㅇ":
         return None
     return _CONTEXT_FREE_SHORT_REPLIES[shorthand]
+
+
+def get_general_template_reply(message: str) -> str | None:
+    """Return a stable answer only for narrow, context-independent intents."""
+    text = " ".join(str(message or "").split()).strip()
+    if not text:
+        return None
+    for pattern, answer in _GENERAL_TEMPLATE_RULES:
+        if pattern.fullmatch(text):
+            return answer
+    return None
 
 
 def get_mumu_identity_reply(message: str) -> str | None:

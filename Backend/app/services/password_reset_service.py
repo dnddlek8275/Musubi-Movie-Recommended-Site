@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.password_policy import validate_password_policy
 from app.core.security import generate_password_reset_token, hash_password, hash_token
 from app.models.tokens import PasswordResetToken, RefreshToken
 from app.models.users import User
@@ -58,6 +59,8 @@ def reset_password_with_token(
         plain_token : str,
         new_password : str,
 ):
+    # API 스키마를 거치지 않는 내부 호출에서도 동일한 보안 정책을 강제한다.
+    validate_password_policy(new_password)
     now = datetime.now(timezone.utc)
 
     # 이메일 링크에 포함된 원본 토큰을 해시

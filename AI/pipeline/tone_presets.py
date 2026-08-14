@@ -193,6 +193,13 @@ def mentioned_characters(user_message: str, profiles: dict, exclude: str | None 
 
 def is_character_relation_question(user_message: str) -> bool:
     normalized = " ".join(user_message.split())
+    compact = re.sub(r"\s+", "", normalized)
+    if re.fullmatch(
+        r"(?:넌|너는|너|당신은|당신)?(?:누구(?:야|냐|예요|에요)?|"
+        r"이름(?:이|은)?뭐(?:야|예요|에요)?|정체(?:가|는)?뭐(?:야|예요|에요)?)[?!.~]*",
+        compact,
+    ):
+        return False
     if (
         re.search(r"잘생|예뻐|멋있|매력|반했|끌려|호감", normalized)
         and not re.search(r"서로|사이|관계", normalized)
@@ -216,6 +223,40 @@ def _preset_name(character_name: str) -> str | None:
 def get_tone_preset_name(character_name: str) -> str | None:
     """Return the stable public preset identifier for deterministic fallbacks."""
     return _preset_name(character_name)
+
+
+def build_recovery_reply(character_name: str | None = None) -> str:
+    """Render a guard response in the active speaker's established register."""
+    if not character_name or character_name == "무무":
+        return "방금 말을 정확히 이해하지 못했어. 한 번만 더 말해 줄래?"
+    preset = _preset_name(character_name)
+    if preset == "dignified_guiding":
+        return "뜻을 정확히 헤아리지 못했소. 한 번 더 말해 주겠소?"
+    if preset in {"warm_supportive", "logical_reflective"}:
+        return "방금 말씀의 뜻을 정확히 이해하지 못했어요. 한 번만 다시 말해 주시겠어요?"
+    if preset in {"cold_calculating", "terse_reserved"}:
+        return "뜻이 분명하지 않군. 다시 말해."
+    if preset == "witty_intellectual":
+        return "방금 건 해석이 안 되네. 한 번만 다시 말해 봐."
+    if preset == "distinctive_voice":
+        return "무슨 뜻인지 잘 안 잡히네. 한 번만 다시 말해 봐."
+    return "방금 말의 뜻을 정확히 짚지 못했어. 한 번만 다시 말해 줘."
+
+
+def build_identity_reply(character_name: str, movie: str = "") -> str:
+    """Render deterministic self-introduction without flattening character tone."""
+    title = f" 『{movie}』에 등장하는 인물이오." if movie else ""
+    preset = _preset_name(character_name)
+    if preset == "dignified_guiding":
+        return f"나는 {character_name}라 하오.{title}"
+    if preset in {"warm_supportive", "logical_reflective"}:
+        suffix = f" 『{movie}』에 등장하는 인물이에요." if movie else ""
+        return f"저는 {character_name}예요.{suffix}"
+    if preset in {"cold_calculating", "terse_reserved"}:
+        suffix = f" 『{movie}』에 등장하지." if movie else ""
+        return f"{character_name}.{suffix}"
+    suffix = f" 『{movie}』에 등장하는 인물이야." if movie else ""
+    return f"나는 {character_name}야.{suffix}"
 
 
 def _clarification_fallback(character_name: str) -> str:

@@ -1,4 +1,6 @@
 import './movieCard.css';
+import { optimizeImageUrl } from '../../utils/imagePerformance.js';
+import { formatRating } from '../../utils/formatRating.js';
 
 function MovieCard({
   isLiked,
@@ -9,14 +11,16 @@ function MovieCard({
   variant = 'default',
 }) {
   const heart = isLiked ? '♥' : '♡';
-  const posterUrl =
+  const posterUrl = optimizeImageUrl(
     movie?.posterUrl ||
     movie?.poster_url ||
     movie?.poster_path ||
     movie?.poster ||
     movie?.image_url ||
     movie?.image ||
-    '';
+    '',
+    'w342',
+  );
 
   const handleClick = () => {
     if (onSelect) {
@@ -55,6 +59,9 @@ function MovieCard({
             className="recent-poster__image"
             src={posterUrl}
             alt={`${movie.title} 포스터`}
+            decoding="async"
+            loading="lazy"
+            draggable="false"
           />
         ) : null}
         <span>{movie.title}</span>
@@ -86,6 +93,9 @@ function MovieCard({
             className="movie-card__poster-image"
             src={posterUrl}
             alt={`${movie.title} 포스터`}
+            decoding="async"
+            loading="lazy"
+            draggable="false"
           />
         ) : (
           <span className="movie-card__poster-empty">NO POSTER</span>
@@ -105,7 +115,7 @@ function MovieCard({
       <div className="movie-card__info">
         <strong>{movie.title}</strong>
         <span>{movie.genre}</span>
-        <div className="movie-card__rating">★ {movie.rating}</div>
+        <div className="movie-card__rating">★ {formatRating(movie.rating)}</div>
       </div>
     </article>
   );

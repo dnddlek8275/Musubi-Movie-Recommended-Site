@@ -10,6 +10,7 @@ frontend_image=$1
 backend_image=$2
 namespace=${NAMESPACE:-cineverse}
 migration_job="backend-migration-$(date -u +%Y%m%d%H%M%S)"
+vector_sync_job="backend-vector-sync-$(date -u +%Y%m%d%H%M%S)"
 
 if [[ "${CONFIRM_DEPLOY:-}" != "DEPLOY" ]]; then
   echo "set CONFIRM_DEPLOY=DEPLOY after checking the image names" >&2
@@ -31,7 +32,8 @@ done
 bash Infra/k8s/scripts/cluster-preflight.sh "${namespace}"
 
 temporary_manifest=$(mktemp)
-trap 'rm -f "${temporary_manifest}"' EXIT
+vector_sync_manifest=$(mktemp)
+trap 'rm -f "${temporary_manifest}" "${vector_sync_manifest}"' EXIT
 sed \
   -e "s/^  name: backend-migration$/  name: ${migration_job}/" \
   -e "s|^          image: .*$|          image: ${backend_image}|" \
@@ -49,6 +51,24 @@ if ! kubectl -n "${namespace}" wait \
 fi
 
 kubectl -n "${namespace}" logs "job/${migration_job}"
+
+sed \
+  -e "s/^  name: backend-vector-sync$/  name: ${vector_sync_job}/" \
+  -e "s|^          image: .*$|          image: ${backend_image}|" \
+  Infra/k8s/base/vector-sync-job.yaml >"${vector_sync_manifest}"
+
+grep -Fq "name: ${vector_sync_job}" "${vector_sync_manifest}"
+grep -Fq "image: ${backend_image}" "${vector_sync_manifest}"
+
+kubectl apply -f "${vector_sync_manifest}"
+if ! kubectl -n "${namespace}" wait \
+  --for=condition=complete "job/${vector_sync_job}" --timeout=3600s; then
+  kubectl -n "${namespace}" logs "job/${vector_sync_job}" --all-containers || true
+  kubectl -n "${namespace}" describe "job/${vector_sync_job}" || true
+  exit 1
+fi
+kubectl -n "${namespace}" logs "job/${vector_sync_job}"
+
 kubectl -n "${namespace}" set image deployment/backend "backend=${backend_image}"
 kubectl -n "${namespace}" set image deployment/frontend "frontend=${frontend_image}"
 kubectl -n "${namespace}" rollout status deployment/backend --timeout=300s

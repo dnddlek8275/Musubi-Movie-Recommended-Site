@@ -27,6 +27,14 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
       emptyOutDir: true,
+      rollupOptions: {
+        output: {
+          // React 런타임은 화면 코드와 분리해 다음 배포에서도 브라우저 캐시를 재사용한다.
+          manualChunks(id) {
+            return id.includes('/node_modules/react') ? 'react-vendor' : undefined;
+          },
+        },
+      },
     },
     preview: {
       headers: {

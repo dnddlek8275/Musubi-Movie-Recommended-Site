@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from app.models.interactions import UserMovieInteraction
+from app.models.interactions import MovieRating, MovieWishlist, UserMovieInteraction
 from app.models.movies import Movie
 from app.models.users import User, UserPreferenceScore
 from app.services.movies.genre_relevance import (
@@ -27,6 +27,8 @@ PREFERENCE_ACTION_SCORE = {
 }
 PREFERENCE_HALF_LIFE_DAYS = 30.0
 EXPLICIT_PREFERENCE_SCORE = 3.0
+WISHLIST_PREFERENCE_SCORE = 2.0
+RATING_PREFERENCE_MAX_SCORE = 2.5
 
 # 행동 한 번이 조연 배우들의 전체 필모그래피까지 취향으로 넓어지지 않도록
 # 상위 출연진 3명만 학습하고 배우 몫은 전체 점수의 8%로 제한한다.
@@ -205,6 +207,8 @@ class PreferenceSignal:
     preference_type: str
     preference_value: str
     score: float
+    behavior_score: float = 0.0
+    explicit: bool = False
 
 
 def _decayed_score(score: float, updated_at, now: datetime | None = None) -> float:
@@ -218,6 +222,12 @@ def _decayed_score(score: float, updated_at, now: datetime | None = None) -> flo
     return float(score or 0.0) * (0.5 ** (age_days / PREFERENCE_HALF_LIFE_DAYS))
 
 
+def rating_preference_signal(score: float) -> float:
+    """0.5~5점 평가를 완화된 -1.5~+2.5 취향 신호로 변환한다."""
+    centered = (float(score) - 3.0) / 2.0
+    return centered * RATING_PREFERENCE_MAX_SCORE * (0.6 if centered < 0 else 1.0)
+
+
 def get_combined_user_preference_signals(db: Session, user_id: int) -> list[PreferenceSignal]:
     """직접 선택한 취향과 시간 감쇠된 행동 취향을 추천 계산 시점에만 결합한다."""
     user = get_user(db, user_id)
@@ -225,6 +235,8 @@ def get_combined_user_preference_signals(db: Session, user_id: int) -> list[Pref
         return []
     now = datetime.now(ZoneInfo("Asia/Seoul"))
     totals: dict[tuple[str, str], float] = defaultdict(float)
+    behavior_totals: dict[tuple[str, str], float] = defaultdict(float)
+    explicit_keys: set[tuple[str, str]] = set()
     labels: dict[tuple[str, str], str] = {}
     for row in get_user_preference_scores(db, user_id):
         value = (row.preference_value or "").strip()
@@ -233,8 +245,57 @@ def get_combined_user_preference_signals(db: Session, user_id: int) -> list[Pref
         if row.preference_type == "keyword":
             value = canonicalize_keyword(value)
         key = (row.preference_type, value.casefold())
-        totals[key] += _decayed_score(row.score, row.updated_at, now)
+        effective_score = _decayed_score(row.score, row.updated_at, now)
+        totals[key] += effective_score
+        behavior_totals[key] += effective_score
         labels[key] = value
+
+    # 별점과 찜은 행동 이벤트로 복제하지 않고 원본 테이블에서 직접 계산한다.
+    # 낮은 별점은 약한 부정 신호, 높은 별점과 찜은 긍정 신호로 사용한다.
+    reset_at = user.preference_learning_reset_at
+    rating_query = (
+        select(MovieRating, Movie)
+        .join(Movie, Movie.id == MovieRating.movie_id)
+        .where(MovieRating.user_id == user_id)
+    )
+    wishlist_query = (
+        select(MovieWishlist, Movie)
+        .join(Movie, Movie.id == MovieWishlist.movie_id)
+        .where(MovieWishlist.user_id == user_id)
+    )
+    if reset_at is not None:
+        rating_query = rating_query.where(MovieRating.updated_at >= reset_at)
+        wishlist_query = wishlist_query.where(MovieWishlist.created_at >= reset_at)
+
+    rated_movies = db.execute(rating_query).all()
+    wishlisted_movies = db.execute(wishlist_query).all()
+
+    def add_movie_signal(movie: Movie, signal: float, occurred_at) -> None:
+        if signal == 0:
+            return
+        decayed_signal = _decayed_score(signal, occurred_at, now)
+        for preference_type, weighted_values in core_movie_preference_items(movie).items():
+            if not weighted_values:
+                continue
+            total_weight = sum(weight for _, weight in weighted_values)
+            for value, value_weight in weighted_values:
+                key = (preference_type, value.casefold())
+                delta = (
+                    decayed_signal
+                    * CORE_PREFERENCE_SHARES[preference_type]
+                    * value_weight
+                    / total_weight
+                )
+                totals[key] += delta
+                behavior_totals[key] += delta
+                labels[key] = value
+
+    for rating, movie in rated_movies:
+        # 부정 신호는 한 편의 낮은 평가가 장르 전체를 지우지 않도록 완화한다.
+        signal = rating_preference_signal(float(rating.score))
+        add_movie_signal(movie, signal, rating.updated_at or rating.created_at)
+    for wishlist, movie in wishlisted_movies:
+        add_movie_signal(movie, WISHLIST_PREFERENCE_SCORE, wishlist.created_at)
 
     explicit = {
         "genre": user.preferred_genres or [],
@@ -250,13 +311,20 @@ def get_combined_user_preference_signals(db: Session, user_id: int) -> list[Pref
                     continue
             key = (preference_type, value.casefold())
             totals[key] += EXPLICIT_PREFERENCE_SCORE
+            explicit_keys.add(key)
             labels[key] = value
 
     return sorted(
         (
-            PreferenceSignal(preference_type, labels[(preference_type, normalized)], score)
+            PreferenceSignal(
+                preference_type,
+                labels[(preference_type, normalized)],
+                score,
+                behavior_totals[(preference_type, normalized)],
+                (preference_type, normalized) in explicit_keys,
+            )
             for (preference_type, normalized), score in totals.items()
-            if score > 0
+            if abs(score) > 1e-9
         ),
         key=lambda item: item.score,
         reverse=True,
@@ -531,11 +599,17 @@ def rebuild_user_preference_scores(db: Session, user_id: int) -> int:
     db.execute(delete(UserPreferenceScore).where(UserPreferenceScore.user_id == user_id))
     totals: dict[tuple[str, str], float] = defaultdict(float)
     now = datetime.now(ZoneInfo("Asia/Seoul"))
-    interactions = db.execute(
+    interaction_query = (
         select(UserMovieInteraction, Movie)
         .join(Movie, Movie.id == UserMovieInteraction.movie_id)
         .where(UserMovieInteraction.user_id == user_id)
-        .order_by(UserMovieInteraction.created_at)
+    )
+    if user.preference_learning_reset_at is not None:
+        interaction_query = interaction_query.where(
+            UserMovieInteraction.created_at >= user.preference_learning_reset_at
+        )
+    interactions = db.execute(
+        interaction_query.order_by(UserMovieInteraction.created_at)
     ).all()
     seen_daily_actions = set()
     for interaction, movie in interactions:

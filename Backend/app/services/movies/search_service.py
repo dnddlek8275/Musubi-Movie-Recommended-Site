@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.models.actors import Actor, MovieActor
 from app.models.movies import Movie, MovieGenre, MovieGenreWeight
 from app.models.users import User
+from app.services.actor_name_policy import actor_display_name
 from app.services.movies.genre_relevance import (
     GENRE_KEYWORD_SIGNALS,
     GENRE_RELEVANCE_MINIMUM,
@@ -139,6 +140,211 @@ def _normalized_text(value) -> str:
     return re.sub(r"\s+", "", str(value or "").strip().casefold())
 
 
+def _recent_movie_rows(
+        db: Session,
+        condition,
+        limit: int,
+        page: int = 1,
+        excluded_ids: set[int] | None = None,
+):
+    statement = select(Movie).where(condition)
+    excluded_ids = excluded_ids or set()
+    if excluded_ids:
+        statement = statement.where(Movie.id.not_in(excluded_ids))
+    offset = 0 if excluded_ids else (max(page, 1) - 1) * limit
+    rows = db.scalars(
+        statement
+        .order_by(
+            Movie.release_date.desc().nullslast(),
+            Movie.year.desc().nullslast(),
+            func.coalesce(Movie.vote_count, 0).desc(),
+            Movie.title.asc(),
+        )
+        .offset(offset)
+        .limit(limit + 1)
+    ).all()
+    return rows[:limit], len(rows) > limit
+
+
+def search_movie_sections_result(
+        db: Session,
+        search_keyword: str,
+        limit: int = 20,
+        search_type: str | None = None,
+        category: str | None = None,
+        page: int = 1,
+        exclude_ids: list[int] | None = None,
+):
+    """검색 필드별 영화 섹션을 최신 개봉일순으로 반환한다."""
+    raw_keyword = (search_keyword or "").strip()
+    if not raw_keyword:
+        return {"state": "failure", "message": "검색어를 입력해주세요."}
+
+    normalized_query = _normalized_text(raw_keyword)
+    if not normalized_query:
+        return {"state": "failure", "message": "검색어를 입력해주세요."}
+
+    pattern = f"%{normalized_query}%"
+    title_expr = normalize_search_expr(Movie.title)
+    director_expr = normalize_search_expr(Movie.director)
+    overview_expr = normalize_search_expr(Movie.overview)
+    actor_name_expr = normalize_search_expr(Actor.name)
+    actor_korean_name_expr = normalize_search_expr(Actor.korean_name)
+    actor_original_name_expr = normalize_search_expr(Actor.original_name)
+
+    title_condition = title_expr.ilike(pattern)
+    title_exact = db.scalar(select(Movie.id).where(title_expr == normalized_query).limit(1)) is not None
+
+    matched_actors = db.scalars(
+        select(Actor)
+        .where(or_(
+            actor_name_expr.ilike(pattern),
+            actor_korean_name_expr.ilike(pattern),
+            actor_original_name_expr.ilike(pattern),
+        ))
+        .order_by(
+            case((actor_name_expr == normalized_query, 0), else_=1),
+            Actor.name.asc(),
+            Actor.id.asc(),
+        )
+    ).all()
+    actor_ids = [actor.id for actor in matched_actors]
+    actor_condition = (
+        Movie.id.in_(select(MovieActor.movie_id).where(MovieActor.actor_id.in_(actor_ids)))
+        if actor_ids else None
+    )
+    actor_exact = any(
+        normalized_query in {
+            _normalized_text(actor.name),
+            _normalized_text(actor.korean_name),
+            _normalized_text(actor.original_name),
+        }
+        for actor in matched_actors
+    )
+
+    matched_directors = db.scalars(
+        select(Movie.director)
+        .where(Movie.director.is_not(None), director_expr.ilike(pattern))
+        .distinct()
+        .order_by(Movie.director.asc())
+    ).all()
+    director_condition = director_expr.ilike(pattern) if matched_directors else None
+    director_exact = any(_normalized_text(value) == normalized_query for value in matched_directors)
+
+    matched_genres = db.scalars(
+        select(MovieGenre.genre)
+        .where(normalize_search_expr(MovieGenre.genre).ilike(pattern))
+        .distinct()
+        .order_by(MovieGenre.genre.asc())
+    ).all()
+    genre_condition = (
+        Movie.id.in_(select(MovieGenre.movie_id).where(MovieGenre.genre.in_(matched_genres)))
+        if matched_genres else None
+    )
+    genre_exact = any(_normalized_text(value) == normalized_query for value in matched_genres)
+
+    keyword_values = (
+        select(func.unnest(Movie.keywords).label("value"))
+        .where(Movie.keywords.is_not(None))
+        .subquery()
+    )
+    matched_keywords = db.scalars(
+        select(keyword_values.c.value)
+        .where(normalize_search_expr(keyword_values.c.value).ilike(pattern))
+        .distinct()
+        .order_by(keyword_values.c.value.asc())
+    ).all()
+    keyword_condition = Movie.keywords.op("&&")(matched_keywords) if matched_keywords else None
+    keyword_exact = any(_normalized_text(value) == normalized_query for value in matched_keywords)
+
+    related_condition = overview_expr.ilike(pattern)
+    requested_type = {
+        "영화": "title", "movie": "title", "title": "title",
+        "배우": "actor", "actor": "actor",
+        "감독": "director", "director": "director",
+        "장르": "genre", "genre": "genre",
+        "키워드": "keyword", "keyword": "keyword",
+    }.get(str(search_type or "").strip().casefold())
+    requested_category = str(category or "").strip().casefold()
+    allowed_categories = {"title", "actor", "director", "genre", "keyword", "related"}
+    if requested_category and requested_category not in allowed_categories:
+        requested_category = ""
+
+    specs = [
+        {
+            "type": "title", "title": "영화 제목", "condition": title_condition,
+            "exact": title_exact, "matches": [raw_keyword],
+        },
+        {
+            "type": "actor", "title": f"{raw_keyword} 출연 영화", "condition": actor_condition,
+            "exact": actor_exact,
+            "matches": [
+                {"id": actor.id, "tmdb_actor_id": actor.tmdb_actor_id, "name": actor_display_name(actor),
+                 "profile_path": actor.profile_path}
+                for actor in matched_actors
+            ],
+        },
+        {
+            "type": "director", "title": f"{raw_keyword} 감독 영화", "condition": director_condition,
+            "exact": director_exact, "matches": matched_directors,
+        },
+        {
+            "type": "genre", "title": f"{raw_keyword} 장르 영화", "condition": genre_condition,
+            "exact": genre_exact, "matches": matched_genres,
+        },
+        {
+            "type": "keyword", "title": f"{raw_keyword} 키워드 영화", "condition": keyword_condition,
+            "exact": keyword_exact, "matches": matched_keywords,
+        },
+        {
+            "type": "related", "title": "관련 영화", "condition": related_condition,
+            "exact": False, "matches": [],
+        },
+    ]
+    base_order = {spec["type"]: index for index, spec in enumerate(specs)}
+    specs.sort(key=lambda spec: (
+        0 if spec["type"] == requested_type else 1,
+        0 if spec["exact"] else 1,
+        base_order[spec["type"]],
+    ))
+
+    if requested_category:
+        specs = [spec for spec in specs if spec["type"] == requested_category]
+
+    sections = []
+    used_ids: set[int] = set(exclude_ids or [])
+    for spec in specs:
+        if spec["condition"] is None:
+            continue
+        movies, has_more = _recent_movie_rows(
+            db,
+            spec["condition"],
+            limit,
+            page,
+            used_ids,
+        )
+        if not movies:
+            continue
+        used_ids.update(movie.id for movie in movies)
+        sections.append({
+            "key": f"search-{spec['type']}",
+            "type": spec["type"],
+            "title": spec["title"],
+            "matches": spec["matches"],
+            "movies": [get_movie_result(movie) for movie in movies],
+            "page": page,
+            "has_more": has_more,
+        })
+
+    if not sections:
+        return {"state": "failure", "message": "관련 영화 정보가 없습니다.", "data": {"sections": []}}
+    return {
+        "state": "success",
+        "message": "카테고리별 검색 성공",
+        "data": {"query": raw_keyword, "sections": sections},
+    }
+
+
 def search_movies_result(
         db: Session,
         search_keyword: str,
@@ -174,7 +380,11 @@ def search_movies_result(
         None,
     )
     exact_actor = db.scalar(
-        select(Actor).where(normalize_search_expr(Actor.name) == normalized_query).limit(1)
+        select(Actor).where(or_(
+            normalize_search_expr(Actor.name) == normalized_query,
+            normalize_search_expr(Actor.korean_name) == normalized_query,
+            normalize_search_expr(Actor.original_name) == normalized_query,
+        )).limit(1)
     )
     exact_director = db.scalar(
         select(Movie.director)

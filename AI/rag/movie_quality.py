@@ -15,7 +15,6 @@ _UPLIFT_QUERY = re.compile(r"우울할\s*때|기분\s*전환|기분이?\s*(?:안
 _DATE_QUERY = re.compile(r"데이트|연인(?:과|이랑)?|커플(?:이|끼리)?")
 _KIDS_QUERY = re.compile(r"아이와|아이랑|아이하고|어린이와|어린이랑|자녀와|온\s*가족")
 _RECOMMENDATION_QUERY = re.compile(r"추천|볼\s*영화|보기\s*좋|뭐\s*볼|골라")
-
 _LIGHT_GENRES = {"코미디", "가족", "애니메이션", "로맨스", "모험", "음악"}
 _TOUCHING_GENRES = {"드라마", "가족", "애니메이션", "로맨스"}
 _DATE_GENRES = {"로맨스", "코미디"}

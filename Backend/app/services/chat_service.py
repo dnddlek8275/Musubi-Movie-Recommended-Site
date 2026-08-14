@@ -8,6 +8,7 @@ from app.schemas.chat import AutoChatRequest, CharacterChatRequest, GroupChatReq
 from app.services.character_service import get_active_character
 from app.services.chat_input_recovery import get_general_chat_recovery, wait_for_recovery_ui
 from app.services.chat_context_service import build_chat_user_context
+from app.services.movies.chat_movie_link_service import enrich_recommended_movies
 
 
 _MUMU_EMOTIONS = {"default", "joy", "thinking", "searching", "sorry"}
@@ -111,7 +112,7 @@ async def process_chat_message(db : Session, room, message:str, character : str 
         room.characters = [ai_auto_character]
     
     # 추천한 영화 리스트
-    movies = ai_result.get("movies", [])
+    movies = enrich_recommended_movies(db, ai_result.get("movies", []))
     emotion = _normalize_mumu_emotion(ai_result.get("emotion"))
     
     # 사용자 메시지 저장
@@ -143,7 +144,7 @@ async def process_chat_message(db : Session, room, message:str, character : str 
             "character" : ai_auto_character,
             "intent" : ai_result.get("intent"),
             "emotion" : emotion,
-            "movies" : ai_result.get("movies", []),
+            "movies" : movies,
             "sources" : ai_result.get("sources", []),
             "web_search_quota" : ai_result.get("web_search_quota", {}),
         }
@@ -155,7 +156,7 @@ async def process_group_chat_message(db: Session, room, message: str):
     privious_messages = get_room_messages(db, room.id)
 
     # DB 메세지 목록을 history 형태로 변환
-    history = make_ai_history(privious_messages)
+    history = make_ai_history(privious_messages, include_character_labels=True)
     user_context = build_chat_user_context(db, room.user_id)
 
     # 그룹 채팅 API 요청
@@ -167,7 +168,7 @@ async def process_group_chat_message(db: Session, room, message: str):
     )
     # AI 응답, 의도, 추천 영화, 라운드
     intent = ai_result.get("intent")
-    movies = ai_result.get("movies", [])
+    movies = enrich_recommended_movies(db, ai_result.get("movies", []))
     rounds = ai_result.get("rounds", [])
     if not rounds:
         return {

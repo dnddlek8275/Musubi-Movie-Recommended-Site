@@ -12,6 +12,7 @@ from app.schemas.chat import AutoChatRequest, ChatRoomTitleUpdate, ChatTitleRequ
 from app.services.character_service import characters_all_active, get_active_character
 from app.services.chat_service import continue_chat, start_character_chat, start_general_chat, start_group_chat
 from app.services.chat_stream_service import continue_chat_stream, start_character_chat_stream
+from app.services.movies.chat_movie_link_service import enrich_recommended_movies
 from app.services.guest_chat_service import (
     start_guest_character_chat,
     start_guest_general_chat,
@@ -368,7 +369,7 @@ async def get_chat_messages(
                     "emotion" : message.emotion or "default",
                     "created_at" : message.created_at,
                     "content" : message.content,
-                    "recommended_movies" : message.recommended_movies or [],
+                    "recommended_movies" : enrich_recommended_movies(db, message.recommended_movies),
                 }
                 for message in messages
             ]

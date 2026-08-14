@@ -44,6 +44,20 @@ DB에 넣지 않는다. 변경 목록과 제한된 Discover 조회를 사용해 
 - 최종 PostgreSQL/Milvus: 각각 32,307편
 - 양쪽 `tmdb_id` 중복: 0건
 
+## 2026-08-11 운영 확인
+
+- Kubernetes CronJob `tmdb-daily-sync`: `30 18 * * *`, `Asia/Seoul`, suspend 해제
+- 최근 Job: `Completed`, 재시작 0회
+- `tmdb_daily_sync_runs`의 최신 대상 날짜: 2026-08-09
+- `movie_vector_sync_jobs`: `completed` 843건, 다른 상태 0건
+- PostgreSQL 영화: 32,309행
+- PostgreSQL 고유한 비어 있지 않은 `tmdb_id`: 32,308개
+- Milvus `movies_active` iterator: 32,308행, 고유 ID 32,308개
+- PostgreSQL 대비 Milvus 누락·초과·중복: 모두 0개
+
+스케줄은 변경하지 않는다. 18:30 KST 실행 전에는 전날 대상 날짜가 최신 기록으로
+보이는 것이 정상이며, 다음 실행 후 Job 완료·오류 로그·건수와 정합성을 다시 본다.
+
 ## 인증 설정
 
 Backend와 GPU AI 서비스에 동일한 `AI_SYNC_TOKEN`을 설정한다. 이 값은 Secret이나

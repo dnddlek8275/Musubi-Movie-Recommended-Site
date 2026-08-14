@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { fetchMovieDetail } from '../../api.js';
+import { formatRating } from '../../utils/formatRating.js';
 import './movieModal.css';
 
 let youtubeApiPromise;
@@ -64,7 +65,7 @@ function MovieModal({ movie, onClose, source = 'direct' }) {
   }, [onClose]);
 
   // 영화 상세 조회 → 로그인 상태면 조회 이력이 기록되어 "최근 본 영화"에 반영된다.
-  const movieId = movie?.id ?? movie?.movie_id;
+  const movieId = movie?.movie_id ?? movie?.id;
   useEffect(() => {
     setDetail(null);
     if (movieId === undefined || movieId === null) return undefined;
@@ -83,7 +84,7 @@ function MovieModal({ movie, onClose, source = 'direct' }) {
     (Array.isArray(detail?.genres) ? detail.genres.join(', ') : '') ||
     movie?.genre ||
     '장르 정보 없음';
-  const ratingText = detail?.vote_average ?? movie?.rating ?? '-';
+  const ratingText = formatRating(detail?.vote_average ?? movie?.rating);
 
   const trailerUrl = toEmbeddableUrl(
     detail?.trailer_url ||

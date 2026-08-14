@@ -26,6 +26,9 @@
 - 관계 질문은 이름이 우연히 등장한 프로필이 아니라 전용 `data_type=relation` 청크가 있을 때만 근거가 있는 것으로 판단하도록 변경했다.
 - 1차로 API 서비스 환경변수를 `CHARACTER_COLLECTION_NAME=characters_profile_v2`로 전환했다.
 - 이후 공식 출처로 검증한 관계 14건을 추가한 `characters_verified_v4`로 전환했다.
+- 2026-08-10 추가 관계 검증 후 프로필 50건과 관계 16건, 총 66건인
+  `characters_verified_v5`로 전환했다. 2026-08-11 운영 환경변수와 실제 서비스
+  컬렉션도 `characters_verified_v5`임을 재확인했다.
 
 ## 프롬프트·응답 정책
 

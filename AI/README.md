@@ -3,6 +3,31 @@
 영화 캐릭터 대화와 영화 추천을 제공하는 RAG 기반 AI 서비스입니다. FastAPI API,
 OpenAI 호환 로컬 LLM 서버, Milvus 벡터 데이터베이스를 사용합니다.
 
+## 운영 기준 상태 (2026-08-11)
+
+- GPU VM: KakaoCloud `gn1i.4xlarge`, 사설 IP `10.30.2.227`
+- 관리 접속: Bastion `210.109.55.27` 경유 SSH
+- AI API: `cineverse-api.service`, TCP 80
+- LLM: `cineverse-llama.service`, TCP 8081, `--ctx-size 20480`, `-np 5`
+- Milvus: TCP 19530, 활성 영화 alias `movies_active`
+- 캐릭터 컬렉션: `characters_verified_v5`
+- Backend 연결 주소: `http://10.30.2.227`
+
+AI API, llama-server, Milvus, MinIO 포트는 인터넷에 공개하지 않고 사설망 통신과
+Bastion 관리 접속에만 사용합니다. 실제 토큰과 API 키는
+`/etc/cineverse/*.env`에 보관하며 저장소에 복사하지 않습니다.
+
+2026-08-11 서버와 로컬을 다시 비교한 결과 `api`, `llm`, `pipeline`, `services`와
+현재 실행 경로에서 사용하는 핵심 `rag` 코드는 동일합니다. 서버 `rag/`에만 있는
+`main.py`, `intent.py`, `movie_pipeline.py`, `character_pipeline.py`,
+`recommendation_context.py`는 현재 `api.main:app`이 참조하지 않는 과거 복제본이므로
+로컬로 역동기화하지 않습니다. 서버의 모델, venv, Milvus 볼륨, 로그와 백업도 소스
+동기화 대상이 아닙니다.
+
+파일별 비교 근거와 이후 동기화 원칙은
+[`../docs/current/infra/ai-server-source-sync.md`](../docs/current/infra/ai-server-source-sync.md)에
+기록합니다.
+
 ## 구성
 
 - `api/`: FastAPI 애플리케이션
@@ -96,3 +121,9 @@ python -m rag.rebuild_movies_from_csv \
 
 같은 날 일일 증분 동기화를 처음 실행해 신규 5편과 기존 변경 634편을 반영했다.
 반영 후 PostgreSQL과 `movies_active`는 각각 32,307편이며 `tmdb_id` 중복은 0건이다.
+
+2026-08-11 운영 재검증 결과 PostgreSQL에는 영화 행 32,309개와 고유한 비어 있지
+않은 `tmdb_id` 32,308개가 있다. `movies_active` iterator도 고유 ID 32,308개를
+반환했으며 PostgreSQL 대비 누락 0개, 초과 0개, Milvus 중복 0개다. Milvus의
+`row_count` 통계가 iterator 결과보다 크게 보일 수 있으므로 정합성 감사에서는
+전체 ID iterator 결과를 기준으로 판단한다.

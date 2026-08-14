@@ -1,31 +1,39 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import {
   checkAccountNicknameAvailability,
   confirmAccountEmailVerification,
   deleteChatRoom,
   deleteMyAccount,
+  deleteProfileImage,
   deletePreference,
   fetchChatRecommendedMovies,
   fetchChatRoomMessages,
   fetchChatRooms,
   fetchLikedMovies,
+  fetchMyReviews,
   fetchPreferenceInsights,
   fetchRecentMovies,
   fetchUserPreferences,
   fetchUserProfile,
+  fetchWishlistMovies,
   removeLikedMovie,
   requestAccountEmailVerification,
   resetLearnedPreferences,
   resolveMovieImage,
   updateAccountProfile,
   updateChatRoomTitle,
+  updateProfileImage,
   updateUserPreferences,
 } from '../../api.js';
-import CinemaNav from '../HeaderFooter/CinemaNav.jsx';
 import { normalizeMovie } from '../index/RecommendationRow.jsx';
 import { PanelSkeleton, PosterRowSkeleton, SkeletonBlock } from '../common/LoadingSkeleton.jsx';
+import HorizontalScroller from '../common/HorizontalScroller.jsx';
 import { getKeywordLabel } from '../../utils/keywordLabels.js';
+import { getInternalMovieId } from '../../utils/movieIdentity.js';
+import { formatRating } from '../../utils/formatRating.js';
+import TastePreferenceModal from './TastePreferenceModal.jsx';
 import './mypage.css';
 
 const TABS = [
@@ -33,6 +41,7 @@ const TABS = [
   ['taste', '취향 관리'],
   ['chat', '대화 기록'],
   ['activity', '영화 활동'],
+  ['reviews', '내 활동'],
   ['account', '계정 설정'],
 ];
 
@@ -42,7 +51,7 @@ const TASTE_TYPES = [
   ['keywords', 'keyword', '키워드'],
 ];
 
-const DEFAULT_AVATAR = '/images/character/mu/upper-body/mu-upper-default-v1.png';
+const DEFAULT_AVATAR = '/images/character/mu/upper-body/mu-upper-default-v1.webp';
 const CHAT_STORAGE_KEYS = ['cineverse.autochat.conversations', 'cineverse.groupchat.conversations'];
 
 function uniqueText(values) {
@@ -56,7 +65,7 @@ function learnedValues(data, key) {
 }
 
 function movieId(movie) {
-  return movie?.id ?? movie?.movie_id ?? movie?.tmdb_id ?? movie?.tmdbId ?? '';
+  return getInternalMovieId(movie) ?? '';
 }
 
 function moviePoster(movie) {
@@ -214,13 +223,13 @@ function EditableTasteRow({ category, preferenceType, label, values, mode, edita
   );
 }
 
-function MovieStrip({ title, description, movies, liked = false, onUnlike, unlikeBusy }) {
+function MovieStrip({ id, title, description, movies, emptyText = '아직 이곳에 표시할 영화가 없습니다.', liked = false, onUnlike, unlikeBusy }) {
   return (
-    <section className="mypage-movie-section">
+    <section className="mypage-movie-section" id={id}>
       <header className="mypage-section-heading"><div><h2>{title}</h2>{description ? <p>{description}</p> : null}</div></header>
       {movies.length ? (
-        <div className="mypage-movie-strip">
-          {movies.slice(0, 8).map((movie, index) => {
+        <HorizontalScroller className="mypage-movie-strip" ariaLabel={`${title} 목록`}>
+          {movies.map((movie, index) => {
             const id = movieId(movie);
             const poster = moviePoster(movie);
             return (
@@ -237,9 +246,36 @@ function MovieStrip({ title, description, movies, liked = false, onUnlike, unlik
               </article>
             );
           })}
-        </div>
-      ) : <EmptyState>아직 이곳에 표시할 영화가 없습니다.</EmptyState>}
+        </HorizontalScroller>
+      ) : <EmptyState>{emptyText}</EmptyState>}
     </section>
+  );
+}
+
+function ReviewList({ reviews }) {
+  return (
+    <div className="mypage-review-list">
+      {reviews.length ? reviews.map((review) => {
+        const movie = review.movie || {};
+        const id = movieId(movie);
+        const poster = moviePoster(movie);
+        const title = movie.title || movie.name || '제목 정보 없음';
+        const comment = String(review.comment || '').trim();
+        return (
+          <a className="mypage-review-card" href={id ? `/movies/${id}` : undefined} key={review.id}>
+            <div className="mypage-review-card__poster">
+              {poster ? <img src={poster} alt="" /> : <span>포스터 준비 중</span>}
+            </div>
+            <div className="mypage-review-card__body">
+              <header><strong>{title}</strong><span>★ {formatRating(review.score)}</span></header>
+              <p className={comment ? '' : 'is-rating-only'}>{comment || '별점만 남긴 평가입니다.'}</p>
+              <time dateTime={review.updated_at || review.created_at}>{formatDate(review.updated_at || review.created_at) || '날짜 정보 없음'}</time>
+            </div>
+            <b aria-hidden="true">›</b>
+          </a>
+        );
+      }) : <EmptyState>아직 작성한 리뷰가 없습니다.</EmptyState>}
+    </div>
   );
 }
 
@@ -250,10 +286,19 @@ function ChatColumn({ title, rooms, side, onPin, onRename, onDelete }) {
   useEffect(() => {
     if (!menuId) return undefined;
     const closeMenu = (event) => {
-      if (!(event.target instanceof Element) || !event.target.closest('.mypage-chat-record__actions')) setMenuId('');
+      if (
+        !(event.target instanceof Element)
+        || !event.target.closest('.mypage-chat-record__actions, .mypage-chat-record__menu')
+      ) setMenuId('');
     };
     document.addEventListener('pointerdown', closeMenu);
-    return () => document.removeEventListener('pointerdown', closeMenu);
+    window.addEventListener('resize', closeMenu);
+    window.addEventListener('scroll', closeMenu, true);
+    return () => {
+      document.removeEventListener('pointerdown', closeMenu);
+      window.removeEventListener('resize', closeMenu);
+      window.removeEventListener('scroll', closeMenu, true);
+    };
   }, [menuId]);
 
   return (
@@ -269,14 +314,26 @@ function ChatColumn({ title, rooms, side, onPin, onRename, onDelete }) {
               </button>
               <button className="mypage-chat-record__more" type="button" onClick={(event) => {
                 const rect = event.currentTarget.getBoundingClientRect();
-                setMenuPosition({ top: rect.bottom + 6, left: Math.min(rect.left - 92, window.innerWidth - 142) });
+                const menuWidth = 144;
+                const menuHeight = 124;
+                const gap = 8;
+                const hasRoomOnRight = rect.right + gap + menuWidth <= window.innerWidth - gap;
+                setMenuPosition({
+                  top: Math.max(gap, Math.min(rect.top, window.innerHeight - menuHeight - gap)),
+                  left: hasRoomOnRight
+                    ? rect.right + gap
+                    : Math.max(gap, rect.left - menuWidth - gap),
+                });
                 setMenuId((current) => current === room.id ? '' : room.id);
               }} aria-label={`${room.title} 메뉴`} aria-expanded={menuId === room.id}>⋮</button>
-              {menuId === room.id ? <div className="mypage-chat-record__menu" style={{ top: menuPosition.top, left: menuPosition.left }}>
-                <button type="button" onClick={() => { onPin(room); setMenuId(''); }}>{room.pinned ? '고정 해제' : '채팅 고정'}</button>
-                <button type="button" onClick={() => { onRename(room); setMenuId(''); }}>이름 수정</button>
-                <button className="is-danger" type="button" onClick={() => { onDelete(room); setMenuId(''); }}>삭제하기</button>
-              </div> : null}
+              {menuId === room.id ? createPortal(
+                <div className="mypage-chat-record__menu" style={{ top: menuPosition.top, left: menuPosition.left }}>
+                  <button type="button" onClick={() => { onPin(room); setMenuId(''); }}>{room.pinned ? '고정 해제' : '채팅 고정'}</button>
+                  <button type="button" onClick={() => { onRename(room); setMenuId(''); }}>이름 수정</button>
+                  <button className="is-danger" type="button" onClick={() => { onDelete(room); setMenuId(''); }}>삭제하기</button>
+                </div>,
+                document.body,
+              ) : null}
             </div>
           </article>
         )) : <EmptyState>저장된 대화가 없습니다.</EmptyState>}
@@ -298,6 +355,9 @@ function AccountEditor({ profile, authUser, onCancel, onSaved, onDeleteRequest }
   const [nicknameCheck, setNicknameCheck] = useState({ checkedNickname: '', available: false });
   const [emailVerificationSent, setEmailVerificationSent] = useState(false);
   const [emailVerified, setEmailVerified] = useState(false);
+  const [profileImage, setProfileImage] = useState(profile.profile_image || authUser?.profile_image || '');
+  const [imageBusy, setImageBusy] = useState(false);
+  const fileInputRef = useRef(null);
   const normalizedNickname = nickname.trim();
   const nicknameChanged = normalizedNickname.toLocaleLowerCase('ko-KR') !== initialNickname.trim().toLocaleLowerCase('ko-KR');
   const nicknameWasChecked = !nicknameChanged || (
@@ -360,6 +420,41 @@ function AccountEditor({ profile, authUser, onCancel, onSaved, onDeleteRequest }
     } finally { setBusy(false); }
   };
 
+  const selectProfileImage = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setMessage('JPG, PNG, WEBP 이미지만 업로드할 수 있습니다.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setMessage('프로필 이미지는 5MB 이하만 업로드할 수 있습니다.');
+      return;
+    }
+    setImageBusy(true); setMessage('');
+    try {
+      const result = await updateProfileImage(file);
+      const nextImage = result.user_profile || result.profile_image || '';
+      setProfileImage(nextImage);
+      onSaved({ profile_image: nextImage }, { keepOpen: true });
+      setMessage('프로필 이미지를 변경했습니다.');
+    } catch (error) { setMessage(error.message); }
+    finally { setImageBusy(false); }
+  };
+
+  const removeProfileImage = async () => {
+    if (!profileImage || imageBusy) return;
+    setImageBusy(true); setMessage('');
+    try {
+      await deleteProfileImage();
+      setProfileImage('');
+      onSaved({ profile_image: '' }, { keepOpen: true });
+      setMessage('프로필 이미지를 삭제했습니다.');
+    } catch (error) { setMessage(error.message); }
+    finally { setImageBusy(false); }
+  };
+
   const submit = async (event) => {
     event.preventDefault();
     const nextNickname = nickname.trim();
@@ -381,6 +476,13 @@ function AccountEditor({ profile, authUser, onCancel, onSaved, onDeleteRequest }
     <section className="mypage-panel mypage-account-editor" aria-labelledby="account-editor-title">
       <header><span>ACCOUNT EDIT</span><h3 id="account-editor-title">계정 정보 입력 / 수정</h3></header>
       <form noValidate onSubmit={submit}>
+        <div className="mypage-account-image-field">
+          <span className="mypage-account-image-preview">
+            <img src={profileImage || DEFAULT_AVATAR} alt="현재 프로필" onError={(event) => { event.currentTarget.src = DEFAULT_AVATAR; }} />
+          </span>
+          <div><strong>프로필 이미지</strong><small>JPG, PNG, WEBP · 최대 5MB</small><span><button disabled={imageBusy} type="button" onClick={() => fileInputRef.current?.click()}>{imageBusy ? '처리 중…' : '이미지 선택'}</button>{profileImage ? <button disabled={imageBusy} type="button" onClick={removeProfileImage}>삭제</button> : null}</span></div>
+          <input ref={fileInputRef} className="mypage-account-image-input" type="file" accept="image/jpeg,image/png,image/webp" onChange={selectProfileImage} />
+        </div>
         <label>닉네임<span className="mypage-account-field-row"><input value={nickname} onChange={(event) => { setNickname(event.target.value); setNicknameCheck({ checkedNickname: '', available: false }); setMessage(''); }} maxLength={50} /><button disabled={busy || !nicknameChanged || nicknameWasChecked} type="button" onClick={checkNickname}>{nicknameWasChecked && nicknameChanged ? '확인 완료' : '중복확인'}</button></span></label>
         <label>이메일<span className="mypage-account-field-row"><input type="email" value={email} onChange={(event) => { setEmail(event.target.value); setCode(''); setSeconds(0); setEmailVerificationSent(false); setEmailVerified(false); setMessage(''); }} /><button disabled={busy || !emailChanged} type="button" onClick={sendCode}>{emailVerificationSent ? '재전송' : '인증 전송'}</button></span></label>
         {emailChanged ? <label>인증번호<span className="mypage-account-field-row mypage-account-code-row"><span className="mypage-account-code"><input disabled={!emailVerificationSent || emailVerified} inputMode="numeric" maxLength={6} value={code} onChange={(event) => { setCode(event.target.value.replace(/\D/g, '')); setEmailVerified(false); }} placeholder="6자리 인증번호" />{seconds && !emailVerified ? <time>{timerText}</time> : null}</span><button disabled={busy || !emailVerificationSent || emailVerified || code.length !== 6} type="button" onClick={confirmEmail}>{emailVerified ? '인증 완료' : '인증 확인'}</button></span></label> : null}
@@ -397,7 +499,10 @@ function AccountEditor({ profile, authUser, onCancel, onSaved, onDeleteRequest }
 }
 
 function MyPage({ authUser, onLogout, onUserUpdate }) {
-  const [activeTab, setActiveTab] = useState('overview');
+  const requestedTab = new URLSearchParams(window.location.search).get('tab');
+  const [activeTab, setActiveTab] = useState(
+    () => TABS.some(([key]) => key === requestedTab) ? requestedTab : 'overview'
+  );
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState('');
   const [profile, setProfile] = useState({});
@@ -408,9 +513,11 @@ function MyPage({ authUser, onLogout, onUserUpdate }) {
   const [recent, setRecent] = useState([]);
   const [liked, setLiked] = useState([]);
   const [recommended, setRecommended] = useState([]);
+  const [wishlisted, setWishlisted] = useState([]);
+  const [reviews, setReviews] = useState([]);
   const [unlikeBusy, setUnlikeBusy] = useState('');
   const [tasteBusy, setTasteBusy] = useState(false);
-  const [directEditing, setDirectEditing] = useState(false);
+  const [tasteModalOpen, setTasteModalOpen] = useState(false);
   const [preferenceInsights, setPreferenceInsights] = useState({});
   const [insightsRequested, setInsightsRequested] = useState(false);
   const [insightsLoading, setInsightsLoading] = useState(false);
@@ -425,12 +532,14 @@ function MyPage({ authUser, onLogout, onUserUpdate }) {
       fetchUserProfile(controller.signal),
       fetchUserPreferences(controller.signal),
       fetchChatRooms(controller.signal),
-      fetchRecentMovies(controller.signal, 8),
+      fetchRecentMovies(controller.signal, 50),
       fetchLikedMovies(controller.signal),
-      fetchChatRecommendedMovies(controller.signal, 8),
+      fetchChatRecommendedMovies(controller.signal, 50),
+      fetchMyReviews(controller.signal),
+      fetchWishlistMovies(controller.signal),
     ]).then(async (results) => {
       if (controller.signal.aborted) return;
-      const [profileResult, preferenceResult, roomResult, recentResult, likedResult, recommendedResult] = results;
+      const [profileResult, preferenceResult, roomResult, recentResult, likedResult, recommendedResult, reviewResult, wishlistResult] = results;
       if (profileResult.status === 'fulfilled') setProfile(profileResult.value || {});
       if (preferenceResult.status === 'fulfilled') {
         setPreferences(preferenceResult.value?.preferences || {});
@@ -451,10 +560,14 @@ function MyPage({ authUser, onLogout, onUserUpdate }) {
       if (recentResult.status === 'fulfilled') setRecent((recentResult.value || []).map(normalizeMovie));
       if (likedResult.status === 'fulfilled') setLiked((likedResult.value || []).map(normalizeMovie));
       if (recommendedResult.status === 'fulfilled') setRecommended((recommendedResult.value || []).map(normalizeMovie));
+      if (reviewResult.status === 'fulfilled') setReviews(reviewResult.value || []);
+      if (wishlistResult.status === 'fulfilled') setWishlisted((wishlistResult.value || []).map(normalizeMovie));
       if (results.some((result) => result.status === 'rejected')) setStatus('일부 기록을 불러오지 못했습니다.');
     }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, []);
+
+  const openArchiveSection = (tab) => setActiveTab(tab);
 
   useEffect(() => {
     if (activeTab !== 'taste' || insightsRequested) return;
@@ -550,16 +663,8 @@ function MyPage({ authUser, onLogout, onUserUpdate }) {
     } catch (error) { setStatus(error.message); }
   };
 
-  const addDirectTaste = (category, value) => {
-    setPreferences((current) => ({ ...current, [category]: uniqueText([...(current[category] || []), value]) }));
-  };
-
   const removeTaste = async (category, preferenceType, value, mode) => {
     if (tasteBusy) return;
-    if (mode === 'direct') {
-      setPreferences((current) => ({ ...current, [category]: uniqueText(current[category]).filter((item) => item !== value) }));
-      return;
-    }
     setTasteBusy(true); setStatus('');
     try {
       await deletePreference(preferenceType, value);
@@ -568,25 +673,29 @@ function MyPage({ authUser, onLogout, onUserUpdate }) {
     finally { setTasteBusy(false); }
   };
 
-  const saveDirectTaste = async () => {
+  const saveDirectTaste = async (nextPreferences) => {
+    const nextDirect = {
+      genres: uniqueText(nextPreferences?.genres),
+      actors: uniqueText(nextPreferences?.actors),
+      keywords: uniqueText(nextPreferences?.keywords),
+    };
     setTasteBusy(true); setStatus('');
     try {
-      await updateUserPreferences({ genres: direct.genres, actors: direct.actors, keywords: direct.keywords });
+      await updateUserPreferences(nextDirect);
+      setPreferences(nextDirect);
       setCombined({
-        genres: uniqueText([...direct.genres, ...learnedTaste.genres]),
-        actors: uniqueText([...direct.actors, ...learnedTaste.actors]),
-        keywords: uniqueText([...direct.keywords, ...learnedTaste.keywords]),
+        genres: uniqueText([...nextDirect.genres, ...learnedTaste.genres]),
+        actors: uniqueText([...nextDirect.actors, ...learnedTaste.actors]),
+        keywords: uniqueText([...nextDirect.keywords, ...learnedTaste.keywords]),
       });
-      setDirectEditing(false);
+      setTasteModalOpen(false);
       setStatus('직접 선택한 취향을 수정했습니다.');
     }
-    catch (error) { setStatus(error.message); }
+    catch (error) {
+      setStatus(error.message);
+      throw error;
+    }
     finally { setTasteBusy(false); }
-  };
-
-  const handleDirectEdit = () => {
-    if (directEditing) saveDirectTaste();
-    else setDirectEditing(true);
   };
 
   const handleResetLearnedTaste = async () => {
@@ -621,18 +730,23 @@ function MyPage({ authUser, onLogout, onUserUpdate }) {
   };
 
   if (loading) {
-    return <main className="mypage cinema-nav-page" aria-busy="true"><CinemaNav authUser={authUser} onLogout={onLogout} /><section className="mypage-shell mypage-skeleton" aria-hidden="true"><SkeletonBlock className="mypage-skeleton__hero" /><PanelSkeleton lines={3} /><PosterRowSkeleton count={6} /></section></main>;
+    return <main className="mypage cinema-nav-page" aria-busy="true"><section className="mypage-shell mypage-skeleton" aria-hidden="true"><SkeletonBlock className="mypage-skeleton__hero" /><PanelSkeleton lines={3} /><PosterRowSkeleton count={6} /></section></main>;
   }
 
   return (
     <main className="mypage cinema-nav-page">
-      <CinemaNav authUser={authUser} onLogout={onLogout} />
       <div className="mypage-shell">
         {status ? <p className="mypage-status">{status}</p> : null}
         <section className="mypage-profile-hero">
           <div className="mypage-profile-main"><div className="mypage-avatar"><img src={avatar} alt="" onError={(event) => { event.currentTarget.src = DEFAULT_AVATAR; }} /></div><div><span className="mypage-eyebrow">MUSUBI PROFILE</span><h1>{displayName}님의 취향 아카이브</h1><p>무무가 대화와 영화 활동을 통해 이해한 취향을 한곳에 모았어요.</p></div></div>
           <div className="mypage-profile-actions"><button type="button" onClick={() => setActiveTab('account')}>내 정보</button></div>
-          <div className="mypage-stats"><div><strong>{chatRows.length}</strong><span>저장 대화</span></div><div><strong>{recent.length}</strong><span>최근 본 영화</span></div><div><strong>{liked.length}</strong><span>좋아요</span></div><div><strong>{recommended.length}</strong><span>채팅 추천</span></div></div>
+          <div className="mypage-stats">
+            <button type="button" onClick={() => openArchiveSection('chat')}><strong>{chatRows.length}</strong><span>저장 대화</span></button>
+            <button type="button" onClick={() => openArchiveSection('activity')}><strong>{recent.length}</strong><span>최근 본 영화</span></button>
+            <button type="button" onClick={() => openArchiveSection('activity')}><strong>{liked.length}</strong><span>좋아요</span></button>
+            <button type="button" onClick={() => openArchiveSection('reviews')}><strong>{reviews.length}</strong><span>리뷰</span></button>
+            <button type="button" onClick={() => openArchiveSection('activity')}><strong>{recommended.length}</strong><span>채팅 추천</span></button>
+          </div>
         </section>
 
         <nav className="mypage-tabs" aria-label="마이페이지 메뉴">{TABS.map(([key, label]) => <button className={activeTab === key ? 'is-active' : ''} type="button" onClick={() => setActiveTab(key)} key={key}>{label}</button>)}</nav>
@@ -646,16 +760,19 @@ function MyPage({ authUser, onLogout, onUserUpdate }) {
         </div> : null}
 
         {activeTab === 'taste' ? <section className="mypage-tab-page"><header><span>TASTE CONTROL</span><h2>나의 영화 취향</h2><p>직접 선택한 취향과 활동을 통해 발견한 취향을 한눈에 확인해보세요.</p></header><div className="mypage-taste-columns">
-          <article className="mypage-panel mypage-taste-editor is-direct"><header><div><h3>직접 선택한 취향</h3><p>추천에 바로 반영되는 취향입니다. 취향을 바꾸고 싶다면 직접 수정할 수 있어요.</p></div><button disabled={tasteBusy} type="button" onClick={handleDirectEdit}>{directEditing ? '수정 완료' : '수정하기'}</button></header>{TASTE_TYPES.map(([category, type, label]) => <EditableTasteRow key={category} category={category} preferenceType={type} label={label} values={direct[category]} mode="direct" editable={directEditing} busy={tasteBusy} onAdd={addDirectTaste} onRemove={(...args) => removeTaste(...args, 'direct')} />)}</article>
+          <article className="mypage-panel mypage-taste-editor is-direct"><header><div><h3>직접 선택한 취향</h3><p>추천에 바로 반영되는 취향입니다. 장르, 배우, 키워드를 순서대로 다시 선택할 수 있어요.</p></div><button disabled={tasteBusy} type="button" onClick={() => setTasteModalOpen(true)}>수정하기</button></header>{TASTE_TYPES.map(([category, type, label]) => <EditableTasteRow key={category} category={category} preferenceType={type} label={label} values={direct[category]} mode="direct" busy={tasteBusy} onAdd={() => {}} onRemove={() => {}} />)}</article>
           <article className="mypage-panel mypage-taste-editor is-learned"><header><div><h3>활동에서 발견한 취향</h3><p>조회·좋아요·검색 활동을 바탕으로 무무가 발견한 취향입니다.</p></div><button className="is-reset" disabled={tasteBusy} type="button" onClick={() => setResetConfirmOpen(true)}>초기화</button></header>{TASTE_TYPES.map(([category, type, label]) => <EditableTasteRow key={category} category={category} preferenceType={type} label={label} values={learnedTaste[category]} mode="learned" insight={preferenceInsights[category]} insightLoading={insightsLoading} busy={tasteBusy} onAdd={() => {}} onRemove={(...args) => removeTaste(...args, 'learned')} />)}</article>
         </div></section> : null}
 
         {activeTab === 'chat' ? <section className="mypage-tab-page"><header><span>MY CONVERSATIONS</span><h2>대화 기록</h2><p>캐릭터 대화와 무무의 일반 대화를 나누어 확인할 수 있어요.</p></header><div className="mypage-chat-columns"><ChatColumn title="캐릭터 대화" rooms={characterChats} side="character" onPin={toggleChatPin} onRename={renameChatRoom} onDelete={removeChatRoom} /><ChatColumn title="일반 대화" rooms={generalChats} side="general" onPin={toggleChatPin} onRename={renameChatRoom} onDelete={removeChatRoom} /></div></section> : null}
 
-        {activeTab === 'activity' ? <section className="mypage-tab-page"><header><span>MOVIE ACTIVITY</span><h2>나의 영화 활동</h2><p>조회와 좋아요, 대화 추천을 기준으로 정리했습니다.</p></header><MovieStrip title="최근 본 영화" movies={recent} /><MovieStrip title="채팅에서 추천받은 영화" movies={recommended} /><MovieStrip title="내가 좋아요 누른 영화" movies={liked} liked onUnlike={handleUnlike} unlikeBusy={unlikeBusy} /></section> : null}
+        {activeTab === 'activity' ? <section className="mypage-tab-page"><header><span>MOVIE ACTIVITY</span><h2>나의 영화 활동</h2><p>조회와 좋아요, 찜, 대화 추천을 기준으로 정리했습니다.</p></header><MovieStrip id="wishlisted-movies" title="찜한 영화" description="보고 싶은 영화를 모아두는 공간이에요." movies={wishlisted} emptyText="아직 찜한 영화가 없습니다." /><MovieStrip id="recent-movies" title="최근 본 영화" movies={recent} /><MovieStrip id="chat-recommended-movies" title="채팅에서 추천받은 영화" movies={recommended} /><MovieStrip id="liked-movies" title="내가 좋아요 누른 영화" movies={liked} liked onUnlike={handleUnlike} unlikeBusy={unlikeBusy} /></section> : null}
 
-        {activeTab === 'account' ? <section className="mypage-tab-page"><header><span>ACCOUNT</span><h2>계정 설정</h2><p>프로필과 로그인 정보를 확인합니다.</p></header>{accountOpen ? <AccountEditor profile={profile} authUser={authUser} onCancel={() => setAccountOpen(false)} onDeleteRequest={() => setAccountDeleteConfirmOpen(true)} onSaved={(updated) => { const next = { ...profile, ...updated }; setProfile(next); onUserUpdate?.({ ...authUser, ...updated }); setAccountOpen(false); setStatus('계정 정보가 수정되었습니다.'); }} /> : <article className="mypage-panel mypage-account-card"><div><span>닉네임</span><strong>{displayName}</strong></div><div><span>이메일</span><strong>{profile.email || authUser?.email || '-'}</strong></div><button type="button" onClick={() => setAccountOpen(true)}>계정 정보 입력 / 수정</button></article>}</section> : null}
+        {activeTab === 'reviews' ? <section className="mypage-tab-page"><header><span>MY ACTIVITY</span><h2>내 활동</h2><p>내가 남긴 리뷰를 확인하고 해당 영화 상세페이지로 이동할 수 있어요.</p></header><ReviewList reviews={reviews} /></section> : null}
+
+        {activeTab === 'account' ? <section className="mypage-tab-page"><header><span>ACCOUNT</span><h2>계정 설정</h2><p>프로필과 로그인 정보를 확인합니다.</p></header>{accountOpen ? <AccountEditor profile={profile} authUser={authUser} onCancel={() => setAccountOpen(false)} onDeleteRequest={() => setAccountDeleteConfirmOpen(true)} onSaved={(updated, options = {}) => { const next = { ...profile, ...updated }; setProfile(next); onUserUpdate?.({ ...authUser, ...updated }); if (!options.keepOpen) setAccountOpen(false); }} /> : <article className="mypage-panel mypage-account-card"><div><span>프로필</span><span className="mypage-account-card__avatar"><img src={avatar} alt="" onError={(event) => { event.currentTarget.src = DEFAULT_AVATAR; }} /></span></div><div><span>닉네임</span><strong>{displayName}</strong></div><div><span>이메일</span><strong>{profile.email || authUser?.email || '-'}</strong></div><button type="button" onClick={() => setAccountOpen(true)}>계정 정보 입력 / 수정</button></article>}</section> : null}
       </div>
+      {tasteModalOpen ? <TastePreferenceModal initialPreferences={direct} saving={tasteBusy} onClose={() => { if (!tasteBusy) setTasteModalOpen(false); }} onSave={saveDirectTaste} /> : null}
       {resetConfirmOpen ? <div className="mypage-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !tasteBusy) setResetConfirmOpen(false); }}><section className="mypage-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="taste-reset-title"><span>TASTE RESET</span><h2 id="taste-reset-title">활동에서 발견한 취향을 초기화할까요?</h2><p>조회·좋아요·검색으로 학습한 취향 점수만 삭제됩니다.<br />직접 선택한 취향은 그대로 유지됩니다.</p><footer><button disabled={tasteBusy} type="button" onClick={() => setResetConfirmOpen(false)}>취소</button><button disabled={tasteBusy} type="button" onClick={handleResetLearnedTaste}>{tasteBusy ? '초기화 중…' : '초기화'}</button></footer></section></div> : null}
       {accountDeleteConfirmOpen ? <div className="mypage-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !accountDeleteBusy) setAccountDeleteConfirmOpen(false); }}><section className="mypage-confirm-modal is-account-delete" role="dialog" aria-modal="true" aria-labelledby="account-delete-title"><span>ACCOUNT DELETE</span><h2 id="account-delete-title">정말 계정을 탈퇴하시겠어요?</h2><p>탈퇴하면 계정 정보와 좋아요, 영화 활동, 취향 및 대화 기록이 삭제되며 되돌릴 수 없습니다.</p><footer><button disabled={accountDeleteBusy} type="button" onClick={() => setAccountDeleteConfirmOpen(false)}>취소</button><button disabled={accountDeleteBusy} type="button" onClick={handleDeleteAccount}>{accountDeleteBusy ? '탈퇴 처리 중…' : '계정 탈퇴'}</button></footer></section></div> : null}
     </main>

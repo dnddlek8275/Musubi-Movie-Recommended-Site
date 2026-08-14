@@ -12,6 +12,7 @@ import {
 } from '../../api.js';
 
 const STORAGE_KEY = 'cineverse.autochat.conversations';
+const ACTIVE_CONVERSATION_KEY = 'cineverse.autochat.activeConversation';
 
 function readStoredConversations() {
   try {
@@ -20,6 +21,10 @@ function readStoredConversations() {
   } catch (error) {
     return [];
   }
+}
+
+function readStoredActiveId() {
+  return String(window.localStorage.getItem(ACTIVE_CONVERSATION_KEY) || '');
 }
 
 function createConversation(roomId = '') {
@@ -56,6 +61,7 @@ export default function useMumuChat(authUser) {
   const [error, setError] = useState('');
   const [guestRemaining, setGuestRemaining] = useState(null);
   const [roomLoading, setRoomLoading] = useState(false);
+  const [linkedConversations, setLinkedConversations] = useState([]);
   const abortRef = useRef(null);
   const titleRequestsRef = useRef(new Set());
 
@@ -72,9 +78,17 @@ export default function useMumuChat(authUser) {
     const meaningfulStored = stored.filter((item) => (
       Boolean(item.roomId) || (Array.isArray(item.messages) && item.messages.length > 0)
     ));
+    const storedActiveId = readStoredActiveId();
     let conversation = roomId
       ? meaningfulStored.find((item) => String(item.roomId) === String(roomId))
-      : null;
+      : meaningfulStored.find((item) => item.id === storedActiveId)
+        || meaningfulStored
+          .slice()
+          .sort((left, right) => (
+            new Date(right.updatedAt || right.createdAt || 0)
+            - new Date(left.updatedAt || left.createdAt || 0)
+          ))[0]
+        || null;
 
     if (!conversation) conversation = createConversation(roomId);
     const nextConversations = meaningfulStored.some((item) => item.id === conversation.id)
@@ -114,6 +128,29 @@ export default function useMumuChat(authUser) {
         const generalRooms = (rooms || []).filter((room) => (
           String(room?.room_type || room?.roomType || 'general') === 'general'
         ));
+        const characterRooms = (rooms || [])
+          .filter((room) => {
+            const type = String(room?.room_type || room?.roomType || '');
+            return type === 'character' || type === 'group';
+          })
+          .map((room) => {
+            const roomId = String(room.room_id ?? room.roomId ?? '');
+            const members = Array.isArray(room.characters) ? room.characters.filter(Boolean) : [];
+            const params = new URLSearchParams({ room: roomId });
+            if (members.length) params.set('members', members.join(','));
+            return {
+              id: `linked-character-${roomId}`,
+              roomId,
+              roomType: String(room?.room_type || room?.roomType || 'character'),
+              title: String(room.title || '').trim() || members.join(', ') || '캐릭터 대화',
+              createdAt: room.created_at || room.createdAt || new Date().toISOString(),
+              updatedAt: room.updated_at || room.updatedAt || room.created_at || room.createdAt || new Date().toISOString(),
+              href: `/chat/group?${params.toString()}`,
+              linked: true,
+            };
+          });
+
+        setLinkedConversations(characterRooms);
 
         setConversations((current) => {
           const localByRoomId = new Map(
@@ -146,7 +183,10 @@ export default function useMumuChat(authUser) {
         });
       })
       .catch((loadError) => {
-        if (loadError.name !== 'AbortError') setError(loadError.message);
+        if (loadError.name !== 'AbortError') {
+          setLinkedConversations([]);
+          setError(loadError.message);
+        }
       });
 
     return () => controller.abort();
@@ -156,6 +196,11 @@ export default function useMumuChat(authUser) {
     if (!authUser) return;
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
   }, [authUser, conversations]);
+
+  useEffect(() => {
+    if (!authUser || !activeId) return;
+    window.localStorage.setItem(ACTIVE_CONVERSATION_KEY, activeId);
+  }, [activeId, authUser]);
 
   useEffect(() => {
     if (!authUser) return;
@@ -454,6 +499,7 @@ export default function useMumuChat(authUser) {
     draft,
     error,
     guestRemaining,
+    linkedConversations,
     messages: activeConversation?.messages || [],
     newConversation,
     renameConversation,

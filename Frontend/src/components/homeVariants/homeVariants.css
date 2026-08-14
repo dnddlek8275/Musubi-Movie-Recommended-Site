@@ -24,7 +24,16 @@
   gap: 12px;
   overflow-y: auto;
   scrollbar-width: thin;
+  scrollbar-color: rgba(135, 143, 149, 0.34) transparent;
 }
+
+.home-variant-chat__messages::-webkit-scrollbar { width: 6px; }
+.home-variant-chat__messages::-webkit-scrollbar-track { background: transparent; }
+.home-variant-chat__messages::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(135, 143, 149, 0.34);
+}
+.home-variant-chat__messages::-webkit-scrollbar-thumb:hover { background: rgba(170, 178, 184, 0.56); }
 
 .home-variant-chat__messages.is-compact {
   min-height: 120px;
@@ -154,8 +163,17 @@
 .home-variant-message__movies {
   margin-top: 10px;
   display: flex;
-  gap: 10px;
+  align-items: stretch;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 3px;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
 }
+
+.home-variant-message__movies::-webkit-scrollbar { display: none; }
+.home-variant-message .horizontal-scroller { max-width: 100%; }
+.home-variant-message .horizontal-scroller__arrow { top: 48%; width: 32px; height: 46px; font-size: 27px; }
 
 .home-variant-message__sources {
   display: grid;
@@ -178,15 +196,27 @@
 }
 
 .home-variant-message__movies button {
-  width: 92px;
+  width: 132px;
+  flex: 0 0 132px;
   padding: 0;
   border: 1px solid var(--panel-border);
-  border-radius: 9px;
+  border-radius: 12px;
   overflow: hidden;
   background: var(--panel);
   color: var(--text);
   cursor: pointer;
   text-align: left;
+  transition: border-color .18s ease, transform .18s ease;
+}
+
+.home-variant-message__movies button:hover,
+.home-variant-message__movies button:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 72%, var(--panel-border));
+  transform: translateY(-2px);
+}
+
+.home-variant-message__movies button[aria-busy="true"] {
+  opacity: .68;
 }
 
 .home-variant-message__movies .index-mini-poster {
@@ -196,20 +226,26 @@
 }
 
 .home-variant-message__movies strong {
-  padding: 8px;
   display: block;
   overflow: hidden;
-  font-size: 11px;
+  font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.home-variant-message__movie-copy {
+  min-height: 52px;
+  padding: 10px;
+  display: block;
+}
+
 .home-variant-message__movie-role {
   display: block;
-  margin-top: 8px;
+  margin-bottom: 5px;
   color: #f6a21a;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
+  letter-spacing: .04em;
 }
 
 .home-variant-message__movie-reason {
@@ -221,6 +257,15 @@
   color: var(--home3-muted);
   font-size: 11px;
   line-height: 1.4;
+}
+
+.home-variant-message .home-variant-message__movie-status {
+  margin: 7px 0 0;
+  padding: 0;
+  border: 0;
+  color: #ff9a9a;
+  background: transparent;
+  font-size: 11px;
 }
 
 .home-variant-composer {
@@ -374,14 +419,6 @@
 }
 
 /* Main /home — cinematic navigation banner followed by a ChatGPT-like opening prompt */
-.page:has(.home3-page) {
-  padding-top: 0;
-}
-
-.page:has(.home3-page) > .site-header {
-  display: none;
-}
-
 .home3-cinema-hero {
   width: 100%;
   aspect-ratio: 2059 / 764;
@@ -408,191 +445,6 @@
   width: 100%;
   height: 100%;
   border-radius: 0;
-}
-
-.home3-cinema-nav {
-  width: calc(100% - 80px);
-  min-height: 88px;
-  position: absolute;
-  z-index: 5;
-  top: 0;
-  left: 40px;
-  display: grid;
-  grid-template-columns: 200px minmax(0, 1fr) auto;
-  gap: 22px;
-  align-items: center;
-  color: #fff;
-}
-
-.home3-cinema-nav__logo { display: inline-flex; }
-
-.home3-cinema-nav__logo .site-logo__art {
-  width: 180px;
-  height: 44px;
-}
-
-.home3-cinema-nav__logo .site-logo__image--dark { display: block; }
-.home3-cinema-nav__logo .site-logo__image--light { display: none; }
-
-/* 배너 위에서는 테마와 관계없이 대비가 높은 흰색 로고를 사용한다. */
-:root[data-theme="light"] .home3-cinema-nav__logo .site-logo__image--dark { display: block; }
-:root[data-theme="light"] .home3-cinema-nav__logo .site-logo__image--light { display: none; }
-
-.home3-cinema-nav nav {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 34px;
-}
-
-.home3-cinema-nav a {
-  color: inherit;
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.home3-cinema-nav nav a {
-  font-size: 15px;
-  font-weight: 800;
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.65);
-}
-
-.home3-cinema-nav nav a,
-.home3-cinema-nav nav a:visited,
-.home3-cinema-nav nav a:hover,
-.home3-cinema-nav nav a:focus,
-.home3-cinema-nav nav a:active {
-  color: #fff;
-}
-
-.home3-cinema-search {
-  width: 34px;
-  height: 34px;
-  position: relative;
-  display: flex;
-  align-items: center;
-  overflow: visible;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  background: transparent;
-  transition: width 240ms ease, border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
-}
-
-.home3-cinema-search.is-open {
-  width: min(300px, 28vw);
-  border-color: rgba(255, 255, 255, 0.48);
-  background: rgba(0, 0, 0, 0.28);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(12px);
-}
-
-.home3-cinema-search__button {
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  border: 0;
-  display: grid;
-  place-items: center;
-  flex: 0 0 34px;
-  color: #fff;
-  background: transparent;
-  cursor: pointer;
-}
-
-.home3-cinema-search__button svg {
-  width: 24px;
-  height: 24px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-}
-
-.home3-cinema-search input {
-  width: 0;
-  min-width: 0;
-  height: 32px;
-  padding: 0;
-  border: 0;
-  outline: 0;
-  opacity: 0;
-  color: #fff;
-  background: transparent;
-  font: inherit;
-  font-size: 14px;
-  transition: width 240ms ease, padding 240ms ease, opacity 160ms ease;
-}
-
-.home3-cinema-search.is-open input {
-  width: calc(100% - 34px);
-  padding: 0 10px;
-  opacity: 1;
-}
-
-.home3-cinema-search input::placeholder { color: rgba(255, 255, 255, 0.72); }
-
-.home3-cinema-search__suggestions {
-  width: calc(100% - 34px);
-  position: absolute;
-  z-index: 20;
-  top: calc(100% + 10px);
-  right: 0;
-  margin: 0;
-  padding: 7px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 12px;
-  list-style: none;
-  background: rgba(10, 12, 15, 0.94);
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.34);
-  backdrop-filter: blur(14px);
-}
-
-.home3-cinema-search__suggestions button {
-  width: 100%;
-  min-height: 36px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  color: #fff;
-  background: transparent;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.home3-cinema-search__suggestions button:hover,
-.home3-cinema-search__suggestions button.is-active {
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.home3-cinema-search__suggestions small { color: rgba(255, 255, 255, 0.58); }
-
-.home3-cinema-nav__actions {
-  justify-self: end;
-  display: flex;
-  align-items: center;
-}
-
-.home3-cinema-nav .theme-toggle {
-  width: 38px;
-  height: 38px;
-  border-color: rgba(255, 255, 255, 0.3);
-  color: #fff;
-  background: rgba(0, 0, 0, 0.28);
-}
-
-.home3-cinema-nav__account {
-  padding: 10px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.32);
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.3);
-  font-size: 13px;
-  font-weight: 800;
 }
 
 .home3-chat-stage {
@@ -638,8 +490,11 @@
 .home3-chat-stage h1 {
   margin: 0;
   color: var(--text);
-  font-size: 38px;
+  padding-inline: 18px;
+  font-size: clamp(28px, 2.4vw, 38px);
+  line-height: 1.22;
   letter-spacing: -0.05em;
+  overflow-wrap: anywhere;
 }
 
 .home3-chat-stage header p {
@@ -693,15 +548,6 @@
   overscroll-behavior: contain;
   scroll-behavior: smooth;
   touch-action: pan-y;
-}
-
-.home3-chat-stage .home-variant-chat__messages.is-drag-scroll {
-  cursor: grab;
-}
-
-.home3-chat-stage .home-variant-chat__messages.is-drag-scroll[data-dragging="true"] {
-  cursor: grabbing;
-  user-select: none;
 }
 
 .home3-chat-stage .home-variant-message {
@@ -881,6 +727,16 @@
 
 .home3-prompt-menu button:hover {
   background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.home3-prompt-menu .home3-prompt-menu__image {
+  position: relative;
+}
+
+.home3-prompt-menu .home3-prompt-menu__image::after {
+  right: auto;
+  bottom: calc(100% + 7px);
+  left: 0;
 }
 
 .home3-prompt-menu span {
@@ -1395,14 +1251,13 @@
 @media (max-width: 1200px) {
   .home-variant-characters__list { gap: 13px; }
   .home-variant-characters__list button > span { width: 78px; height: 78px; }
-  .home3-cinema-nav { grid-template-columns: 170px minmax(0, 1fr) auto; gap: 16px; }
-  .home3-cinema-nav nav { gap: 18px; }
-  .home3-cinema-nav nav a { font-size: 13px; }
+  .home3-chat-stage { width: min(1040px, 100%); }
+  .home3-chat-stage__conversation { width: min(920px, 100%); }
 }
 
 @media (max-width: 768px) {
-  .home3-chat-stage { height: 300px; margin: 0 auto; }
-  .home3-chat-stage:not(.is-chatting) { height: 320px; padding-top: 50px; }
+  .home3-chat-stage { height: auto; min-height: 300px; margin: 0 auto; }
+  .home3-chat-stage:not(.is-chatting) { height: auto; min-height: 390px; padding-top: 50px; padding-bottom: 34px; }
   .home3-chat-stage.is-chatting { height: 634px; margin: 0 auto; }
   .home3-chat-stage > header { margin-bottom: 30px; }
   .home3-chat-stage h1 { font-size: 29px; }
@@ -1425,7 +1280,7 @@
   .home3-prompt__voice-chat svg { width: 25px; height: 25px; }
   .home3-page .home-variant-characters { margin-top: 0; }
   .home3-character-lounge { width: 100%; margin-top: 44px; }
-  .home3-chat-stage:not(.is-chatting) + .home3-character-lounge { margin-top: 11px; }
+  .home3-chat-stage:not(.is-chatting) + .home3-character-lounge { margin-top: 28px; }
   .home3-character-lounge .home-variant-characters h2 { font-size: 19px; }
   .home3-character-lounge .home-variant-characters__list { gap: 14px; }
   .home3-character-lounge .home-variant-characters__list button { flex-basis: 126px; }
@@ -1446,16 +1301,6 @@
     border-radius: 0;
   }
 
-  .home3-cinema-nav {
-    width: calc(100% - 32px);
-    left: 16px;
-    grid-template-columns: 132px minmax(0, 1fr) auto;
-    gap: 10px;
-  }
-
-  .home3-cinema-nav__logo .site-logo__art { width: 126px; height: 34px; }
-  .home3-cinema-nav nav { overflow-x: auto; scrollbar-width: none; }
-  .home3-cinema-nav__account { padding: 8px 9px; }
 }
 
 @media (max-width: 480px) {

@@ -1,7 +1,9 @@
+from datetime import datetime
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile, status
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.current_user import get_current_user
@@ -11,6 +13,8 @@ from app.core.dependencies import get_db
 from app.schemas.movies import ShowMovies
 from app.schemas.users import AccountProfileUpdateRequest, EmailVerificationConfirmRequest, EmailVerificationRequest, NicknameCheckRequest, OnboardingPreferencesRequest, PreferenceDeleteRequest
 from app.models.tokens import EmailVerificationCode
+from app.models.interactions import MovieRating, MovieWishlist, UserMovieInteraction
+from app.models.movies import Movie
 from app.models.users import User, UserPreferenceScore
 from app.services.interaction_service import delete_liked_movie_result
 from app.services.movies.ai_chat_recommend_service import get_chat_ai_recommended_movies_result
@@ -341,9 +345,7 @@ async def get_my_preferences(
                 "message": "사용자 정보를 찾을 수 없습니다.",
             }
         
-        # 좋아요·조회·검색으로 자동 학습된 취향 점수 조회
-        preference_scores = get_user_preference_scores(db,user_id)
-         # 프론트에서 사용하기 편하도록 취향 타입별로 분리한다.
+        # 프론트에서 사용하기 편하도록 취향 타입별로 분리한다.
         learned_preferences = {
             "genres": [],
             "actors": [],
@@ -357,7 +359,8 @@ async def get_my_preferences(
             "keyword": "keywords",
         }
 
-        for preference in preference_scores:
+        effective_preferences = get_combined_user_preference_signals(db, user_id)
+        for preference in effective_preferences:
             response_key = preference_key_map.get(
                 preference.preference_type
             )
@@ -366,9 +369,12 @@ async def get_my_preferences(
             if response_key is None:
                 continue
 
+            if preference.behavior_score <= 0:
+                continue
             learned_preferences[response_key].append({
                 "value": preference.preference_value,
-                "score": round(preference.score or 0.0, 3),
+                # 조회·검색·좋아요뿐 아니라 별점·찜과 시간 감쇠까지 반영한 실효 점수다.
+                "score": round(preference.behavior_score, 3),
             })
 
         # 실제 추천 계산과 동일하게 직접 설정값과 행동 학습 점수를 합산한 결과다.
@@ -377,7 +383,7 @@ async def get_my_preferences(
             "actors": [],
             "keywords": [],
         }
-        for preference in get_combined_user_preference_signals(db, user_id):
+        for preference in effective_preferences:
             response_key = preference_key_map.get(preference.preference_type)
             if response_key is None:
                 continue
@@ -552,9 +558,14 @@ async def reset_my_learned_preferences(
     db: Session = Depends(get_db),
 ):
     try:
+        user_id = current_user["user_id"]
+        user = get_user(db, user_id)
+        if user is None:
+            return {"state": "failure", "message": "사용자 정보를 찾을 수 없습니다."}
         deleted_count = db.query(UserPreferenceScore).filter(
-            UserPreferenceScore.user_id == current_user["user_id"],
+            UserPreferenceScore.user_id == user_id,
         ).delete(synchronize_session=False)
+        user.preference_learning_reset_at = datetime.now(ZoneInfo("Asia/Seoul"))
         db.commit()
         return {
             "state": "success",
@@ -645,6 +656,137 @@ async def get_my_like(
 
     except Exception:
         return error_response("좋아요 조회 에러")
+
+
+@router.get("/wishlist")
+def get_my_wishlist(
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        rows = db.execute(
+            select(MovieWishlist, Movie)
+            .join(Movie, Movie.id == MovieWishlist.movie_id)
+            .where(MovieWishlist.user_id == current_user["user_id"])
+            .order_by(MovieWishlist.created_at.desc(), MovieWishlist.id.desc())
+        ).all()
+        return {
+            "state": "success",
+            "message": "찜한 영화 조회 성공",
+            "data": [get_movie_result(movie) for _wishlist, movie in rows],
+        }
+    except Exception:
+        return error_response("찜한 영화 조회 에러")
+
+
+# 사용자가 남긴 별점·리뷰를 최신 수정순으로 조회한다.
+# 리뷰 문구가 없는 별점 평가도 마이페이지 활동과 건수에 포함한다.
+@router.get("/reviews")
+def get_my_reviews(
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        user_id = current_user["user_id"]
+        rows = (
+            db.query(MovieRating, Movie)
+            .join(Movie, Movie.id == MovieRating.movie_id)
+            .filter(
+                MovieRating.user_id == user_id,
+            )
+            .order_by(MovieRating.updated_at.desc(), MovieRating.id.desc())
+            .all()
+        )
+        return {
+            "state": "success",
+            "message": "내 리뷰 조회 성공",
+            "data": [
+                {
+                    "id": rating.id,
+                    "score": rating.score,
+                    "comment": rating.comment,
+                    "is_spoiler": bool(rating.is_spoiler),
+                    "created_at": rating.created_at,
+                    "updated_at": rating.updated_at,
+                    "movie": get_movie_result(movie),
+                }
+                for rating, movie in rows
+            ],
+        }
+    except Exception:
+        return error_response("내 리뷰 조회 에러")
+
+
+@router.get("/public/{user_id}/activity")
+def get_public_user_activity(
+    user_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    try:
+        user = db.get(User, user_id)
+        if user is None:
+            raise HTTPException(status_code=404, detail={"state": "failure", "message": "사용자를 찾을 수 없습니다."})
+
+        like_rows = db.execute(
+            select(UserMovieInteraction, Movie)
+            .join(Movie, Movie.id == UserMovieInteraction.movie_id)
+            .where(
+                UserMovieInteraction.user_id == user_id,
+                UserMovieInteraction.action_type == "like",
+            )
+            .order_by(UserMovieInteraction.created_at.desc(), UserMovieInteraction.id.desc())
+        ).all()
+        liked_movies = []
+        seen_movie_ids = set()
+        for _interaction, movie in like_rows:
+            if movie.id in seen_movie_ids:
+                continue
+            seen_movie_ids.add(movie.id)
+            liked_movies.append(get_movie_result(movie))
+
+        wishlist_rows = db.execute(
+            select(MovieWishlist, Movie)
+            .join(Movie, Movie.id == MovieWishlist.movie_id)
+            .where(MovieWishlist.user_id == user_id)
+            .order_by(MovieWishlist.created_at.desc(), MovieWishlist.id.desc())
+        ).all()
+
+        rating_rows = (
+            db.query(MovieRating, Movie)
+            .join(Movie, Movie.id == MovieRating.movie_id)
+            .filter(MovieRating.user_id == user_id)
+            .order_by(MovieRating.updated_at.desc(), MovieRating.id.desc())
+            .all()
+        )
+        return {
+            "state": "success",
+            "message": "회원 공개 활동 조회 성공",
+            "data": {
+                "user": {
+                    "id": user.id,
+                    "nickname": user.nickname,
+                    "profile_image": resolve_profile_image_url(user.profile_image, str(request.base_url)),
+                },
+                "liked_movies": liked_movies,
+                "wishlisted_movies": [get_movie_result(movie) for _wishlist, movie in wishlist_rows],
+                "reviews": [
+                    {
+                        "id": rating.id,
+                        "score": rating.score,
+                        "comment": rating.comment,
+                        "is_spoiler": bool(rating.is_spoiler),
+                        "updated_at": rating.updated_at,
+                        "movie": get_movie_result(movie),
+                    }
+                    for rating, movie in rating_rows
+                ],
+            },
+        }
+    except HTTPException:
+        raise
+    except Exception:
+        return error_response("회원 공개 활동 조회 에러")
     
 
 # 좋아요 누른 영화 삭제

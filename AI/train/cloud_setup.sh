@@ -27,19 +27,19 @@ pip install -q \
   protobuf
 
 echo "====== [3/5] 프로젝트 파일 복사 ======"
-# 현재 서버에서 학습 데이터와 스크립트를 클라우드로 복사하는 명령어
-# 현재 서버(210.109.15.251)에서 실행:
-#   scp -r ubuntu@<클라우드IP>:/data/  \
-#       data/train_clean.jsonl \
-#       data/train_multiturn.jsonl \
-#       train/train_qlora.py \
-#       gemma4-cineverse/checkpoint-3038/  # 기존 LoRA adapter
-
-# 클라우드에서 직접 현재 서버에서 당겨올 경우:
-# rsync -avz ubuntu@210.109.15.251:/home/ubuntu/cineverse/data/train_clean.jsonl .
-# rsync -avz ubuntu@210.109.15.251:/home/ubuntu/cineverse/data/train_multiturn.jsonl .
-# rsync -avz ubuntu@210.109.15.251:/home/ubuntu/cineverse/train/train_qlora.py .
-# rsync -avz ubuntu@210.109.15.251:/home/ubuntu/cineverse/gemma4-cineverse/checkpoint-3038/ ./checkpoint-3038/
+# 운영 GPU 서버는 프라이빗 IP 10.30.2.227만 사용한다. 외부 학습 서버가 운영
+# GPU VM에서 직접 파일을 가져오게 하지 말고, 관리자 단말에서 Bastion을 경유해
+# 필요한 파일만 내려받은 뒤 승인된 학습 환경으로 별도 전송한다.
+#
+# 관리자 단말에서 내려받는 예시(키 경로와 작업 디렉터리는 환경에 맞게 변경):
+# scp -i Team3-Key.pem \
+#   -o ProxyJump=ubuntu@210.109.55.27 \
+#   ubuntu@10.30.2.227:/home/ubuntu/cineverse/data/train_clean.jsonl .
+# scp -i Team3-Key.pem \
+#   -o ProxyJump=ubuntu@210.109.55.27 \
+#   ubuntu@10.30.2.227:/home/ubuntu/cineverse/train/train_qlora.py .
+#
+# `.env`, Milvus 볼륨, 로그, 전체 venv와 운영 GGUF는 이 절차로 복사하지 않는다.
 
 echo "====== [4/5] HuggingFace 로그인 ======"
 # google/gemma-4-12b-it 다운로드를 위해 HF 토큰 필요

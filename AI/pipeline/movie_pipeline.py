@@ -1,5 +1,6 @@
 import os
 import re
+import time
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from cineverse_prompt import build_system_prompt, clean_and_truncate, truncate_to_sentences, load_profiles
@@ -9,11 +10,13 @@ from pipeline.recommendation_context import build_recommendation_context
 from pipeline.recommendation_presenter import (
     build_character_grounded_answer,
     build_grounded_answer,
+    filter_movies_by_requested_genre,
     is_fact_grounded_recommendation,
     is_safe_general_recommendation,
     prepare_recommendations,
 )
 from pipeline.response_tone import enforce_general_polite_answer
+from pipeline.topic_grounding import log_topic_event, topic_no_result_message
 from pipeline.user_context import build_user_context_prompt, preference_search_terms
 from llm.client import chat
 
@@ -143,14 +146,16 @@ def _rewrite_character_grounded_answer(
         character_name=character_name,
         chat_mode="single",
         profiles=get_profiles(),
-        example_count=0,
+        example_count=2,
         compact=True,
         movie_mode=True,
     )
     system_prompt += (
         "\n\n영화 선택과 사실 판단은 이미 끝났다. 캐릭터 말투만 입혀라. "
         "허용된 영화 제목을 철자까지 그대로 모두 한 번씩 언급하고, 목록 밖 영화·새 사실·줄거리를 추가하지 마라. "
-        "내부 추천 역할명, 마크다운, 목록은 쓰지 말고 3~5문장으로 짧게 답하라."
+        "내부 추천 역할명, 마크다운, 목록은 쓰지 말고 3~5문장으로 짧게 답하라. "
+        "검증된 선정 근거를 그대로 복사하지 말고, 사실은 유지하면서 캐릭터가 실제로 말하듯 자연스럽게 바꿔라. "
+        "사용자가 특정 장르를 요청하지 않았다면 추천 목록 전체를 임의의 한 장르로 묶어 말하지 마라."
     )
     messages = [{"role": "system", "content": system_prompt}]
     user_context_prompt = build_user_context_prompt(user_context)
@@ -195,6 +200,7 @@ class MovieRecommendResult:
     character: str = ""  # 별칭이 들어왔으면 정식 이름으로 변환된 값 (없으면 "")
 
 def run(user_message, character_name=None, history=None, top_k=3, max_tokens=1024, user_context=None):
+    timing_started = time.perf_counter()
     if history is None:
         history = []
     if _ADULT_CONTENT_REQUEST.search(user_message):
@@ -215,14 +221,16 @@ def run(user_message, character_name=None, history=None, top_k=3, max_tokens=102
             character_name = None
     recommendation_context = build_recommendation_context(user_message, history)
     rewritten = rewrite(recommendation_context.search_message)
+    timing_rewrite = time.perf_counter()
     if rewritten.get("genre") in recommendation_context.excluded_genres:
         rewritten["genre"] = None
     search_q = rewritten.get("search_query", user_message)
+    topic = rewritten.get("topic")
     personalization = preference_search_terms(user_context)
     has_explicit_filter = any(
         rewritten.get(field) is not None
         for field in ("genre", "actor", "director", "language", "year_from", "year_to", "min_rating")
-    ) or bool(rewritten.get("sort_latest"))
+    ) or bool(rewritten.get("sort_latest")) or bool(topic)
     if personalization and not has_explicit_filter:
         search_q = f"{search_q} 사용자 선호 {personalization}"
     filters = MovieFilter(
@@ -248,8 +256,29 @@ def run(user_message, character_name=None, history=None, top_k=3, max_tokens=102
         exclude_titles=excluded_titles,
         required_count=top_k,
         quality_weight=quality_weight,
+        topic=topic,
     )
-    if not movies:
+    requested_genre = str(rewritten.get("genre") or "").strip() or None
+    movies = filter_movies_by_requested_genre(movies, requested_genre)
+    if not movies and requested_genre:
+        # An explicit genre is a hard constraint. A retry may simplify the query,
+        # but it must not silently broaden the result to unrelated genres.
+        fallback_filters = MovieFilter(
+            genre=requested_genre,
+            exclude_genres=recommendation_context.excluded_genres,
+        )
+        movies = retrieve(
+            f"{requested_genre} 영화",
+            top_k=candidate_count,
+            movie_filter=fallback_filters,
+            sort_latest=sort_latest,
+            exclude_titles=excluded_titles,
+            required_count=top_k,
+            quality_weight=quality_weight,
+            topic=topic,
+        )
+        movies = filter_movies_by_requested_genre(movies, requested_genre)
+    elif not movies:
         fallback_filters = MovieFilter(exclude_genres=recommendation_context.excluded_genres)
         movies = retrieve(
             search_q,
@@ -259,8 +288,24 @@ def run(user_message, character_name=None, history=None, top_k=3, max_tokens=102
             exclude_titles=excluded_titles,
             required_count=top_k,
             quality_weight=quality_weight,
+            topic=topic,
+        )
+    timing_retrieve = time.perf_counter()
+    if topic and not movies:
+        log_topic_event(topic, "clarification_required")
+        return MovieRecommendResult(
+            answer=topic_no_result_message(topic),
+            movies=[],
+            search_query=search_q,
+            filters_used={
+                "topic": topic,
+                **({"excluded_genres": recommendation_context.excluded_genres} if recommendation_context.excluded_genres else {}),
+                **({"excluded_titles": recommendation_context.excluded_titles} if recommendation_context.excluded_titles else {}),
+            },
+            character=character_name or "",
         )
     movies = prepare_recommendations(movies, recommendation_context.search_message, rewritten, limit=top_k)
+    timing_prepare = time.perf_counter()
     movie_context = format_for_prompt(movies)
     movie_titles  = ", ".join(f"'{m['title']}'" for m in movies)
     profiles = get_profiles()
@@ -381,6 +426,16 @@ def run(user_message, character_name=None, history=None, top_k=3, max_tokens=102
         )
     if not answer:
         answer = "죄송합니다. 추천 결과를 생성하지 못했습니다."
+    timing_answer = time.perf_counter()
+    print(
+        "  [MoviePipelineTiming] "
+        f"rewrite={timing_rewrite - timing_started:.3f}s "
+        f"retrieve={timing_retrieve - timing_rewrite:.3f}s "
+        f"prepare={timing_prepare - timing_retrieve:.3f}s "
+        f"answer={timing_answer - timing_prepare:.3f}s "
+        f"total={timing_answer - timing_started:.3f}s"
+    )
+    log_topic_event(topic, "recommended", movies)
     return MovieRecommendResult(
         answer=answer, movies=to_response(movies),
         search_query=search_q,

@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import re
 
+from pipeline.topic_grounding import build_topic_reason
+
 
 ROLE_LABELS = (
     "가장 잘 맞는 선택",
@@ -26,6 +28,11 @@ _FACT_CLAIM_TERMS = re.compile(
     r"긴장감|속도감|반전|실화|실제\s*사건|영상미|감동|뭉클|따뜻|힐링|"
     r"유쾌|웃음|웃긴|잔잔|잔인|무서|통쾌|성장|우정|사랑"
 )
+_GENRE_CLAIM_TERMS = re.compile(
+    r"(?P<genre>액션|모험|SF|판타지|애니메이션|다큐멘터리|드라마|로맨스|코미디|"
+    r"공포|호러|스릴러|범죄|전쟁|역사|미스터리|뮤지컬|음악|가족)"
+    r"\s*(?:장르|영화|작품)"
+)
 _NUMERIC_FACT_CLAIM = re.compile(r"\d+(?:\.\d+)?\s*(?:년|점|분|위)")
 
 
@@ -40,6 +47,27 @@ def _genres(movie: dict) -> list[str]:
         else:
             raw = raw.split(",")
     return [str(value).strip() for value in raw if str(value).strip()]
+
+
+def filter_movies_by_requested_genre(
+    candidates: list[dict],
+    requested_genre: str | None,
+) -> list[dict]:
+    """Keep only cards whose structured genre exactly matches the request.
+
+    Milvus applies the genre expression during retrieval, but this second guard is
+    deliberately kept at the presentation boundary. It prevents a relaxed retry,
+    stale vector metadata, or a malformed genre field from leaking a different
+    genre into the cards shown to the user.
+    """
+    genre = str(requested_genre or "").strip().casefold()
+    if not genre:
+        return [dict(movie) for movie in candidates]
+    return [
+        dict(movie)
+        for movie in candidates
+        if genre in {value.casefold() for value in _genres(movie)}
+    ]
 
 
 def _cast(movie: dict) -> set[str]:
@@ -160,6 +188,10 @@ def _reason(
     director = str(filters.get("director") or "").strip()
     release_date = str(movie.get("release_date") or "").strip()
     rating = float(movie.get("vote_average") or 0.0)
+
+    topic_reason = build_topic_reason(movie, filters.get("topic"))
+    if topic_reason:
+        return topic_reason
 
     if role_index > 0 and primary:
         alternative = _alternative_reason(movie, primary, role_index)
@@ -302,7 +334,18 @@ def build_character_grounded_answer(movies: list[dict], character_name: str) -> 
     casual_reason = _casualize_reason(reason)
     preset = get_tone_preset_name(character_name)
 
-    if preset == "direct_grounded":
+    if character_name == "화림":
+        genres = _genres(movies[0])
+        genre_line = (
+            f"{' · '.join(genres[:2])} 쪽 기운이 또렷해서 네가 찾는 흐름에 맞아."
+            if genres
+            else casual_reason
+        )
+        lines = [f"낌새부터 다른 건 ‘{primary}’야.", genre_line]
+        if quoted_alternatives:
+            lines.append(f"{quoted_alternatives}도 같이 판에 올려둘 만해.")
+        lines.append("어느 쪽 낌새가 더 당겨?")
+    elif preset == "direct_grounded":
         lines = [f"오늘은 ‘{primary}’부터 봐.", casual_reason]
         if quoted_alternatives:
             lines.append(f"{quoted_alternatives}도 같이 봐둘 만해.")
@@ -418,6 +461,20 @@ def is_fact_grounded_recommendation(
         evidence = " ".join(
             [request_evidence, *(_movie_evidence_text(movie) for movie in evidence_movies)]
         )
+
+        # A genre claim without a named title describes the displayed set as a
+        # whole (for example, "액션 영화 어때?"). Every card must therefore
+        # carry that structured genre, not just one card in a mixed result.
+        if not referenced:
+            for match in _GENRE_CLAIM_TERMS.finditer(sentence):
+                claim = match.group("genre")
+                accepted = {claim}
+                if claim == "호러":
+                    accepted.add("공포")
+                elif claim == "공포":
+                    accepted.add("호러")
+                if not all(accepted & set(_genres(movie)) for movie in movies):
+                    return False
 
         for match in _FACT_CLAIM_TERMS.finditer(sentence):
             claim = re.sub(r"\s+", "", match.group(0).casefold())

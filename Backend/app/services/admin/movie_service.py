@@ -5,6 +5,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.models.actors import Actor, MovieActor
+from app.services.actor_name_policy import preserve_resolved_actor_name
 from app.models.admin import AdminAuditLog
 from app.models.movies import Movie, MovieGenre, MovieStats
 from app.models.users import User
@@ -250,7 +251,7 @@ def sync_admin_movie_actors(
         else:
             # TMDB의 최신 이름과 프로필을 반영하되, 새 응답에 프로필이 없으면
             # 기존에 저장된 유효한 프로필 경로를 지우지 않는다.
-            actor.name = credit["name"]
+            actor.name = preserve_resolved_actor_name(actor, credit["name"])
 
             if profile_path:
                 actor.profile_path = str(profile_path)[:300]

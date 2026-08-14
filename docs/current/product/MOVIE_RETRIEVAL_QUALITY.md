@@ -2,15 +2,26 @@
 
 기준일: 2026-08-10
 
-## 확인된 문제
+## 확인된 문제와 당시 기준 데이터
 
-- Milvus `movies_active`에는 32,442편이 저장돼 있다.
+- 아래 품질 문제를 분석한 당시 Milvus `movies_active`에는 32,442편이 저장돼 있었다.
 - `Soft Boil`은 평점 0, 투표 0, 관객 수 0, 줄거리 없음 상태였지만
   `가볍게 볼 영화` 검색 후보에 포함됐다.
 - 기존 검색은 의미 유사도로 가져온 9편만 CrossEncoder로 재정렬했으며,
   투표 수·평점 신뢰도·메타데이터 완성도를 사용하지 않았다.
 - `가볍게`가 공포 영화 줄거리의 `가볍게 넘긴다`와 일치해 공포·범죄·납치 영화가
   추천되는 사례가 있었다.
+
+## 현재 정합성 상태 (2026-08-11)
+
+- PostgreSQL 영화 행: 32,309개
+- PostgreSQL 고유한 비어 있지 않은 `tmdb_id`: 32,308개
+- Milvus `movies_active` iterator의 행 및 고유 `tmdb_id`: 32,308개
+- PostgreSQL 대비 Milvus 누락 0개, 초과 0개, Milvus 중복 0개
+
+Milvus `get_collection_stats()`의 `row_count`는 삭제·교체된 세그먼트 통계가 즉시
+정리되지 않아 iterator 결과보다 크게 보일 수 있다. 운영 정합성 감사는 전체
+`tmdb_id` iterator 결과를 PostgreSQL 집합과 비교해 판정한다.
 
 ## 데이터 분포
 

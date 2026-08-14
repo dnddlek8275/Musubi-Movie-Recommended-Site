@@ -1,4 +1,4 @@
-from sqlalchemy import BigInteger, CheckConstraint, Column, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, Column, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 
 from app.core.base import Base
@@ -58,14 +58,31 @@ class UserMovieInteraction(Base):
 class MovieRating(Base):
     __tablename__ = "movie_ratings"
     __table_args__ = (
-        CheckConstraint("score BETWEEN 1 AND 5", name="ck_movie_ratings_score"),
+        CheckConstraint(
+            "score BETWEEN 0.5 AND 5 AND score * 2 = floor(score * 2)",
+            name="ck_movie_ratings_score",
+        ),
         UniqueConstraint("user_id", "movie_id", name="uq_movie_ratings_user_movie"),
     )
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     movie_id = Column(BigInteger, ForeignKey("movies.id", ondelete="CASCADE"), nullable=False, index=True)
-    score = Column(Integer, nullable=False)
+    score = Column(Numeric(2, 1), nullable=False)
     comment = Column(Text, nullable=True)
+    is_spoiler = Column(Boolean, nullable=False, default=False, server_default="false")
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class MovieWishlist(Base):
+    __tablename__ = "movie_wishlists"
+    __table_args__ = (
+        UniqueConstraint("user_id", "movie_id", name="uq_movie_wishlists_user_movie"),
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    movie_id = Column(BigInteger, ForeignKey("movies.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    movie = relationship("Movie")

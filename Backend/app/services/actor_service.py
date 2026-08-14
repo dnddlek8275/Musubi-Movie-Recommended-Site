@@ -1,5 +1,5 @@
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.actors import Actor, MovieActor
@@ -92,7 +92,12 @@ def get_actors_result(
     statement = _ranked_actor_statement()
     normalized_query = (query or "").strip()
     if normalized_query:
-        statement = statement.where(Actor.name.ilike(f"%{normalized_query}%"))
+        pattern = f"%{normalized_query}%"
+        statement = statement.where(or_(
+            Actor.name.ilike(pattern),
+            Actor.korean_name.ilike(pattern),
+            Actor.original_name.ilike(pattern),
+        ))
 
     statement = statement.offset((page - 1) * limit).limit(limit)
     return db.scalars(statement).all()

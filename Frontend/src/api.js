@@ -1,3 +1,6 @@
+import { getInternalMovieId } from './utils/movieIdentity.js';
+import { optimizeImageUrl } from './utils/imagePerformance.js';
+
 // 기본값은 동일 출처의 /api 프록시이며, 개발 환경에서는 Vite가 백엔드로 전달한다.
 const BACKEND_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL || '/api'
@@ -21,6 +24,46 @@ const CHAT_CACHE_KEYS = [
   RECOMMENDED_MOVIES_KEY, // 채팅에서 추천받은 영화 목록
 ];
 const ACCOUNT_CACHE_KEYS = [LOCAL_PROFILE_KEY, LOCAL_PREFERENCES_KEY];
+const memoryRequestCache = new Map();
+
+function cachedRequest(key, ttlMs, signal, loader) {
+  const now = Date.now();
+  let entry = memoryRequestCache.get(key);
+  if (entry?.value !== undefined && entry.expiresAt > now) return Promise.resolve(entry.value);
+
+  if (!entry?.promise) {
+    const promise = Promise.resolve()
+      .then(loader)
+      .then((value) => {
+        memoryRequestCache.set(key, { value, expiresAt: Date.now() + ttlMs });
+        return value;
+      })
+      .catch((error) => {
+        memoryRequestCache.delete(key);
+        throw error;
+      });
+    entry = { promise, expiresAt: 0 };
+    memoryRequestCache.set(key, entry);
+  }
+
+  if (!signal) return entry.promise;
+  if (signal.aborted) return Promise.reject(new DOMException('Aborted', 'AbortError'));
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(new DOMException('Aborted', 'AbortError'));
+    signal.addEventListener('abort', abort, { once: true });
+    entry.promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', abort));
+  });
+}
+
+function accountCacheKey(name) {
+  return `${name}:${localStorage.getItem(AUTH_SESSION_KEY) || 'guest'}`;
+}
+
+function clearMemoryRequestCache(prefix = '') {
+  for (const key of memoryRequestCache.keys()) {
+    if (!prefix || key.startsWith(prefix)) memoryRequestCache.delete(key);
+  }
+}
 
 function clearChatCaches() {
   CHAT_CACHE_KEYS.forEach((key) => localStorage.removeItem(key));
@@ -40,7 +83,7 @@ export function addRecommendedMovies(movies) {
   // 새로 추천된 영화가 앞으로 오도록 new → old 순서로 넣고, 먼저 들어온 것만 유지.
   [...movies, ...(Array.isArray(existing) ? existing : [])].forEach((movie) => {
     if (!movie) return;
-    const key = String(movie.id ?? movie.movie_id ?? movie.title ?? movie.name ?? '');
+    const key = String(movie.movie_id ?? movie.id ?? movie.title ?? movie.name ?? '');
     if (!key || byKey.has(key)) return;
     byKey.set(key, movie);
   });
@@ -80,13 +123,16 @@ const FALLBACK_GENRES = [
 const TMDB_IMAGE_BASE_URL =
   import.meta.env.VITE_TMDB_IMAGE_BASE_URL || 'https://image.tmdb.org/t/p/w500';
 
-export function resolveMovieImage(path) {
+export function resolveMovieImage(path, size = 'w500') {
   const value = String(path || '').trim();
 
   if (!value) return '';
-  if (/^(https?:|data:|blob:)/i.test(value)) return value;
+  if (/^(https?:|data:|blob:)/i.test(value)) return optimizeImageUrl(value, size);
 
-  return `${TMDB_IMAGE_BASE_URL}${value.startsWith('/') ? value : `/${value}`}`;
+  return optimizeImageUrl(
+    `${TMDB_IMAGE_BASE_URL}${value.startsWith('/') ? value : `/${value}`}`,
+    size,
+  );
 }
 
 function readLocalJson(key, fallback = null) {
@@ -344,6 +390,7 @@ export function clearStoredAuth() {
   // 로그아웃 시 브라우저에 남는 대화 로그/캐시도 함께 삭제한다.
   clearChatCaches();
   clearAccountCaches();
+  clearMemoryRequestCache();
 }
 
 // 이미 로그인/회원가입/비밀번호 관련 화면이면 리다이렉트하지 않는다(루프 방지).
@@ -997,6 +1044,33 @@ export async function fetchChatRoomMessages(roomId, signal) {
   return data?.data || [];
 }
 
+export async function resolveChatMovieId(movie, signal) {
+  const explicitMovieId = Number(movie?.movie_id);
+  if (Number.isInteger(explicitMovieId) && explicitMovieId > 0) return explicitMovieId;
+
+  const params = new URLSearchParams();
+  const tmdbId = Number(movie?.tmdb_id);
+  const title = String(movie?.title || movie?.name || movie?.movie || '').trim();
+  const year = Number(movie?.year);
+
+  if (Number.isInteger(tmdbId) && tmdbId > 0) params.set('tmdb_id', String(tmdbId));
+  if (title) params.set('title', title);
+  if (Number.isInteger(year) && year >= 1880 && year <= 2200) params.set('year', String(year));
+  if (!params.size) throw new Error('영화 식별 정보가 없습니다.');
+
+  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/movies/resolve?${params}`, { signal });
+  const data = await response.json().catch(() => null);
+  if (!response.ok || isFailureResponse(data)) {
+    throw new Error(getErrorMessage(data, '영화 상세 정보를 찾지 못했습니다.'));
+  }
+
+  const resolvedId = Number(data?.data?.movie_id);
+  if (!Number.isInteger(resolvedId) || resolvedId <= 0) {
+    throw new Error('영화 상세 정보를 찾지 못했습니다.');
+  }
+  return resolvedId;
+}
+
 export async function fetchChatRooms(signal) {
   const response = await fetchWithAuth(`${BACKEND_BASE_URL}/chat/rooms`, { signal });
   const data = await response.json().catch(() => null);
@@ -1049,8 +1123,8 @@ export async function deleteChatRoom(roomId, signal) {
   return data || {};
 }
 
-export async function fetchCharacters(signal) {
-  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/chat/characters`, { signal });
+async function loadCharacters() {
+  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/chat/characters`);
   const data = await response.json().catch(() => null);
 
   if (!response.ok || isFailureResponse(data)) {
@@ -1073,6 +1147,10 @@ export async function fetchCharacters(signal) {
         character.avatar_url ||
         '',
     }));
+}
+
+export function fetchCharacters(signal) {
+  return cachedRequest('characters', 5 * 60 * 1000, signal, loadCharacters);
 }
 
 // 캐릭터 단건 조회 (GET /chatcharacter/{character_name}) — 인증 없음.
@@ -1262,6 +1340,42 @@ export async function fetchMovies(
   return getArrayPayload(data, 'movies', 'results', 'items');
 }
 
+export async function fetchSearchSections(
+  signal,
+  keyword,
+  { limit = 20, searchType = '', category = '', page = 1, excludeIds = [] } = {},
+) {
+  const searchKeyword = String(keyword ?? '').trim();
+  if (!searchKeyword) return [];
+
+  const params = new URLSearchParams({
+    keyword: searchKeyword,
+    limit: String(clampNumber(limit, 1, 40, 20)),
+    page: String(Math.max(Number(page) || 1, 1)),
+  });
+  if (searchType) params.set('type', searchType);
+  if (category) params.set('category', category);
+  excludeIds.forEach((id) => {
+    const numericId = Number(id);
+    if (Number.isInteger(numericId) && numericId > 0) params.append('exclude_ids', String(numericId));
+  });
+  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/movies/search/grouped?${params}`, {
+    method: 'GET',
+    signal,
+  });
+  const data = await response.json().catch(() => null);
+
+  if (getResponseState(data) === 'failure') return [];
+  if (!response.ok || getResponseState(data) === 'error') {
+    throw new Error(getErrorMessage(data, `카테고리별 영화 검색 요청 실패 (${response.status})`));
+  }
+
+  const sections = data?.data?.sections || data?.sections || [];
+  return Array.isArray(sections)
+    ? sections.filter((section) => Array.isArray(section?.movies) && section.movies.length > 0)
+    : [];
+}
+
 export async function fetchSearchSuggestions(signal, keyword, limit = 8) {
   const searchKeyword = String(keyword ?? '').trim();
   if (!searchKeyword) return [];
@@ -1298,7 +1412,7 @@ export async function fetchMovieRanking(signal, limit = 10) {
 
   return getArrayPayload(data, 'rankings').map((movie, index) => ({
     ...movie,
-    id: movie.id ?? movie.movie_id,
+    id: getInternalMovieId(movie),
     rank: index + 1,
     genre: Array.isArray(movie.genres)
       ? movie.genres.join(', ')
@@ -1409,11 +1523,29 @@ export async function fetchSimilarMovies(movieId, signal, limit = 6) {
   return getArrayPayload(data, 'movies');
 }
 
-export async function rateMovie(movieId, score, comment = '', signal) {
+export async function rateMovie(
+  movieId,
+  score,
+  comment = '',
+  {
+    expectedMovieId = movieId,
+    expectedTmdbId = null,
+    expectedTitle = '',
+    isSpoiler = false,
+    signal,
+  } = {}
+) {
   const response = await fetchWithAuth(`${BACKEND_BASE_URL}/movies/${movieId}/rating`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ score: clampNumber(score, 1, 5, 1), comment }),
+    body: JSON.stringify({
+      score: Math.round(clampNumber(score, 0.5, 5, 0.5) * 2) / 2,
+      comment,
+      is_spoiler: Boolean(isSpoiler),
+      expected_movie_id: expectedMovieId,
+      expected_tmdb_id: expectedTmdbId,
+      expected_title: expectedTitle || null,
+    }),
     signal,
   });
   const data = await response.json().catch(() => null);
@@ -1425,9 +1557,23 @@ export async function rateMovie(movieId, score, comment = '', signal) {
   return data?.data || {};
 }
 
-export async function deleteMovieRating(movieId, signal) {
+export async function deleteMovieRating(
+  movieId,
+  {
+    expectedMovieId = movieId,
+    expectedTmdbId = null,
+    expectedTitle = '',
+    signal,
+  } = {}
+) {
   const response = await fetchWithAuth(`${BACKEND_BASE_URL}/movies/${movieId}/rating`, {
     method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      expected_movie_id: expectedMovieId,
+      expected_tmdb_id: expectedTmdbId,
+      expected_title: expectedTitle || null,
+    }),
     signal,
   });
   const data = await response.json().catch(() => null);
@@ -1439,10 +1585,15 @@ export async function deleteMovieRating(movieId, signal) {
   return data?.data || {};
 }
 
-export async function fetchMoviesByGenre(genre, signal, { page = 1, limit = 20 } = {}) {
+export async function fetchMoviesByGenre(
+  genre,
+  signal,
+  { page = 1, limit = 20, sort = 'relevance' } = {}
+) {
   const params = new URLSearchParams({
     page: String(clampNumber(page, 1, Number.MAX_SAFE_INTEGER, 1)),
     limit: String(clampNumber(limit, 1, 50, 20)),
+    sort: sort === 'latest' ? 'latest' : 'relevance',
   });
   const response = await fetch(
     `${BACKEND_BASE_URL}/movies/genre/${encodeURIComponent(genre)}?${params}`,
@@ -1452,6 +1603,28 @@ export async function fetchMoviesByGenre(genre, signal, { page = 1, limit = 20 }
 
   if (!response.ok || getResponseState(data) === 'error') {
     throw new Error(getErrorMessage(data, `장르별 영화 조회 실패 (${response.status})`));
+  }
+
+  return getArrayPayload(data, 'movies');
+}
+
+export async function fetchMoviesByCountry(
+  countryCode,
+  signal,
+  { page = 1, limit = 20 } = {}
+) {
+  const params = new URLSearchParams({
+    page: String(clampNumber(page, 1, Number.MAX_SAFE_INTEGER, 1)),
+    limit: String(clampNumber(limit, 1, 50, 20)),
+  });
+  const response = await fetch(
+    `${BACKEND_BASE_URL}/movies/country/${encodeURIComponent(countryCode)}?${params}`,
+    { credentials: 'include', cache: 'no-store', signal }
+  );
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok || getResponseState(data) === 'error') {
+    throw new Error(getErrorMessage(data, `제작국가별 영화 조회 실패 (${response.status})`));
   }
 
   return getArrayPayload(data, 'movies');
@@ -1492,7 +1665,7 @@ function toLikedMoviePayload(movie) {
 }
 
 async function requestLikedMovie(method, movie) {
-  const movieId = movie?.id ?? movie?.movie_id;
+  const movieId = movie?.movie_id ?? movie?.id;
 
   if (movieId !== undefined && movieId !== null) {
     return likeMovie(movieId);
@@ -1506,7 +1679,7 @@ export function addLikedMovie(movie) {
 }
 
 export function removeLikedMovie(movie, signal) {
-  const movieId = movie?.id ?? movie?.movie_id;
+  const movieId = movie?.movie_id ?? movie?.id;
 
   if (movieId === undefined || movieId === null) {
     throw new Error(
@@ -1597,10 +1770,6 @@ export async function deletePreferenceType(preferenceType, signal) {
     [category]: [],
   };
 
-  if (preferenceType === 'keyword') {
-    nextLocalPreferences.directors = [];
-  }
-
   writeLocalJson(LOCAL_PREFERENCES_KEY, nextLocalPreferences);
 
   return data || {};
@@ -1622,15 +1791,10 @@ export async function likeMovie(movieId, signal) {
   return data;
 }
 
-export async function fetchUserPreferences(signal) {
+async function loadUserPreferences() {
   const localPreferences = readLocalJson(LOCAL_PREFERENCES_KEY, null);
   // 실제 경로는 /user/preferences (기존 /users/me/preferences 아님)
-  const response = await fetchWithAuth(
-    `${BACKEND_BASE_URL}/user/preferences`,
-    {
-      signal,
-    }
-  );
+  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/user/preferences`);
 
   const data = await response.json().catch(() => null);
 
@@ -1691,6 +1855,15 @@ export async function fetchUserPreferences(signal) {
   };
 }
 
+export function fetchUserPreferences(signal) {
+  return cachedRequest(
+    accountCacheKey('user-preferences'),
+    30 * 1000,
+    signal,
+    loadUserPreferences,
+  );
+}
+
 export async function fetchPreferenceInsights(signal) {
   const response = await fetchWithAuth(`${BACKEND_BASE_URL}/user/preferences/insights`, { signal });
   const data = await response.json().catch(() => null);
@@ -1714,6 +1887,7 @@ export async function resetLearnedPreferences(signal) {
   if (!response.ok || isFailureResponse(data)) {
     throw new Error(getErrorMessage(data, `학습 취향 초기화 실패 (${response.status})`));
   }
+  clearMemoryRequestCache('user-preferences:');
   return data?.data || {};
 }
 
@@ -1768,9 +1942,11 @@ export async function fetchUserProfile(signal) {
     throw new Error(getErrorMessage(data, `프로필 정보를 불러오지 못했습니다. (${response.status})`));
   }
 
+  // 서버 프로필을 마지막에 병합해 오래된 브라우저 캐시가 새 프로필 이미지를
+  // 덮어쓰지 않도록 한다.
   return {
-    ...(data?.data || data || {}),
     ...(localProfile || {}),
+    ...(data?.data || data || {}),
   };
 }
 
@@ -1889,7 +2065,15 @@ export async function updateProfileImage(file, signal) {
     throw new Error(getErrorMessage(data, `이미지 수정 실패 (${response.status})`));
   }
 
-  return data?.data || {};
+  const updated = data?.data || {};
+  const profileImage = updated.user_profile || updated.profile_image || '';
+  const stored = getStoredAuthUser() || {};
+  localStorage.setItem('auth_user', JSON.stringify({ ...stored, profile_image: profileImage }));
+  writeLocalJson(LOCAL_PROFILE_KEY, {
+    ...(readLocalJson(LOCAL_PROFILE_KEY, {}) || {}),
+    profile_image: profileImage,
+  });
+  return updated;
 }
 
 // 프로필 이미지 삭제 (DELETE /user/delete/profile_image) — 인증 필요.
@@ -1908,6 +2092,12 @@ export async function deleteProfileImage(signal) {
     throw new Error(getErrorMessage(data, `이미지 삭제 실패 (${response.status})`));
   }
 
+  const stored = getStoredAuthUser() || {};
+  localStorage.setItem('auth_user', JSON.stringify({ ...stored, profile_image: '' }));
+  writeLocalJson(LOCAL_PROFILE_KEY, {
+    ...(readLocalJson(LOCAL_PROFILE_KEY, {}) || {}),
+    profile_image: '',
+  });
   return data || {};
 }
 
@@ -1915,6 +2105,7 @@ export async function updateUserPreferences(preferences, signal) {
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   writeLocalJson(LOCAL_PREFERENCES_KEY, preferences);
+  clearMemoryRequestCache('user-preferences:');
 
   // 비회원은 브라우저에만 저장하고, 로그인 회원은 서버 추천 프로필도 함께
   // 갱신한다. 기존 구현은 로컬 저장만 해 회원 추천에 변경값이 반영되지 않았다.
@@ -1952,6 +2143,64 @@ export async function fetchLikedMovies(signal) {
   }
 
   return getArrayPayload(data, 'movies', 'liked_movies');
+}
+
+// 로그인 사용자가 남긴 별점·리뷰 목록을 최신 수정순으로 조회한다.
+export async function fetchMyReviews(signal) {
+  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/user/reviews`, { signal });
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok || getResponseState(data) === 'error') {
+    throw new Error(getErrorMessage(data, `내 리뷰를 불러오지 못했습니다. (${response.status})`));
+  }
+
+  return getArrayPayload(data, 'reviews');
+}
+
+export async function fetchWishlistMovies(signal) {
+  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/user/wishlist`, { signal });
+  const data = await response.json().catch(() => null);
+  if (!response.ok || getResponseState(data) === 'error') {
+    throw new Error(getErrorMessage(data, `찜한 영화를 불러오지 못했습니다. (${response.status})`));
+  }
+  return getArrayPayload(data, 'movies', 'wishlist');
+}
+
+export async function addWishlistMovie(movieId, signal) {
+  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/movies/${movieId}/wishlist`, {
+    method: 'POST',
+    signal,
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok || isFailureResponse(data)) {
+    throw new Error(getErrorMessage(data, `영화 찜 저장 실패 (${response.status})`));
+  }
+  return data?.data || {};
+}
+
+export async function removeWishlistMovie(movieId, signal) {
+  const response = await fetchWithAuth(`${BACKEND_BASE_URL}/movies/${movieId}/wishlist`, {
+    method: 'DELETE',
+    signal,
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok || getResponseState(data) === 'error') {
+    throw new Error(getErrorMessage(data, `영화 찜 삭제 실패 (${response.status})`));
+  }
+  return data?.data || {};
+}
+
+export async function fetchPublicUserActivity(userId, signal) {
+  const response = await fetch(`${BACKEND_BASE_URL}/user/public/${encodeURIComponent(userId)}/activity`, {
+    credentials: 'include',
+    cache: 'no-store',
+    signal,
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok || isFailureResponse(data)) {
+    throw new Error(getErrorMessage(data, `회원 활동을 불러오지 못했습니다. (${response.status})`));
+  }
+  return data?.data || { user: {}, liked_movies: [], wishlisted_movies: [], reviews: [] };
 }
 
 // 최근 본 영화 조회 (GET /user/recently-viewed?limit=5) — 인증 필요.

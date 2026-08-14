@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { fetchUserPreferences, getLocalPreferences } from '../../api.js';
+import { fetchUserPreferences } from '../../api.js';
 import Tag from './Tag.jsx';
 import { SkeletonBlock } from '../common/LoadingSkeleton.jsx';
 import { getKeywordLabel } from '../../utils/keywordLabels.js';
@@ -11,7 +11,13 @@ const EMPTY_PREFERENCES = {
   keywords: [],
 };
 
-function PreferenceRow({ label, values, loading, formatValue = (value) => value }) {
+function preferenceValues(values) {
+  return Array.from(new Set((Array.isArray(values) ? values : [])
+    .map((item) => String(item?.value ?? item ?? '').trim())
+    .filter(Boolean)));
+}
+
+function PreferenceRow({ label, values, loading, formatValue = (value) => value, moreHref = '' }) {
   const valuesRef = useRef(null);
   const visibleValues = values.slice(0, 6);
   const [isTruncated, setIsTruncated] = useState(values.length > 6);
@@ -33,7 +39,10 @@ function PreferenceRow({ label, values, loading, formatValue = (value) => value 
 
   return (
     <div className="keyword-preference-row">
-      <strong>{label}</strong>
+      <div className="keyword-preference-row__heading">
+        <strong>{label}</strong>
+        {moreHref ? <a href={moreHref}>더보기 &gt;</a> : null}
+      </div>
       <div
         className={`keyword-preference-values${isTruncated ? ' keyword-preference-values--truncated' : ''}`}
         ref={valuesRef}
@@ -59,12 +68,7 @@ function KeywordPanel({ authUser }) {
 
   useEffect(() => {
     if (!authUser) {
-      const localPreferences = getLocalPreferences();
-      setPreferences({
-        genres: localPreferences.genres || [],
-        actors: localPreferences.actors || [],
-        keywords: localPreferences.keywords || [],
-      });
+      setPreferences(EMPTY_PREFERENCES);
       setLoading(false);
       return undefined;
     }
@@ -74,11 +78,12 @@ function KeywordPanel({ authUser }) {
 
     fetchUserPreferences(controller.signal)
       .then((data) => {
-        const nextPreferences = data.preferences || data || {};
+        // 사용자가 직접 선택한 값이 아니라 활동에서 점수순으로 분석된 취향만 표시한다.
+        const learnedPreferences = data.learned_preferences || {};
         setPreferences({
-          genres: nextPreferences.genres || [],
-          actors: nextPreferences.actors || [],
-          keywords: nextPreferences.keywords || [],
+          genres: preferenceValues(learnedPreferences.genres),
+          actors: preferenceValues(learnedPreferences.actors),
+          keywords: preferenceValues(learnedPreferences.keywords),
         });
       })
       .catch((error) => {
@@ -95,7 +100,7 @@ function KeywordPanel({ authUser }) {
   return (
     <article className="index-info-card keyword-card">
       <div className="keyword-preferences">
-        <PreferenceRow label="선호 장르" values={preferences.genres} loading={loading} />
+        <PreferenceRow label="선호 장르" values={preferences.genres} loading={loading} moreHref="/mypage?tab=taste" />
         <PreferenceRow label="선호 배우" values={preferences.actors} loading={loading} />
         <PreferenceRow label="관심 키워드" values={preferences.keywords} loading={loading} formatValue={getKeywordLabel} />
       </div>

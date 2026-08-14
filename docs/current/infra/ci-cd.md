@@ -26,14 +26,15 @@
 `confirmation`에 `PUBLISH`를 입력한다. 선택한 Git revision의 SHA가 이미지
 태그가 되며 Kubernetes에는 접근하지 않는다.
 
-GitHub `production` Environment에 필요한 Variable:
+GitHub Repository Actions Variable로 다음 값이 등록돼 있다. `production` job에서도
+Repository Variable을 사용한다.
 
-| 이름 | 설명 |
+| 이름 | 운영 값 |
 |---|---|
-| `REGISTRY_HOST` | 카카오클라우드 Container Registry 로그인 호스트 |
-| `FRONTEND_IMAGE_REPOSITORY` | `team3-front-repo`를 포함한 전체 이미지 경로(태그 제외) |
-| `BACKEND_IMAGE_REPOSITORY` | `team3-back-repo`를 포함한 전체 이미지 경로(태그 제외) |
-| `BUILD_PLATFORMS` | Worker Node와 같은 플랫폼. 확인 전에는 추측해 입력하지 않음 |
+| `REGISTRY_HOST` | `kc-sfacspace05.kr-central-2.kcr.dev` |
+| `FRONTEND_IMAGE_REPOSITORY` | `kc-sfacspace05.kr-central-2.kcr.dev/team3-front-repo/frontend` |
+| `BACKEND_IMAGE_REPOSITORY` | `kc-sfacspace05.kr-central-2.kcr.dev/team3-back-repo/backend` |
+| `BUILD_PLATFORMS` | `linux/amd64` |
 
 필요한 Secret:
 
@@ -44,6 +45,11 @@ GitHub `production` Environment에 필요한 Variable:
 
 `KUBE_CONFIG`, `KUBECTL_VERSION`은 이 workflow에 사용하지 않는다. 과거 자동
 배포용으로 GitHub에 등록했다면 제거하는 것을 권장한다.
+
+기본 브랜치 `main`에는 Actions 등록을 위한 동일한 `release.yaml`이 있다. 실제
+V1 이미지는 `dev`의 merge commit
+`2765f04a4d8d0345996d0b4b2fb18961dce8639a`에서 빌드했고 Frontend·Backend 모두
+KCR Push에 성공했다.
 
 ## 운영자 수동 배포
 
@@ -63,9 +69,14 @@ bash Infra/k8s/scripts/manual-release.sh \
 
 1. 클러스터 사전 검사
 2. 고유 이름의 Alembic migration Job 실행
-3. migration 성공 후에만 Backend·Frontend 이미지 교체
-4. 두 Deployment의 rollout 완료 대기
-5. 운영 `/api/ready`, `/api/db-test`, `/api/ai-health` 검사
+3. migration이 등록한 영화 벡터 작업을 별도 Job에서 모두 처리하고 잔여 작업 0건 확인
+4. migration과 벡터 동기화 성공 후에만 Backend·Frontend 이미지 교체
+5. 두 Deployment의 rollout 완료 대기
+6. 운영 `/api/ready`, `/api/db-test`, `/api/ai-health` 검사
+
+벡터 동기화 Job은 `cineverse-secrets`의 `AI_SYNC_TOKEN`을 사용한다. pending 또는
+failed 작업이 남으면 배포 스크립트는 실패로 종료하며 Deployment 이미지를 교체하지
+않는다.
 
 Migration은 자동 downgrade하지 않는다. rollout 실패 시 DB에는 migration이
 이미 적용됐을 수 있으므로, 기존 이미지로 돌아갈 수 있는지는 migration의
@@ -73,7 +84,8 @@ Migration은 자동 downgrade하지 않는다. rollout 실패 시 DB에는 migra
 
 ## 운영 상태 모니터링
 
-`.github/workflows/production-health.yaml`은 10분마다 다음 공개 주소를 검사한다.
+`.github/workflows/production-health.yaml`에는 10분마다 다음 공개 주소를 검사하는
+정의가 있다.
 
 - `/`
 - `/api/health`
@@ -89,15 +101,18 @@ Migration은 자동 downgrade하지 않는다. rollout 실패 시 DB에는 migra
 지연될 수 있으므로 이 검사는 초기 synthetic monitor이며 엄격한 실시간 장애
 감시를 대체하지 않는다. DB VM의 백업 성공 여부도 이 검사에는 포함되지 않는다.
 
-인프라 알림은 카카오클라우드 Alert Center를 기본으로 사용하고 Slack/Teams
-장애 채널을 1차 수신처, 이메일을 2차 수신처로 권장한다. 카카오클라우드에서
-지원하는 이메일, SMS, 알림톡, Slack, Webhook 중 실제 수신 채널이 확정되면
-Worker·DB·GPU VM 메트릭과 백업 실패 알림을 연동한다. Webhook URL은 GitHub
-Secret 또는 VM의 root 전용 환경 파일로 관리하며 저장소에 기록하지 않는다.
+2026-08-11 기준 GitHub 기본 브랜치에 등록된 workflow는 `CI`와
+`Build and Push Images` 두 개다. `production-health.yaml`은 `dev`에만 있어 예약
+실행이 활성화되지 않았다. 이를 실제로 사용하려면 기본 브랜치에 등록하는 별도
+승인 작업이 필요하다.
+
+GPU VM은 Alert Center 대신 1분 주기의 watchdog이 Slack Incoming Webhook으로
+직접 장애·복구 알림을 전송한다. Webhook URL은 VM의 root 전용 환경 파일에만
+보관한다. Kubernetes·DB 백업·공개 서비스 health 알림은 아직 같은 Slack 채널로
+통합되지 않았다.
 
 ## 아직 확정되지 않은 부분
 
-- 카카오클라우드 Registry의 실제 호스트와 전체 Repository 주소
-- Kubernetes Worker Node의 CPU 아키텍처와 `BUILD_PLATFORMS`
-- GitHub 알림을 수신할 담당자와 Slack/Teams 채널
+- `production-health.yaml` 기본 브랜치 등록 및 실패 알림 수신자
+- Kubernetes·DB 백업 장애의 Slack 통합 방식
 - 실패한 배포의 애플리케이션 rollback 판단 기준

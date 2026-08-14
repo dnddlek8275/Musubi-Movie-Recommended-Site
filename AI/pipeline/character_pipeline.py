@@ -9,6 +9,8 @@ from rag.character_retriever import retrieve, format_context
 from pipeline.tone_presets import (
     build_group_movie_reaction_fallback,
     build_group_reaction_fallback,
+    build_identity_reply,
+    build_recovery_reply,
     build_turn_guidance,
     enforce_dialogue_policy,
     has_generic_self_help,
@@ -17,14 +19,23 @@ from pipeline.tone_presets import (
 )
 from pipeline.input_clarity import (
     get_ambiguous_input_reply,
+    get_general_template_reply,
     get_general_short_reply,
+    get_input_recovery,
     get_mumu_identity_reply,
     get_mumu_personal_reply,
+)
+from pipeline.dialogue_guard import (
+    general_output_rejection_reason,
+    general_history_recall_reply,
+    log_dialogue_guard_event,
+    output_rejection_reason,
 )
 from pipeline.user_context import build_user_context_prompt, preference_search_terms
 from pipeline.recommendation_presenter import (
     build_character_grounded_answer,
     build_grounded_answer,
+    filter_movies_by_requested_genre,
     is_fact_grounded_recommendation,
     is_safe_general_recommendation,
     prepare_recommendations,
@@ -457,6 +468,46 @@ def _character_identity_override_reply(
     return f"내 이름은 {character_name}. 다른 사람으로 바뀌진 않아."
 
 
+def _character_identity_reply(
+    character_name: str,
+    user_message: str,
+    profiles: dict,
+) -> str | None:
+    """Answer a direct self-identity question from the selected profile."""
+    compact = re.sub(r"\s+", "", str(user_message or ""))
+    if not re.fullmatch(
+        r"(?:넌|너는|너|당신은|당신)?(?:누구(?:야|냐|예요|에요)?|"
+        r"이름(?:이|은)?뭐(?:야|예요|에요)?|정체(?:가|는)?뭐(?:야|예요|에요)?)[?!.~]*",
+        compact,
+    ):
+        return None
+    movie = str(profiles["characters"][character_name].get("movie") or "").strip()
+    return build_identity_reply(character_name, movie)
+
+
+def _guard_generated_answer(
+    answer: str,
+    user_message: str,
+    *,
+    mode: str,
+    character_name: str | None = None,
+) -> str:
+    reason = (
+        general_output_rejection_reason(answer, user_message)
+        if mode == "general"
+        else output_rejection_reason(answer, user_message)
+    )
+    if not reason:
+        return answer
+    log_dialogue_guard_event(
+        reason=reason,
+        mode=mode,
+        user_message=user_message,
+        character_name=character_name,
+    )
+    return build_recovery_reply(character_name)
+
+
 @dataclass
 class CharacterChatResult:
     character: str
@@ -574,7 +625,13 @@ def _get_reaction(
 
     if not answer or answer.strip() in _SILENCE_TOKENS:
         return None
-    return answer
+    guarded = _guard_generated_answer(
+        answer,
+        user_message,
+        mode="group_reaction",
+        character_name=character,
+    )
+    return None if guarded == build_recovery_reply(character) else guarded
 
 
 def _run_character_round1(
@@ -670,6 +727,7 @@ def _run_movie_pitch_round(
     """
     from pipeline.query_rewriter import rewrite as rewrite_query
     from pipeline.recommendation_context import build_recommendation_context
+    from pipeline.topic_grounding import log_topic_event, topic_no_result_message
     from rag.movie_retriever import MovieFilter, retrieve as movie_retrieve, format_for_prompt, to_response
 
     recommendation_context = build_recommendation_context(user_message, history)
@@ -677,11 +735,12 @@ def _run_movie_pitch_round(
     if rewritten.get("genre") in recommendation_context.excluded_genres:
         rewritten["genre"] = None
     search_q  = rewritten.get("search_query", user_message)
+    topic = rewritten.get("topic")
     personalization = preference_search_terms(user_context)
     has_explicit_filter = any(
         rewritten.get(field) is not None
         for field in ("genre", "actor", "director", "language", "year_from", "year_to", "min_rating")
-    ) or bool(rewritten.get("sort_latest"))
+    ) or bool(rewritten.get("sort_latest")) or bool(topic)
     if personalization and not has_explicit_filter:
         search_q = f"{search_q} 사용자 선호 {personalization}"
     filters   = MovieFilter(
@@ -705,8 +764,26 @@ def _run_movie_pitch_round(
         exclude_titles=excluded_titles,
         required_count=3,
         quality_weight=quality_weight,
+        topic=topic,
     )
-    if not movies:
+    requested_genre = str(rewritten.get("genre") or "").strip() or None
+    movies = filter_movies_by_requested_genre(movies, requested_genre)
+    if not movies and requested_genre:
+        movies = movie_retrieve(
+            f"{requested_genre} 영화",
+            top_k=3 if sort_latest else 9,
+            movie_filter=MovieFilter(
+                genre=requested_genre,
+                exclude_genres=recommendation_context.excluded_genres,
+            ),
+            sort_latest=sort_latest,
+            exclude_titles=excluded_titles,
+            required_count=3,
+            quality_weight=quality_weight,
+            topic=topic,
+        )
+        movies = filter_movies_by_requested_genre(movies, requested_genre)
+    elif not movies:
         movies = movie_retrieve(
             search_q,
             top_k=3 if sort_latest else 9,
@@ -715,6 +792,7 @@ def _run_movie_pitch_round(
             exclude_titles=excluded_titles,
             required_count=3,
             quality_weight=quality_weight,
+            topic=topic,
         )
     movies = prepare_recommendations(
         movies,
@@ -722,6 +800,16 @@ def _run_movie_pitch_round(
         rewritten,
         limit=3,
     )
+
+    if topic and not movies:
+        chosen = random.choice(characters)
+        log_topic_event(topic, "clarification_required")
+        return (
+            [],
+            [CharacterChatResult(character=chosen, answer=topic_no_result_message(topic))],
+            "",
+        )
+    log_topic_event(topic, "recommended", movies)
 
     movie_context = format_for_prompt(movies)
     movie_titles  = ", ".join(f"'{m['title']}'" for m in movies)
@@ -886,11 +974,21 @@ def run_group_rounds(
 
     ambiguous_reply = get_ambiguous_input_reply(user_message)
     if ambiguous_reply:
+        recovery = get_input_recovery(user_message)
+        log_dialogue_guard_event(
+            reason=recovery.kind if recovery else "ambiguous_input",
+            mode="group",
+            user_message=user_message,
+            character_name=characters[0],
+        )
         return [
             RoundResult(
                 round=1,
                 label="첫 번째 답변",
-                responses=[CharacterChatResult(character=characters[0], answer=ambiguous_reply)],
+                responses=[CharacterChatResult(
+                    character=characters[0],
+                    answer=build_recovery_reply(characters[0]),
+                )],
             ),
             RoundResult(round=2, label="반응", responses=[]),
         ]
@@ -935,12 +1033,21 @@ def run_group_auto_rounds(
     intent = classify(user_message, history=history)
 
     if intent == Intent.INPUT_RECOVERY:
-        ambiguous_reply = get_ambiguous_input_reply(user_message) or "한 번만 다시 말해줘."
+        recovery = get_input_recovery(user_message)
+        log_dialogue_guard_event(
+            reason=recovery.kind if recovery else "ambiguous_input",
+            mode="group_auto",
+            user_message=user_message,
+            character_name=characters[0],
+        )
         return intent, [], [
             RoundResult(
                 round=1,
                 label="첫 번째 답변",
-                responses=[CharacterChatResult(character=characters[0], answer=ambiguous_reply)],
+                responses=[CharacterChatResult(
+                    character=characters[0],
+                    answer=build_recovery_reply(characters[0]),
+                )],
             ),
             RoundResult(round=2, label="반응", responses=[]),
         ]
@@ -951,6 +1058,14 @@ def run_group_auto_rounds(
             characters, user_message, history, profiles, max_tokens_r1,
             user_context=user_context,
         )
+        # A grounded topic search may intentionally return no cards and a
+        # clarification. Do not let a second character turn that safe answer
+        # back into an ungrounded recommendation.
+        if not movies and movie_titles == "":
+            return intent, [], [
+                RoundResult(round=1, label="첫 번째 답변", responses=r1_results),
+                RoundResult(round=2, label="반응", responses=[]),
+            ]
     else:
         movies = []
         r1_results = _run_character_round1(
@@ -973,6 +1088,13 @@ def run(character_name, user_message, history=None, use_rag=True, max_tokens=512
         history = []
     profiles = get_profiles()
     character_name = resolve_character_names([character_name], profiles)[0]
+    identity_reply = _character_identity_reply(character_name, user_message, profiles)
+    if identity_reply:
+        return CharacterChatResult(
+            character=character_name,
+            answer=identity_reply,
+            rag_used=False,
+        )
     identity_override_reply = _character_identity_override_reply(
         character_name, user_message, profiles,
     )
@@ -984,9 +1106,16 @@ def run(character_name, user_message, history=None, use_rag=True, max_tokens=512
         )
     ambiguous_reply = get_ambiguous_input_reply(user_message)
     if ambiguous_reply:
+        recovery = get_input_recovery(user_message)
+        log_dialogue_guard_event(
+            reason=recovery.kind if recovery else "ambiguous_input",
+            mode="character",
+            user_message=user_message,
+            character_name=character_name,
+        )
         return CharacterChatResult(
             character=character_name,
-            answer=ambiguous_reply,
+            answer=build_recovery_reply(character_name),
             rag_used=False,
         )
     system_prompt = build_system_prompt(character_name=character_name, chat_mode="single", profiles=profiles, example_count=0, compact=True)
@@ -1037,11 +1166,6 @@ def run(character_name, user_message, history=None, use_rag=True, max_tokens=512
     raw = chat(messages, max_tokens=max_tokens, temperature=0.6)
     answer = clean_and_truncate(raw, character_name)
 
-    # 답변이 사용자 메시지를 그대로 되풀이한 경우(패턴 이어쓰기 실패) 한 번 재시도.
-    if answer and _is_echo(answer, user_message):
-        raw    = chat(messages, max_tokens=max_tokens, temperature=0.6)
-        answer = clean_and_truncate(raw, character_name)
-
     if answer:
         answer = _strip_identity_bleed(answer, character_name)
         answer = _strip_name_claim_bleed(answer, character_name, profiles)
@@ -1054,6 +1178,13 @@ def run(character_name, user_message, history=None, use_rag=True, max_tokens=512
             history=history,
             relation_answer=relation_answer,
         )
+
+    answer = _guard_generated_answer(
+        answer,
+        user_message,
+        mode="character",
+        character_name=character_name,
+    )
 
     if not answer:
         answer = "..."
@@ -1083,13 +1214,26 @@ def run_auto(user_message, history=None, use_rag=True, max_tokens=512, user_cont
         return CharacterChatResult(character="무무", answer=personal_reply, rag_used=False)
     ambiguous_reply = get_ambiguous_input_reply(user_message)
     if ambiguous_reply:
+        recovery = get_input_recovery(user_message)
+        log_dialogue_guard_event(
+            reason=recovery.kind if recovery else "ambiguous_input",
+            mode="general",
+            user_message=user_message,
+            character_name="무무",
+        )
         return CharacterChatResult(character="무무", answer=ambiguous_reply, rag_used=False)
     short_reply = get_general_short_reply(user_message, has_history=bool(history))
     if short_reply:
         return CharacterChatResult(character="무무", answer=short_reply, rag_used=False)
+    template_reply = get_general_template_reply(user_message)
+    if template_reply:
+        return CharacterChatResult(character="무무", answer=template_reply, rag_used=False)
     casual_reply = _general_casual_reply(user_message, history)
     if casual_reply:
         return CharacterChatResult(character="무무", answer=casual_reply, rag_used=False)
+    history_reply = general_history_recall_reply(user_message, history)
+    if history_reply:
+        return CharacterChatResult(character="무무", answer=history_reply, rag_used=False)
     profiles = get_profiles()
 
     character_name, unsupported = detect_character_request(user_message, profiles)
@@ -1114,11 +1258,20 @@ def run_auto(user_message, history=None, use_rag=True, max_tokens=512, user_cont
     if user_context_prompt:
         messages.append({"role": "system", "content": user_context_prompt})
     messages.extend(history)
-    messages.append({"role": "user", "content": user_message})
+    messages.append({
+        "role": "user",
+        "content": user_message + "\n\n" + build_turn_guidance(user_message, history) + _ANSWER_NOW_REMINDER,
+    })
     raw = chat(messages, max_tokens=max_tokens)
     answer = clean_and_truncate(raw, "") or "..."
     if has_generic_self_help(answer):
         answer = _general_chat_quality_fallback(user_message, history)
+    answer = _guard_generated_answer(
+        answer,
+        user_message,
+        mode="general",
+        character_name="무무",
+    )
     return CharacterChatResult(character="무무", answer=answer, rag_used=False)
 
 
@@ -1136,7 +1289,17 @@ def run_group(characters, user_message, history=None, max_tokens=512, user_conte
     characters = resolve_character_names(characters, profiles)
     ambiguous_reply = get_ambiguous_input_reply(user_message)
     if ambiguous_reply:
-        return [CharacterChatResult(character=characters[0], answer=ambiguous_reply)]
+        recovery = get_input_recovery(user_message)
+        log_dialogue_guard_event(
+            reason=recovery.kind if recovery else "ambiguous_input",
+            mode="group",
+            user_message=user_message,
+            character_name=characters[0],
+        )
+        return [CharacterChatResult(
+            character=characters[0],
+            answer=build_recovery_reply(characters[0]),
+        )]
     return _run_character_round1(
         characters,
         user_message,

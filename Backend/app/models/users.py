@@ -38,6 +38,8 @@ class User(Base):
     profile_image = Column(String(300), nullable=True)
     # 사용자가 AI 대화 개인화를 위해 직접 입력한 선택 정보
     personal_context = Column(Text, nullable=True)
+    # 이 시각 이전의 활동은 추천 학습에서 제외한다. 활동 기록 자체는 보존한다.
+    preference_learning_reset_at = Column(DateTime(timezone=True), nullable=True)
 
     # 이 사용자가 남긴 영화 행동 기록 목록
     interactions = relationship(

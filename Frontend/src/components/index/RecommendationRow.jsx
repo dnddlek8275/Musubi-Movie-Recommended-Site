@@ -1,10 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { fetchMovies, getLocalPreferences } from '../../api.js';
 import { HOME_MOVIE_COUNT } from './constants.js';
 import MovieCard from '../movieCard/MovieCard.jsx';
 import { PosterRowSkeleton } from '../common/LoadingSkeleton.jsx';
+import HorizontalScroller from '../common/HorizontalScroller.jsx';
 import SectionHeader from './SectionHeader.jsx';
+import { getInternalMovieId } from '../../utils/movieIdentity.js';
+import { navigateTo } from '../../navigation.js';
 
 const POSTER_BASE_URL =
   import.meta.env.VITE_TMDB_IMAGE_BASE_URL || 'https://image.tmdb.org/t/p/w500';
@@ -53,7 +56,7 @@ export function normalizeMovie(rawMovie) {
   );
 
   return {
-    id: rawMovie?.id ?? rawMovie?.movie_id ?? rawMovie?.tmdb_id,
+    id: getInternalMovieId(rawMovie),
     title: rawMovie?.title || rawMovie?.name || rawMovie?.movie || '',
     genre: Array.isArray(rawMovie?.genres)
       ? rawMovie.genres.join(', ')
@@ -75,7 +78,7 @@ export function normalizeMovie(rawMovie) {
 }
 
 function movieLikeKey(movie) {
-  const id = movie?.id ?? movie?.movie_id;
+  const id = movie?.movie_id ?? movie?.id;
   if (id !== undefined && id !== null) return `id:${id}`;
 
   const title = String(movie?.title || '').trim().toLocaleLowerCase('ko-KR');
@@ -86,18 +89,10 @@ function RecommendationRow({ authUser, likedMovieKeys = [], onToggleLike }) {
   const [movies, setMovies] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
-  const rowRef = useRef(null);
 
   const displayName =
     authUser?.nickname || authUser?.name || authUser?.username || '게스트';
   const title = `${displayName}님을 위한 영화 추천!`;
-
-  const scrollByCards = (direction) => {
-    const row = rowRef.current;
-    if (!row) return;
-
-    row.scrollBy({ left: direction * (212 + 30) * 3, behavior: 'smooth' });
-  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -126,36 +121,18 @@ function RecommendationRow({ authUser, likedMovieKeys = [], onToggleLike }) {
       <SectionHeader icon="👏" title={title} />
 
       <div className="index-movie-slider">
-        <button
-          className="index-movie-slider-btn index-movie-slider-btn--prev"
-          type="button"
-          onClick={() => scrollByCards(-1)}
-          aria-label="이전 영화 보기"
-        >
-          ‹
-        </button>
-
-        <div className="index-movie-row" ref={rowRef}>
+        <HorizontalScroller className="index-movie-row" ariaLabel="개인 추천 영화 목록">
           {loading ? <PosterRowSkeleton count={7} /> : movies.map((movie, index) => (
             <MovieCard
               index={index}
               isLiked={likedMovieKeys.includes(movieLikeKey(movie))}
               movie={movie}
               onToggleLike={onToggleLike}
-              onSelect={(movie) => { window.location.href = `/movies/${movie.id}`; }}
+              onSelect={(movie) => navigateTo(`/movies/${movie.id}`)}
               key={movie.id}
             />
           ))}
-        </div>
-
-        <button
-          className="index-movie-slider-btn index-movie-slider-btn--next"
-          type="button"
-          onClick={() => scrollByCards(1)}
-          aria-label="다음 영화 보기"
-        >
-          ›
-        </button>
+        </HorizontalScroller>
       </div>
 
       {movies.length === 0 && error ? (

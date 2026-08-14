@@ -15,6 +15,8 @@ import {
 import './chat.css';
 import SttMicButton from './SttMicButton.jsx';
 import { SkeletonBlock } from '../common/LoadingSkeleton.jsx';
+import HorizontalScroller from '../common/HorizontalScroller.jsx';
+import { formatRating } from '../../utils/formatRating.js';
 
 const POSTER_BASE_URL =
   import.meta.env.VITE_TMDB_IMAGE_BASE_URL || 'https://image.tmdb.org/t/p/w500';
@@ -818,9 +820,7 @@ function ChatPage({ authUser }) {
 
   const canSend = Boolean(input.trim() && canChat && !busy);
 
-  const statusText = busy
-    ? 'AI가 답변 중입니다.'
-    : error || characterLoadError || '';
+  const statusText = error || characterLoadError || '';
 
   const stopIcon = (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1156,7 +1156,7 @@ function ChatPage({ authUser }) {
                             ) : null}
 
                             {message.movies?.length > 0 ? (
-                              <div className="chat-movies-row">
+                              <HorizontalScroller className="chat-movies-row" ariaLabel="추천 영화 목록">
                                 {message.movies.map((movie, index) => {
                                   const title =
                                     movie.title || movie.name || '추천작';
@@ -1175,7 +1175,7 @@ function ChatPage({ authUser }) {
                                   return (
                                     <div
                                       className="chat-movie"
-                                      key={movie.id || movie.movie_id || movie.title || index}
+                                      key={movie.movie_id || movie.id || movie.title || index}
                                     >
                                       <div className="chat-movie__poster">
                                         {poster ? (
@@ -1199,7 +1199,7 @@ function ChatPage({ authUser }) {
                                         {rating != null ? (
                                           <div className="chat-movie__rating">
                                             <span>★</span>
-                                            {rating}
+                                            {formatRating(rating)}
                                           </div>
                                         ) : null}
                                         {movie.recommendation_reason ? (
@@ -1211,7 +1211,7 @@ function ChatPage({ authUser }) {
                                     </div>
                                   );
                                 })}
-                              </div>
+                              </HorizontalScroller>
                             ) : null}
 
                             {message.sources?.length > 0 ? (
