@@ -44,28 +44,22 @@ test.beforeEach(async ({ page }) => {
   }));
 });
 
-test('일반 대화 입력창 기록에서 캐릭터 대화도 확인하고 이동한다', async ({ page }) => {
+test('일반 대화 입력창 기록에는 일반 대화만 표시한다', async ({ page }) => {
   await page.goto('/home');
   await page.getByRole('button', { name: '채팅 메뉴 열기' }).click();
   await page.getByRole('button', { name: '대화 기록', exact: true }).click();
 
   await expect(page.getByText('무무와 나눈 영화 이야기', { exact: true })).toBeVisible();
-  await expect(page.getByText('아이언맨', { exact: true })).toBeVisible();
-
-  await page.getByText('아이언맨', { exact: true }).click();
-  await expect(page).toHaveURL(/\/chat\/group\?room=22&members=/);
+  await expect(page.getByText('아이언맨', { exact: true })).toHaveCount(0);
 });
 
-test('캐릭터 대화 입력창 기록에서 일반 대화도 확인하고 이동한다', async ({ page }) => {
+test('캐릭터 대화 입력창 기록에는 캐릭터 대화만 표시한다', async ({ page }) => {
   await page.goto('/chat/group');
   await page.getByRole('button', { name: '채팅 메뉴 열기' }).click();
   await page.getByRole('button', { name: '대화 기록', exact: true }).click();
 
   await expect(page.getByText('아이언맨', { exact: true })).toBeVisible();
-  await expect(page.getByText('무무와 나눈 영화 이야기', { exact: true })).toBeVisible();
-
-  await page.getByText('무무와 나눈 영화 이야기', { exact: true }).click();
-  await expect(page).toHaveURL('/home?room=11');
+  await expect(page.getByText('무무와 나눈 영화 이야기', { exact: true })).toHaveCount(0);
 });
 
 test('홈 복귀 시 활성 대화를 복원하고 TMDB 추천 카드를 상세 페이지로 연결한다', async ({ page }) => {
