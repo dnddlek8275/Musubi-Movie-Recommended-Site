@@ -280,6 +280,9 @@ _GLUED_TOKEN_KEYWORD = re.compile(
 )
 # 특수토큰 잔재를 지우고 나면 "user"/"model" 같은 역할 라벨 단어만 덩그러니 남을 수 있다
 _ROLE_LABEL = re.compile(r"^\s*(?:model|user|assistant)\b\s*", re.IGNORECASE)
+# 일부 Gemma 출력은 채널 마커 없이 선두에 ``thought`` 라벨만 남긴다.
+# 정상 문장 중간의 영단어는 건드리지 않고 응답 시작의 독립 라벨만 제거한다.
+_BARE_THOUGHT_PREFIX = re.compile(r"^\s*thought\b\s*[:：\-]?\s*", re.IGNORECASE)
 
 # "이름:" 접두어 (마석도:, [마석도], (마석도), [마석도]: 등)
 _NAME_PREFIX = re.compile(r"^\s*[\[\(（]?\s*[가-힣A-Za-z0-9 ]{1,20}\s*[\]\)）]?\s*[:：]\s*")
@@ -341,6 +344,7 @@ def clean_llm_output(text: str, character_name: str | None = None) -> str:
         out = _ROLE_LABEL.sub("", out)
 
     out = out.strip()
+    out = _BARE_THOUGHT_PREFIX.sub("", out, count=1).strip()
 
     # 1-c) 마크다운 제거 (캐릭터 대사에 마크다운은 부자연스러움)
     out = _MD_HEADER.sub("", out)

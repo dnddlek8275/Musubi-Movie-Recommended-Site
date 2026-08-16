@@ -1,0 +1,207 @@
+{
+  "suite_version": "character-real-user-robustness-v1",
+  "thresholds": {
+    "hard_check_pass_rate": 0.95,
+    "critical_failure_count": 0,
+    "exact_duplicate_rate_max": 0.05,
+    "pair_similarity_max": 0.9,
+    "manual_average_min": 4.0,
+    "manual_dimension_min": 3.5
+  },
+  "manual_dimensions": [
+    "relevance",
+    "naturalness",
+    "specificity",
+    "character_fidelity",
+    "groundedness"
+  ],
+  "summary": {
+    "case_count": 7,
+    "hard_pass_count": 7,
+    "hard_check_pass_rate": 1.0,
+    "critical_failure_count": 0,
+    "exact_duplicate_rate": 0.0,
+    "max_pair_similarity": 0.0,
+    "pair_similarities": [],
+    "failure_counts": {},
+    "by_category": {
+      "context_followup": {
+        "cases": 1,
+        "passed": 1
+      },
+      "correction": {
+        "cases": 1,
+        "passed": 1
+      },
+      "spacing": {
+        "cases": 2,
+        "passed": 2
+      },
+      "typo": {
+        "cases": 3,
+        "passed": 3
+      }
+    },
+    "gates": {
+      "hard_check_pass_rate": true,
+      "critical_failure_count": true,
+      "exact_duplicate_rate": true,
+      "pair_similarity": true,
+      "manual_review_complete": true
+    },
+    "automatic_gate_passed": true,
+    "manual_average": 4.5857,
+    "manual_dimension_averages": {
+      "relevance": 4.9286,
+      "naturalness": 4.2857,
+      "specificity": 4.2857,
+      "character_fidelity": 4.5,
+      "groundedness": 4.9286
+    },
+    "manual_reviewer": "Codex 원문 수동 검토",
+    "manual_reviewed_date": "2026-08-16",
+    "release_gate_passed": true
+  },
+  "results": [
+    {
+      "id": "typo_listen_only",
+      "category": "typo",
+      "pair_group": null,
+      "seconds": 4.616,
+      "answer": "그래, 지금은 말 안 보탤게. 무슨 일이었는지 말해 봐. 듣고 있을게.",
+      "movies": [],
+      "intent": null,
+      "rag_used": false,
+      "failures": [],
+      "passed": true,
+      "manual_scores": {
+        "relevance": 5.0,
+        "naturalness": 4.5,
+        "specificity": 4.0,
+        "character_fidelity": 4.5,
+        "groundedness": 5.0
+      },
+      "manual_notes": "조언하지 말고 들어 달라는 요청을 지키며 마석도식 간결한 반응을 유지했다."
+    },
+    {
+      "id": "typo_property_wording",
+      "category": "typo",
+      "pair_group": null,
+      "seconds": 4.677,
+      "answer": "정말 속상하겠네. \"내 물건은 허락 없이 가져가지 말아달라고 분명히 말했으니까 다음부터는 꼭 미리 물어봐 줘\"라고 단호하게 보내는 게 좋겠어.",
+      "movies": [],
+      "intent": null,
+      "rag_used": false,
+      "failures": [],
+      "passed": true,
+      "manual_scores": {
+        "relevance": 5.0,
+        "naturalness": 4.0,
+        "specificity": 5.0,
+        "character_fidelity": 4.0,
+        "groundedness": 5.0
+      },
+      "manual_notes": "허락과 사전 질문이라는 경계를 실제로 보낼 문장으로 구체화했다. 문장이 다소 길지만 의미는 명확하다."
+    },
+    {
+      "id": "typo_secret_wording",
+      "category": "typo",
+      "pair_group": null,
+      "seconds": 4.591,
+      "answer": "그거 시스템 오류 수준의 배신이네. \"너 진짜 웃긴 스타일이다, 내 비밀 하나 가지고 그렇게 신나서 떠들고 다녀?\"라고 보내서 일단 걔가 당황하게 만들어.",
+      "movies": [],
+      "intent": null,
+      "rag_used": false,
+      "failures": [],
+      "passed": true,
+      "manual_scores": {
+        "relevance": 4.5,
+        "naturalness": 3.5,
+        "specificity": 4.0,
+        "character_fidelity": 4.5,
+        "groundedness": 4.5
+      },
+      "manual_notes": "토니 스타크식 냉소와 즉시 보낼 문장은 분명하다. 다만 '당황하게 만들어'는 갈등을 키울 수 있는 공격적 표현이라 7건 중 가장 낮게 평가했다."
+    },
+    {
+      "id": "pronoun_property_followup",
+      "category": "context_followup",
+      "pair_group": null,
+      "seconds": 3.671,
+      "answer": "일부러 반복한 것인지는 단정할 수 없어. 하지만 허락 없이 같은 행동이 이어졌다면, 이제는 분명하게 경계를 말해야 해.",
+      "movies": [],
+      "intent": null,
+      "rag_used": false,
+      "failures": [],
+      "passed": true,
+      "manual_scores": {
+        "relevance": 5.0,
+        "naturalness": 5.0,
+        "specificity": 4.5,
+        "character_fidelity": 5.0,
+        "groundedness": 5.0
+      },
+      "manual_notes": "이전 대화의 반복 상황을 정확히 이어받고 고의성을 단정하지 않으면서 경계 설정을 제안했다."
+    },
+    {
+      "id": "correction_interview_to_presentation",
+      "category": "correction",
+      "pair_group": null,
+      "seconds": 4.086,
+      "answer": "발표를 내일 다시 할 기회가 생겼다니 다행입니다. 실수를 바로잡고 완벽하게 준비할 시간이 생긴 셈이니까요.",
+      "movies": [],
+      "intent": null,
+      "rag_used": false,
+      "failures": [],
+      "passed": true,
+      "manual_scores": {
+        "relevance": 5.0,
+        "naturalness": 4.5,
+        "specificity": 4.0,
+        "character_fidelity": 4.5,
+        "groundedness": 5.0
+      },
+      "manual_notes": "면접이 아니라 발표라는 정정을 반영하고 내일 다시 한다는 문맥을 유지했다."
+    },
+    {
+      "id": "nospace_ambiguous",
+      "category": "spacing",
+      "pair_group": null,
+      "seconds": 4.254,
+      "answer": "정확히 무엇을 의미하는지 명확히 해. 모호한 표현은 변수를 늘릴 뿐이고, 정확한 분석 없이는 해결책도 도출할 수 없다.",
+      "movies": [],
+      "intent": null,
+      "rag_used": false,
+      "failures": [],
+      "passed": true,
+      "manual_scores": {
+        "relevance": 5.0,
+        "naturalness": 4.0,
+        "specificity": 4.0,
+        "character_fidelity": 4.5,
+        "groundedness": 5.0
+      },
+      "manual_notes": "문맥 없는 모호한 입력을 임의 해석하지 않고 구체화를 요구했다. 닥터 스트레인지의 단호한 어조도 유지했다."
+    },
+    {
+      "id": "relation_spacing_typo",
+      "category": "spacing",
+      "pair_group": null,
+      "seconds": 3.41,
+      "answer": "피터는 내가 장비와 조언을 건네며 성장을 지켜본 어린 영웅이야.",
+      "movies": [],
+      "intent": null,
+      "rag_used": true,
+      "failures": [],
+      "passed": true,
+      "manual_scores": {
+        "relevance": 5.0,
+        "naturalness": 4.5,
+        "specificity": 4.5,
+        "character_fidelity": 4.5,
+        "groundedness": 5.0
+      },
+      "manual_notes": "RAG를 사용해 토니 스타크와 피터 파커의 관계를 짧고 직접적으로 설명했다."
+    }
+  ]
+}

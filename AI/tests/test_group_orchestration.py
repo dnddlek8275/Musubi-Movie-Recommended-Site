@@ -23,12 +23,22 @@ from pipeline.character_pipeline import (
     _relation_names_from_context,
     _run_character_round1,
     _run_reaction_round,
+    character_lore_fact_reply,
 )
 
 
 class GroupOrchestrationTests(unittest.TestCase):
     def setUp(self):
         self.characters = ["마석도", "토니 스타크", "엘사"]
+
+    def test_woody_boot_label_uses_curated_lore_fact(self):
+        self.assertEqual(
+            character_lore_fact_reply("우디", "내 신발 밑에 적힌 이름이 뭐야?"),
+            "앤디야. 내 부츠 밑에는 내 주인 앤디의 이름이 적혀 있어.",
+        )
+        self.assertIsNone(
+            character_lore_fact_reply("마석도", "내 신발 밑에 적힌 이름이 뭐야?")
+        )
 
     @patch("pipeline.character_pipeline.run")
     def test_general_group_has_one_primary_speaker(self, mocked_run):

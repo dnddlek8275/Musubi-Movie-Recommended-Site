@@ -12,13 +12,15 @@ from pymilvus import MilvusClient, AnnSearchRequest, RRFRanker
 from rag.embedder import embed_query
 from rag.reranker import rerank
 
-MILVUS_URI       = "http://localhost:19530"
-COLLECTION_NAME  = os.getenv("CHARACTER_COLLECTION_NAME", "characters_verified_v4")
+MILVUS_URI       = os.getenv("CINEVERSE_MILVUS_URI", "http://localhost:19530")
+COLLECTION_NAME  = os.getenv("CHARACTER_COLLECTION_NAME", "characters_verified_v5")
 
 
 @lru_cache(maxsize=1)
 def get_client() -> MilvusClient:
-    return MilvusClient(uri=MILVUS_URI)
+    client = MilvusClient(uri=MILVUS_URI)
+    client.load_collection(COLLECTION_NAME)
+    return client
 
 
 def retrieve(

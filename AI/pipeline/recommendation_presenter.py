@@ -6,6 +6,7 @@ import json
 import re
 
 from pipeline.topic_grounding import build_topic_reason
+from rag.movie_quality import is_child_safe_certification
 
 
 ROLE_LABELS = (
@@ -16,8 +17,22 @@ ROLE_LABELS = (
 
 _LIGHT_QUERY = re.compile(r"가볍|부담\s*없이|편하게|힐링|기분\s*전환|우울할\s*때")
 _DATE_QUERY = re.compile(r"데이트|연인|커플")
-_KIDS_QUERY = re.compile(r"아이와|아이랑|어린이|자녀와|온\s*가족")
+_BRIGHT_ROMANCE_QUERY = re.compile(
+    r"(?:밝|유쾌|설레).*?(?:데이트|로맨스|멜로)|"
+    r"(?:데이트|로맨스|멜로).*?(?:밝|유쾌|설레)"
+)
+_KIDS_QUERY = re.compile(
+    r"아이와|아이랑|어린이|자녀와|온\s*가족|"
+    r"유치원생|미취학|초등생|초등학생|아동|(?:어린|어린이|초등생|초등학생)\s*조카|조카(?:랑|와|하고)"
+)
 _TOUCHING_QUERY = re.compile(r"감동|뭉클|눈물|마음\s*따뜻")
+_DISCUSSION_QUERY = re.compile(r"얘기할\s*거리|생각할\s*거리|토론할\s*거리|곱씹|철학적")
+_FEELGOOD_QUERY = re.compile(r"보고\s*나면\s*기분(?:이)?\s*(?:좋|나아)|기분\s*좋아지는|행복해지는")
+_AVOID_SAD_QUERY = re.compile(r"(?:슬픈|슬프|슬퍼).*?(?:싫|말고|빼|제외)")
+_ADULT_ANIMATION_QUERY = re.compile(r"(?:어른|성인).*?(?:유치하지\s*않|애니)")
+_DISCUSSION_REASON_TERMS = re.compile(r"기술|인간|사회|정체성|관계|선택|미래|삶|윤리|갈등")
+_BRIGHT_REASON_TERMS = re.compile(r"밝고\s*경쾌|유쾌|희망|꿈|새\s*출발|다시\s*시작|사랑|음악")
+_MATURE_REASON_TERMS = re.compile(r"사회|정체성|관계|가족|갈등|편견|책임|인간|삶|죽음|상실|범죄|정치")
 _QUOTED_PHRASE = re.compile(
     r"[‘“]([^’”\n]{1,100})[’”]|\"([^\"\n]{1,100})\"|(?<!\w)'([^'\n]{1,100})'(?!\w)"
 )
@@ -193,6 +208,40 @@ def _reason(
     if topic_reason:
         return topic_reason
 
+    overview = str(movie.get("overview") or "")
+    if _DISCUSSION_QUERY.search(user_message):
+        terms = list(dict.fromkeys(_DISCUSSION_REASON_TERMS.findall(overview)))[:2]
+        if terms:
+            return f"줄거리에서 {' · '.join(terms)} 문제를 다뤄 보고 나서 이야기할 근거가 있는 작품이에요."
+        if genre_set & {"드라마", "미스터리", "SF"}:
+            return f"{' · '.join(genres[:2])} 장르를 바탕으로 해석하고 이야기할 여지가 있는 작품이에요."
+    if _ADULT_ANIMATION_QUERY.search(user_message):
+        terms = list(dict.fromkeys(_MATURE_REASON_TERMS.findall(overview)))[:2]
+        certification = str(movie.get("certification") or "").strip()
+        if terms:
+            return f"줄거리에서 {' · '.join(terms)} 주제를 다뤄 성인도 깊이 있게 볼 수 있는 애니메이션이에요."
+        if certification and certification.upper() not in {"ALL", "G", "PG"}:
+            return f"{certification} 등급과 {' · '.join(genres[:2])} 장르가 확인된 성인 취향 애니메이션이에요."
+    if _AVOID_SAD_QUERY.search(user_message) or _BRIGHT_ROMANCE_QUERY.search(user_message):
+        terms = list(dict.fromkeys(_BRIGHT_REASON_TERMS.findall(overview)))[:2]
+        if role_index > 0 and primary:
+            alternative = _alternative_reason(movie, primary, role_index)
+            if alternative:
+                return alternative
+        if terms:
+            if _BRIGHT_ROMANCE_QUERY.search(user_message):
+                return f"줄거리의 {' · '.join(terms)} 흐름을 근거로 밝은 데이트 분위기에 맞춰 골랐어요."
+            return f"줄거리의 {' · '.join(terms)} 흐름을 근거로 너무 슬프지 않은 선택으로 골랐어요."
+        if "코미디" in genre_set:
+            return "코미디 장르를 포함해 너무 슬픈 분위기를 피하고 싶다는 요청에 가까운 작품이에요."
+    if _FEELGOOD_QUERY.search(user_message):
+        terms = list(dict.fromkeys(_BRIGHT_REASON_TERMS.findall(overview)))[:2]
+        if terms:
+            return f"줄거리의 {' · '.join(terms)} 요소가 보고 난 뒤 기분 좋은 분위기와 잘 맞아요."
+        matched = [genre for genre in ("코미디", "음악", "가족", "모험") if genre in genre_set]
+        if matched:
+            return f"{' · '.join(matched[:2])} 장르라 기분 좋게 볼 작품을 찾는 요청에 잘 맞아요."
+
     if role_index > 0 and primary:
         alternative = _alternative_reason(movie, primary, role_index)
         if alternative:
@@ -241,6 +290,8 @@ def prepare_recommendations(
     filters: dict,
     limit: int = 3,
 ) -> list[dict]:
+    if _KIDS_QUERY.search(user_message):
+        candidates = [movie for movie in candidates if is_child_safe_certification(movie)]
     candidates = _deduplicate_candidates(candidates)
     if filters.get("sort_latest"):
         selected = [dict(movie) for movie in candidates[:limit]]

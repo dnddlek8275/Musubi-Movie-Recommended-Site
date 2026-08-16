@@ -1,0 +1,155 @@
+{
+  "suite_version": "character-real-user-robustness-v1",
+  "thresholds": {
+    "hard_check_pass_rate": 0.95,
+    "critical_failure_count": 0,
+    "exact_duplicate_rate_max": 0.05,
+    "pair_similarity_max": 0.9,
+    "manual_average_min": 4.0,
+    "manual_dimension_min": 3.5
+  },
+  "manual_dimensions": [
+    "relevance",
+    "naturalness",
+    "specificity",
+    "character_fidelity",
+    "groundedness"
+  ],
+  "summary": {
+    "case_count": 7,
+    "hard_pass_count": 7,
+    "hard_check_pass_rate": 1.0,
+    "critical_failure_count": 0,
+    "exact_duplicate_rate": 0.0,
+    "max_pair_similarity": 0.0,
+    "pair_similarities": [],
+    "failure_counts": {},
+    "by_category": {
+      "context_followup": {
+        "cases": 1,
+        "passed": 1
+      },
+      "correction": {
+        "cases": 1,
+        "passed": 1
+      },
+      "spacing": {
+        "cases": 2,
+        "passed": 2
+      },
+      "typo": {
+        "cases": 3,
+        "passed": 3
+      }
+    },
+    "gates": {
+      "hard_check_pass_rate": true,
+      "critical_failure_count": true,
+      "exact_duplicate_rate": true,
+      "pair_similarity": true,
+      "manual_review_complete": false
+    },
+    "automatic_gate_passed": true,
+    "release_gate_passed": false
+  },
+  "results": [
+    {
+      "id": "typo_listen_only",
+      "category": "typo",
+      "pair_group": null,
+      "seconds": 4.71,
+      "answer": "그래, 지금은 말 안 보탤게. 무슨 일이었는지 말해 봐. 듣고 있을게.",
+      "movies": [],
+      "intent": null,
+      "rag_used": false,
+      "failures": [],
+      "passed": true,
+      "manual_scores": null,
+      "manual_notes": ""
+    },
+    {
+      "id": "typo_property_wording",
+      "category": "typo",
+      "pair_group": null,
+      "seconds": 4.977,
+      "answer": "그 친구와 관계를 망치지 않으면서도 확실하게 의사를 전달하는 게 중요해. \"다음부터는 내 물건 가져가기 전에 미리 말해줄래? 내가 찾느라 고생할 수 있거든.\"이라고 보내봐.",
+      "movies": [],
+      "intent": null,
+      "rag_used": false,
+      "failures": [],
+      "passed": true,
+      "manual_scores": null,
+      "manual_notes": ""
+    },
+    {
+      "id": "typo_secret_wording",
+      "category": "typo",
+      "pair_group": null,
+      "seconds": 4.882,
+      "answer": "길게 말할 필요 없어. “너만 믿고 한 이야기가 다른 사람에게 전해진 걸 알았어. 그 일 때문에 많이 화가 났어. 내가 왜 화났는지 이해하는지부터 말해 줘.”면 충분해.",
+      "movies": [],
+      "intent": null,
+      "rag_used": false,
+      "failures": [],
+      "passed": true,
+      "manual_scores": null,
+      "manual_notes": ""
+    },
+    {
+      "id": "pronoun_property_followup",
+      "category": "context_followup",
+      "pair_group": null,
+      "seconds": 3.691,
+      "answer": "일부러 반복한 것인지는 단정할 수 없어. 하지만 허락 없이 같은 행동이 이어졌다면, 이제는 분명하게 경계를 말해야 해.",
+      "movies": [],
+      "intent": null,
+      "rag_used": false,
+      "failures": [],
+      "passed": true,
+      "manual_scores": null,
+      "manual_notes": ""
+    },
+    {
+      "id": "correction_interview_to_presentation",
+      "category": "correction",
+      "pair_group": null,
+      "seconds": 4.164,
+      "answer": "발표를 다시 할 기회가 있다는 건 아직 포기하지 않아도 된다는 뜻입니다. 내일은 오늘보다 더 잘 해낼 수 있을 겁니다.",
+      "movies": [],
+      "intent": null,
+      "rag_used": false,
+      "failures": [],
+      "passed": true,
+      "manual_scores": null,
+      "manual_notes": ""
+    },
+    {
+      "id": "nospace_ambiguous",
+      "category": "spacing",
+      "pair_group": null,
+      "seconds": 3.84,
+      "answer": "무엇에 관한 해결책이 필요한지 구체적으로 말해봐. 변수가 너무 많아서 정확히 파악할 수가 없군.",
+      "movies": [],
+      "intent": null,
+      "rag_used": false,
+      "failures": [],
+      "passed": true,
+      "manual_scores": null,
+      "manual_notes": ""
+    },
+    {
+      "id": "relation_spacing_typo",
+      "category": "spacing",
+      "pair_group": null,
+      "seconds": 4.855,
+      "answer": "피터는 내가 장비와 조언을 건네며 성장을 지켜본 어린 영웅이야.",
+      "movies": [],
+      "intent": null,
+      "rag_used": true,
+      "failures": [],
+      "passed": true,
+      "manual_scores": null,
+      "manual_notes": ""
+    }
+  ]
+}

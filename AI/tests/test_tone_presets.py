@@ -9,8 +9,11 @@ from pipeline.tone_presets import (
     assigned_characters,
     build_tone_guidance,
     build_turn_guidance,
+    build_profiled_listen_fallback,
     enforce_dialogue_policy,
     is_character_relation_question,
+    is_listen_only_request,
+    is_safe_listening_answer,
     mentioned_characters,
 )
 
@@ -30,6 +33,19 @@ class TonePresetTests(unittest.TestCase):
         self.assertEqual(set(all_assignments), self.profile_names)
         self.assertEqual(len(all_assignments), len(set(all_assignments)))
 
+    def test_manual_review_profile_guards_are_present(self):
+        profile_path = Path(__file__).resolve().parents[1] / "character_profiles_ALL_50.json"
+        profiles = json.loads(profile_path.read_text())["characters"]
+        expected = {
+            "마석도": "판단의 첫 기준",
+            "골룸": "신체 반응",
+            "피터 파커": "주변 사람이 받을 영향",
+            "해리포터": "긍정·부정 의미",
+        }
+        for name, phrase in expected.items():
+            with self.subTest(character=name):
+                self.assertIn(phrase, " ".join(profiles[name]["response_rules"]))
+
     def test_maseokdo_has_specific_safety_guidance(self):
         guidance = build_tone_guidance("마석도")
         self.assertIn("타깃", guidance)
@@ -40,9 +56,64 @@ class TonePresetTests(unittest.TestCase):
         self.assertIn("질문 하나", guidance)
         self.assertIn("해결책", guidance)
 
+    def test_explicit_listen_only_request_does_not_advise_or_ask(self):
+        answer = enforce_dialogue_policy(
+            "마석도",
+            "오늘 회사에서 실수했어. 해결책보다 그냥 내 얘기 좀 들어줘.",
+            "나도 여러 번 실패했지만 더 강해졌어. 무슨 일이야?",
+        )
+        self.assertIn("듣고 있을게", answer)
+        self.assertNotIn("실패했", answer)
+        self.assertNotIn("?", answer)
+
+    def test_listening_retry_predicates_reject_question_and_advice(self):
+        self.assertTrue(is_listen_only_request("조언 말고 내 얘기만 들어줘."))
+        self.assertTrue(is_safe_listening_answer("그래, 말해 봐. 듣고 있을게."))
+        self.assertFalse(is_safe_listening_answer("무슨 일이야?"))
+        self.assertFalse(is_safe_listening_answer("이렇게 해봐. 듣고 있을게."))
+
+    def test_profiled_listen_fallbacks_are_unique_for_all_characters(self):
+        answers = [build_profiled_listen_fallback(name) for name in sorted(self.profile_names)]
+        self.assertEqual(len(answers), len(set(answers)))
+        self.assertTrue(all("?" not in answer for answer in answers))
+
+    def test_remaining_high_similarity_listening_lines_are_separated(self):
+        raw_answers = {
+            "차태식": "그럴 때가 있지. 말해 봐.",
+            "존 윅": "그럴 때가 있지. 말해 봐.",
+            "강림": "괜찮습니다. 편한 만큼 말씀해 주세요. 지금은 듣고 있겠습니다.",
+            "간달프": "알겠습니다. 편한 만큼 말씀해 주세요. 지금은 듣고 있겠습니다.",
+        }
+        answers = [
+            enforce_dialogue_policy(name, "해결책보다 그냥 내 얘기 좀 들어줘.", raw)
+            for name, raw in raw_answers.items()
+        ]
+        self.assertEqual(4, len(set(answers)))
+
+    def test_presentation_fallbacks_are_unique_for_all_characters(self):
+        history = [{"role": "user", "content": "오늘 회사 발표에서 실수했어."}]
+        answers = [
+            enforce_dialogue_policy(
+                name,
+                "상사한테 뭐라고 말하면 좋을까?",
+                "관련 없는 임시 답변",
+                has_history=True,
+                history=history,
+            )
+            for name in sorted(self.profile_names)
+        ]
+        self.assertEqual(len(answers), len(set(answers)))
+        self.assertTrue(all("발표" in answer and "내일" in answer for answer in answers))
+
     def test_relationship_turn_requires_grounded_answer(self):
         guidance = build_turn_guidance("강해상이라고 알아?")
         self.assertIn("확인된 정보", guidance)
+
+    def test_trust_judgment_rejects_single_body_language_cue(self):
+        guidance = build_turn_guidance("처음 만난 사람을 믿어도 되는지 어떻게 판단해?")
+        self.assertIn("눈빛", guidance)
+        self.assertIn("단정하지 않는다", guidance)
+        self.assertIn("말과 행동", guidance)
 
     def test_context_free_hypothetical_requires_one_question(self):
         guidance = build_turn_guidance("너라면 어떻게 할 거야")
@@ -103,6 +174,16 @@ class TonePresetTests(unittest.TestCase):
     def test_character_knowledge_question_requires_grounding(self):
         self.assertTrue(is_character_relation_question("강해상이라고 알아?"))
 
+    def test_prop_label_question_is_not_misclassified_as_enemy_relation(self):
+        self.assertFalse(is_character_relation_question(
+            "내 신발 밑에 적힌 이름이 뭐야?"
+        ))
+
+    def test_past_experience_with_character_requires_grounding(self):
+        self.assertTrue(is_character_relation_question(
+            "토니 스타크와 예전에 무슨 일이 있었어?"
+        ))
+
     def test_ordinary_friend_problem_is_not_character_relation(self):
         self.assertFalse(is_character_relation_question(
             "친구랑 다퉜는데 먼저 연락할지 고민이야. 둘의 의견이 궁금해."
@@ -155,6 +236,64 @@ class TonePresetTests(unittest.TestCase):
         self.assertIn("다음부터 늦으면 미리 연락해 줘", answer)
         self.assertNotIn("대가", answer)
 
+    def test_targeted_distinctiveness_fallbacks_are_complete_and_different(self):
+        decision = enforce_dialogue_policy(
+            "할리 퀸", "중요한 결정을 앞두면 가장 먼저 무엇부터 생각해?", "모르겠네."
+        )
+        self.assertIn("결과", decision)
+        maseokdo = enforce_dialogue_policy(
+            "마석도", "중요한 결정을 앞두면 가장 먼저 무엇부터 생각해?", "내 손에 남는 걸 봐."
+        )
+        self.assertIn("피해", maseokdo)
+        self.assertIn("책임", maseokdo)
+        self.assertNotIn("내 손에", maseokdo)
+        wonder = enforce_dialogue_policy(
+            "원더우먼", "처음 만난 사람을 믿어도 되는지 너는 어떻게 판단해?", "초안"
+        )
+        elsa = enforce_dialogue_policy(
+            "엘사", "처음 만난 사람을 믿어도 되는지 너는 어떻게 판단해?", "초안"
+        )
+        self.assertNotEqual(wonder, elsa)
+        self.assertIn("진실", wonder)
+        self.assertIn("안전", elsa)
+
+    def test_generated_dialogue_typo_and_length_are_normalized(self):
+        typo = enforce_dialogue_policy(
+            "닥터 스트레인지", "중요한 판단에서 무엇을 봐?", "감정적인 동요은 판단을 흐립니다."
+        )
+        self.assertIn("동요는", typo)
+        typos = enforce_dialogue_policy(
+            "잭 스패로우",
+            "오늘은 뭘 하지?",
+            "육지의 관료들이나나 쓰는 말이지. 발 밑을 보며 일이 어찌될지 생각해.",
+        )
+        self.assertNotIn("이나나", typos)
+        self.assertIn("발밑", typos)
+        self.assertIn("어찌 될지", typos)
+        long_answer = "첫 문장입니다. " + ("아주 긴 두 번째 문장 " * 30) + "."
+        shortened = enforce_dialogue_policy("알버스 덤블도어", "사람을 어떻게 믿나요?", long_answer)
+        self.assertLessEqual(len(shortened), 220)
+
+    def test_gollum_targeted_answers_are_complete(self):
+        decision = enforce_dialogue_policy(
+            "골룸", "중요한 결정을 앞두면 가장 먼저 무엇부터 생각해?", "나는..."
+        )
+        rest = enforce_dialogue_policy(
+            "골룸", "아무 일정도 없는 하루가 생기면 어떻게 보내고 싶어?", "아니..."
+        )
+        self.assertFalse(decision.endswith("..."))
+        self.assertFalse(rest.endswith("..."))
+        self.assertIn("잃게 될", decision)
+        self.assertIn("숨어서", rest)
+
+    def test_belonging_boundary_request_returns_usable_words(self):
+        answer = enforce_dialogue_policy(
+            "헤르미온느",
+            "친구가 내 물건을 자꾸 말없이 가져가. 기분 안 상하게 뭐라고 보내면 좋을까?",
+            "평소와 달라 보여요.",
+        )
+        self.assertRegex(answer, r"허락|먼저|물어")
+
     def test_history_secret_followup_returns_usable_words(self):
         history = [{"role": "user", "content": "친구가 내 비밀을 다른 사람에게 말했어."}]
         answer = enforce_dialogue_policy(
@@ -164,8 +303,133 @@ class TonePresetTests(unittest.TestCase):
             has_history=True,
             history=history,
         )
-        self.assertIn("내가 믿고 말한 걸", answer)
+        self.assertRegex(answer, r"비밀|믿고|신뢰")
         self.assertNotIn("카드", answer)
+
+    def test_practical_fallbacks_are_unique_for_all_characters(self):
+        scenarios = (
+            (
+                [{"role": "user", "content": "친구가 내 비밀을 다른 사람에게 말했어."}],
+                "관계를 끊기 전에 뭐라고 보내는 게 좋을까?",
+            ),
+            (
+                [{"role": "user", "content": "친구가 내 물건을 허락 없이 가져갔어."}],
+                "싸우지 않고 선을 긋고 싶은데 뭐라고 말할까?",
+            ),
+        )
+        for history, message in scenarios:
+            answers = {
+                enforce_dialogue_policy(
+                    name, message, "쓸 수 없는 임시 답변", has_history=True, history=history
+                )
+                for name in self.profile_names
+            }
+            self.assertEqual(len(self.profile_names), len(answers))
+
+    def test_informal_secret_typo_returns_grounded_wording(self):
+        answer = enforce_dialogue_policy(
+            "토니 스타크",
+            "친구가 내 비밀 퍼트림; 지금 머라보내는게 나음?",
+            '"네가 말한 게 사실이라서 놀랐어."라고 보내.',
+        )
+        self.assertRegex(answer, r"비밀|신뢰|믿고|동의")
+        self.assertNotIn("네가 말한 게 사실", answer)
+
+    def test_informal_failure_shorthand_uses_specific_recovery(self):
+        answer = enforce_dialogue_policy("피터 파커", "나 망함", "무슨 일이든 해결 방법은 꼭 있을 거야.")
+        self.assertIn("무슨 일", answer)
+        self.assertNotIn("해결 방법은 꼭", answer)
+
+    def test_inadequate_property_wording_is_replaced(self):
+        answer = enforce_dialogue_policy(
+            "헤르미온느",
+            "칭구가 내물건 말업이 또가져감... 머라 보내?",
+            '"내 물건 다시 돌려줘"라고 보내세요.',
+        )
+        self.assertRegex(answer, r"허락|먼저\s*물어|다음부터|말없이")
+
+    def test_compact_character_name_is_detected(self):
+        profiles = {"characters": {"토니 스타크": {}, "피터 파커": {}}}
+        self.assertEqual(["피터 파커"], mentioned_characters("피터파커랑무슨사이임?", profiles))
+
+    def test_repeated_boundary_does_not_prove_intent(self):
+        answer = enforce_dialogue_policy(
+            "브루스 웨인",
+            "근데 걔가 또 그랬어",
+            "반복되는 행동은 실수가 아니라 의도야.",
+            has_history=True,
+            history=[{"role": "user", "content": "친구가 허락 없이 내 물건을 가져갔어."}],
+        )
+        self.assertIn("단정할 수 없어", answer)
+        self.assertNotIn("실수가 아니라 의도", answer)
+
+        variant = enforce_dialogue_policy(
+            "브루스 웨인",
+            "근데 걔가 또 그랬어",
+            "반복되는 행동은 실수가 아니야. 확실하게 선을 그어.",
+            has_history=True,
+            history=[{"role": "user", "content": "친구가 허락 없이 내 물건을 가져갔어."}],
+        )
+        self.assertIn("단정할 수 없어", variant)
+
+        simple_variant = enforce_dialogue_policy(
+            "브루스 웨인",
+            "근데 걔가 또 그랬어",
+            "반복되는 행동은 단순한 실수가 아냐. 확실하게 선을 그어야 해.",
+            has_history=True,
+            history=[{"role": "user", "content": "친구가 허락 없이 내 물건을 가져갔어."}],
+        )
+        self.assertIn("단정할 수 없어", simple_variant)
+
+        inserted_variant = enforce_dialogue_policy(
+            "브루스 웨인",
+            "근데 걔가 또 그랬어",
+            "반복되는 행동은 실수가 아니라 습관이자 의도야. 선을 그어야 해.",
+            has_history=True,
+            history=[{"role": "user", "content": "친구가 허락 없이 내 물건을 가져갔어."}],
+        )
+        self.assertIn("단정할 수 없어", inserted_variant)
+        self.assertNotIn("습관이자 의도", inserted_variant)
+
+    def test_presentation_opportunity_motive_is_not_invented(self):
+        answer = enforce_dialogue_policy(
+            "스티브 로저스",
+            "아니 면접 말고 발표였어. 내일 다시 해야돼",
+            "다시 기회가 생겼다는 건 당신의 이야기가 필요하다는 뜻이에요.",
+            has_history=True,
+            history=[{"role": "user", "content": "오늘 면접을 망쳤어."}],
+        )
+        self.assertIn("이유까지 단정할 수는 없", answer)
+        self.assertNotIn("이야기가 필요", answer)
+
+        variant = enforce_dialogue_policy(
+            "스티브 로저스",
+            "아니 면접 말고 발표였어. 내일 다시 해야돼",
+            "내일 다시 기회가 있다는 건 당신의 이야기를 들을 기회가 남아있다는 뜻입니다.",
+            has_history=True,
+            history=[{"role": "user", "content": "오늘 면접을 망쳤어."}],
+        )
+        self.assertIn("이유까지 단정할 수는 없", variant)
+
+    def test_mind_reading_and_contempt_are_not_invented(self):
+        answer = enforce_dialogue_policy(
+            "고니",
+            "친구가 비밀 까발리고 태연한데 개빡쳐",
+            "그 사람이 네 속을 다 읽고도 태연한 건 너를 만만하게 본다는 소리야.",
+        )
+        self.assertRegex(answer, r"추측|단정|확인|근거")
+        self.assertNotIn("만만하게", answer)
+
+    def test_hostile_reference_is_neutralized(self):
+        answer = enforce_dialogue_policy(
+            "마석도",
+            "친구가 별일 아니라는 듯 행동해서 더 화가 나.",
+            "그 새끼가 대체 뭐라고 했는데? 그놈을 믿지 마.",
+            has_history=True,
+            history=[{"role": "user", "content": "친구가 내 비밀을 퍼뜨렸어."}],
+        )
+        self.assertNotRegex(answer, r"새끼|그놈")
+        self.assertIn("그 사람이", answer)
 
     def test_presentation_followup_returns_usable_words(self):
         history = [{"role": "user", "content": "오늘 회사 발표를 망쳤어."}]
@@ -176,8 +440,139 @@ class TonePresetTests(unittest.TestCase):
             has_history=True,
             history=history,
         )
-        self.assertIn("부족했던 부분을 정리했습니다", answer)
+        self.assertIn("발표의 문제를 확인했습니다", answer)
+        self.assertIn("내일", answer)
         self.assertNotIn("아이언맨", answer)
+
+    def test_presentation_followup_preserves_representative_character_voices(self):
+        history = [{"role": "user", "content": "오늘 회사 발표에서 실수했어."}]
+        answers = [
+            enforce_dialogue_policy(
+                character,
+                "상사한테 뭐라고 말하면 좋을까?",
+                "임시 답변",
+                has_history=True,
+                history=history,
+            )
+            for character in ("마석도", "토니 스타크", "헤르미온느", "골룸", "엘사")
+        ]
+        self.assertEqual(5, len(set(answers)))
+        self.assertTrue(all("발표" in answer and "내일" in answer for answer in answers))
+
+    def test_listen_only_preserves_representative_character_voices(self):
+        answers = [
+            enforce_dialogue_policy(
+                character,
+                "해결책보다 그냥 내 얘기 좀 들어줘.",
+                "임시 답변",
+            )
+            for character in ("마석도", "토니 스타크", "헤르미온느", "골룸", "엘사")
+        ]
+        self.assertEqual(5, len(set(answers)))
+        self.assertTrue(all("?" not in answer for answer in answers))
+
+    def test_emotional_followup_limits_rhetorical_questions(self):
+        answer = enforce_dialogue_policy(
+            "골룸",
+            "상사가 내일 다시 얘기하자고 해서 불안해.",
+            "그 사람이 말한 거구나? 그래서 마음이 떨리는 거야?",
+            has_history=True,
+            history=[{"role": "user", "content": "오늘 회사 발표에서 실수했어."}],
+        )
+        self.assertEqual(1, answer.count("?"))
+        self.assertIn("그 사람이 말한 거구나.", answer)
+
+    def test_safe_generated_listening_reply_is_not_flattened(self):
+        answer = enforce_dialogue_policy(
+            "데드풀",
+            "조언 말고 일단 들어줘.",
+            "오늘은 농담도 접어둘게. 네 얘기부터 들을게.",
+        )
+        self.assertEqual("오늘은 농담도 접어둘게. 네 얘기부터 들을게.", answer)
+
+    def test_history_emotion_does_not_fall_back_to_reasking_context(self):
+        answer = enforce_dialogue_policy(
+            "피터 파커",
+            "그 회사에서 내일 통화하자는데 또 망칠까 봐 불안해.",
+            "면접에 이어 내일 통화까지 있으니 긴장될 만해. 어떤 부분이 걱정돼?",
+            has_history=True,
+            history=[{"role": "user", "content": "오늘 면접에서 말을 못했어."}],
+        )
+        self.assertIn("내일 통화", answer)
+        self.assertNotIn("무슨 일 있었어", answer)
+
+    def test_grounded_generated_wording_is_not_replaced(self):
+        answer = enforce_dialogue_policy(
+            "스티브 로저스",
+            "전화 받으면 첫마디를 어떻게 하면 좋을까?",
+            "안녕하세요, 어제 면접에 이어 연락 주셔서 감사합니다.",
+            has_history=True,
+            history=[{"role": "user", "content": "회사에서 내일 통화하자고 했어."}],
+        )
+        self.assertEqual("안녕하세요, 어제 면접에 이어 연락 주셔서 감사합니다.", answer)
+
+    def test_unquoted_instruction_is_replaced_with_actual_wording(self):
+        answer = enforce_dialogue_policy(
+            "이순신",
+            "싸우지 않고 선을 긋고 싶은데 뭐라고 말할까?",
+            "상대에게 불편함을 분명히 전달해라. 이렇게 말해 보아라.",
+            has_history=True,
+            history=[{"role": "user", "content": "친구가 내 물건을 허락 없이 가져갔어."}],
+        )
+        self.assertIn("“", answer)
+        self.assertRegex(answer, r"허락|먼저|물어")
+
+    def test_unclosed_generated_quote_is_repaired(self):
+        answer = enforce_dialogue_policy(
+            "원더우먼",
+            "싸우지 않고 선을 긋고 싶은데 뭐라고 말할까?",
+            "이렇게 말해 보세요. “내 물건을 허락 없이 가져가서 속상해.",
+            has_history=True,
+            history=[{"role": "user", "content": "친구가 내 물건을 가져갔어."}],
+        )
+        self.assertEqual(answer.count("“"), answer.count("”"))
+
+    def test_unsafe_listening_metaphor_uses_character_fallback(self):
+        answer = enforce_dialogue_policy(
+            "데드풀",
+            "판단하지 말고 내 얘기만 들어줘.",
+            "내 몸이 잘려 나가는 것보다 짜릿하네. 입 닥치고 들어줄게.",
+        )
+        self.assertIn("과장도 접어둘게", answer)
+        self.assertNotIn("잘려", answer)
+        self.assertNotIn("입 닥", answer)
+
+    def test_invented_boss_motive_is_not_preserved(self):
+        answer = enforce_dialogue_policy(
+            "할리 퀸",
+            "상사가 내일 다시 얘기하자고 해서 불안해.",
+            "그 상사는 일부러 네 기를 빼려고 작정한 거야.",
+            has_history=True,
+            history=[{"role": "user", "content": "오늘 발표에서 실수했어."}],
+        )
+        self.assertIn("의도인지는 아직 모르", answer)
+        self.assertNotIn("작정", answer)
+
+    def test_invented_friend_motive_is_not_preserved(self):
+        answer = enforce_dialogue_policy(
+            "고광렬",
+            "친구는 별일 아니라는 듯 행동해서 더 화가 나.",
+            "뻔히 알면서도 모르는 척하는 태도가 사람을 미치게 만드는 거야.",
+            has_history=True,
+            history=[{"role": "user", "content": "친구가 내 비밀을 퍼뜨렸어."}],
+        )
+        self.assertRegex(answer, r"알 수 없어|불분명|추측|확인|근거|가정|정해")
+        self.assertNotIn("뻔히 알면서", answer)
+
+    def test_spaced_anger_limits_questions(self):
+        answer = enforce_dialogue_policy(
+            "네오",
+            "친구가 태연하게 행동해서 더 화가 나.",
+            "배신감을 외면하는 것 같아서 화가 나는 건가요? 일부러 그러는 것 같나요?",
+            has_history=True,
+            history=[{"role": "user", "content": "친구가 비밀을 퍼뜨렸어."}],
+        )
+        self.assertLessEqual(answer.count("?"), 1)
 
     def test_study_not_started_is_not_treated_as_wrong_answers(self):
         answer = enforce_dialogue_policy(

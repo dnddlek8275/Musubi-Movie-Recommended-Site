@@ -20,11 +20,18 @@ _MOVIE_CONTEXT = re.compile(
 _FOLLOWUP = re.compile(
     r"너무\s*(?:무겁|무거|어둡|어두|우울|슬프|슬퍼|무섭|무서|잔인|폭력적|길|오래됐)|"
     r"(?:좀\s*)?더\s*(?:밝|가볍|가벼|유쾌|최신|최근|짧|재밌)|"
-    r"다른\s*(?:거|걸|영화|작품)|별로|마음에\s*안|싫어|싫다|말고|빼줘|제외",
+    r"다른\s*(?:거|걸|영화|작품)|별로|마음에\s*안|싫어|싫다|말고|빼줘|제외|"
+    r"\d{4}\s*년?\s*(?:이후|이전|부터|까지|이상|이하)?\s*만|"
+    r"평점\s*\d+(?:\.\d+)?\s*(?:점|이상|이하)?\s*만?|"
+    r"(?:한국어|영어|일본어|중국어|프랑스어)\s*(?:영화|작품)?\s*만",
     re.IGNORECASE,
 )
 _NEGATED_GENRE = re.compile(
     rf"({_GENRE_ALT})(?:는|은|이|가|를|을)?\s*(?:싫|말고|빼|제외)",
+    re.IGNORECASE,
+)
+_COORDINATED_NEGATED_GENRES = re.compile(
+    rf"({_GENRE_ALT})(?:와|과|,)\s*({_GENRE_ALT})(?:는|은|이|가|를|을)?\s*(?:싫|말고|빼|제외)",
     re.IGNORECASE,
 )
 _QUOTED_TITLE = re.compile(r"['‘’\"“”]([^'‘’\"“”]{1,80})['‘’\"“”]")
@@ -46,6 +53,31 @@ def _recent_movie_request(history: list[dict] | None) -> str:
         if _MOVIE_CONTEXT.search(content):
             return content
     return ""
+
+
+def _recommendation_thread_request(history: list[dict] | None) -> str:
+    """Rebuild the active recommendation request, including chained refinements."""
+    items = list(history or [])
+    root_index = None
+    for index in range(len(items) - 1, -1, -1):
+        item = items[index]
+        if item.get("role") != "user":
+            continue
+        content = str(item.get("content") or "").strip()
+        if _MOVIE_CONTEXT.search(content) and not _FOLLOWUP.search(content):
+            root_index = index
+            break
+    if root_index is None:
+        return _recent_movie_request(history)
+
+    messages = [str(items[root_index].get("content") or "").strip()]
+    for item in items[root_index + 1:]:
+        if item.get("role") != "user":
+            continue
+        content = str(item.get("content") or "").strip()
+        if content and _FOLLOWUP.search(content):
+            messages.append(content)
+    return " ".join(messages)
 
 
 def is_movie_recommendation_followup(user_message: str, history: list[dict] | None) -> bool:
@@ -75,12 +107,16 @@ def build_recommendation_context(
     history: list[dict] | None,
 ) -> RecommendationContext:
     excluded_genres = []
+    for match in _COORDINATED_NEGATED_GENRES.finditer(user_message):
+        for genre in match.groups():
+            if genre not in excluded_genres:
+                excluded_genres.append(genre)
     for match in _NEGATED_GENRE.finditer(user_message):
         genre = match.group(1)
         if genre not in excluded_genres:
             excluded_genres.append(genre)
 
-    previous_request = _recent_movie_request(history)
+    previous_request = _recommendation_thread_request(history)
     followup = bool(previous_request and _FOLLOWUP.search(user_message))
     if not followup:
         return RecommendationContext(

@@ -13,6 +13,7 @@ Musubi FastAPI AI API
 
 from __future__ import annotations
 import json
+import os
 import re
 from typing import Literal, Optional
 
@@ -26,6 +27,7 @@ from api.admission import AIAdmissionMiddleware
 
 from pipeline.intent import classify, Intent
 from pipeline.character_pipeline import (
+    character_lore_fact_reply,
     run as character_run,
     run_auto as character_auto_run,
     run_group,
@@ -330,7 +332,7 @@ def health():
 
     # Milvus
     try:
-        mc = MilvusClient(uri="http://localhost:19530")
+        mc = MilvusClient(uri=os.getenv("CINEVERSE_MILVUS_URI", "http://localhost:19530"))
         cols = mc.list_collections()
         components["milvus"] = f"ok ({len(cols)} collections)"
     except Exception as e:
@@ -561,7 +563,7 @@ def chat_title(req: ChatTitleRequest):
             },
         ],
         max_tokens=48,
-        temperature=0.1,
+        profile="structured",
         grammar=grammar,
     )
 
@@ -733,6 +735,14 @@ def chat_stream(req: ChatRequest):
 
         return StreamingResponse(identity_event_generator(), media_type="text/event-stream")
 
+    lore_fact_reply = character_lore_fact_reply(character_name, req.message)
+    if lore_fact_reply:
+        def lore_fact_event_generator():
+            yield f"data: {json.dumps(lore_fact_reply, ensure_ascii=False)}\n\n"
+            yield "data: [DONE]\n\n"
+
+        return StreamingResponse(lore_fact_event_generator(), media_type="text/event-stream")
+
     intent = classify(req.message, history=req.history)
     if intent == Intent.MOVIE_RECOMMEND:
         result = movie_run(
@@ -797,7 +807,7 @@ def chat_stream(req: ChatRequest):
 
     def event_generator():
         try:
-            raw = "".join(llm_stream(messages, max_tokens=512, temperature=0.6))
+            raw = "".join(llm_stream(messages, max_tokens=512, profile="character_chat"))
             answer = clean_and_truncate(raw, character_name) or "..."
             answer = enforce_dialogue_policy(
                 character_name,

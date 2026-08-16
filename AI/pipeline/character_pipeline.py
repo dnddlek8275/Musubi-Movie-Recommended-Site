@@ -12,9 +12,12 @@ from pipeline.tone_presets import (
     build_identity_reply,
     build_recovery_reply,
     build_turn_guidance,
+    current_activity_reply,
     enforce_dialogue_policy,
     has_generic_self_help,
     is_character_relation_question,
+    is_listen_only_request,
+    is_safe_listening_answer,
     mentioned_characters,
 )
 from pipeline.input_clarity import (
@@ -69,6 +72,21 @@ CHARACTER_ALIASES = {
     "스네이프":     "세베루스 스네이프",
     "덤블도어":     "알버스 덤블도어",
 }
+
+
+# 사용자가 직접 확인해 제공한, 답이 명확한 핵심 원작 사실만 다룬다.
+# 불확실한 내용을 모델 지식에 맡기거나 관계 RAG로 오분류하지 않도록
+# 캐릭터와 질문 조건이 모두 맞을 때만 짧은 검증 답변을 반환한다.
+def character_lore_fact_reply(character_name: str, user_message: str) -> str | None:
+    normalized = " ".join(str(user_message or "").split())
+    if (
+        character_name == "우디"
+        and re.search(r"신발|부츠", normalized)
+        and re.search(r"밑|바닥", normalized)
+        and re.search(r"이름|누구|적(?:혀|힌|혀진)", normalized)
+    ):
+        return "앤디야. 내 부츠 밑에는 내 주인 앤디의 이름이 적혀 있어."
+    return None
 
 
 # 대표성이 아주 강한 아이템/능력만 우선 등록 (전체 50인 전수 작업은 아님).
@@ -1104,6 +1122,20 @@ def run(character_name, user_message, history=None, use_rag=True, max_tokens=512
             answer=identity_override_reply,
             rag_used=False,
         )
+    lore_fact_reply = character_lore_fact_reply(character_name, user_message)
+    if lore_fact_reply:
+        return CharacterChatResult(
+            character=character_name,
+            answer=lore_fact_reply,
+            rag_used=False,
+        )
+    activity_reply = current_activity_reply(user_message)
+    if activity_reply:
+        return CharacterChatResult(
+            character=character_name,
+            answer=activity_reply,
+            rag_used=False,
+        )
     ambiguous_reply = get_ambiguous_input_reply(user_message)
     if ambiguous_reply:
         recovery = get_input_recovery(user_message)
@@ -1118,7 +1150,10 @@ def run(character_name, user_message, history=None, use_rag=True, max_tokens=512
             answer=build_recovery_reply(character_name),
             rag_used=False,
         )
-    system_prompt = build_system_prompt(character_name=character_name, chat_mode="single", profiles=profiles, example_count=0, compact=True)
+    # Two profile examples materially improve voice separation across the 50
+    # characters. Latency is intentionally not optimized at the expense of
+    # character fidelity in this path.
+    system_prompt = build_system_prompt(character_name=character_name, chat_mode="single", profiles=profiles, example_count=2, compact=True)
     rag_used = False
     rag_context = ""
     relation_names = _relation_names_from_context(
@@ -1163,8 +1198,26 @@ def run(character_name, user_message, history=None, use_rag=True, max_tokens=512
         "role": "user",
         "content": user_message + "\n\n" + build_turn_guidance(user_message, history) + _ANSWER_NOW_REMINDER,
     })
-    raw = chat(messages, max_tokens=max_tokens, temperature=0.6)
+    raw = chat(messages, max_tokens=max_tokens, profile="character_chat")
     answer = clean_and_truncate(raw, character_name)
+
+    if is_listen_only_request(user_message) and not is_safe_listening_answer(answer):
+        retry_messages = [dict(message) for message in messages]
+        retry_messages[-1] = {
+            **retry_messages[-1],
+            "content": retry_messages[-1]["content"] + (
+                "\n\n[경청 답변 재생성 조건]\n"
+                "질문, 물음표, 해결책, 교훈 없이 한두 문장으로만 답한다. "
+                "프로필의 말투와 고유 어휘를 한 가지 반영하되 폭력·모욕·원작 사건은 쓰지 않는다. "
+                "사용자의 말을 되풀이하지 말고 지금 듣고 있다는 뜻만 자연스럽게 전한다."
+            ),
+        }
+        retried = clean_and_truncate(
+            chat(retry_messages, max_tokens=min(max_tokens, 180), profile="character_chat"),
+            character_name,
+        )
+        if is_safe_listening_answer(retried):
+            answer = retried
 
     if answer:
         answer = _strip_identity_bleed(answer, character_name)

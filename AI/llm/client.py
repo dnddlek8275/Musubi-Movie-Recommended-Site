@@ -7,26 +7,16 @@ import json
 import os
 import requests
 
+from llm.sampling import DEFAULT_PARAMS, sampling_params
+
 LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "http://localhost:8081")
 LLM_MODEL    = os.environ.get("LLM_MODEL", "gemma-4-12b-it.Q4_K_M.gguf")
 LLM_TIMEOUT  = int(os.environ.get("LLM_TIMEOUT", "300"))
 
-DEFAULT_PARAMS = {
-    "temperature":    0.75,   # 0.7→0.75: 자기계발서 투 탈출, 약간 더 유연한 표현
-    "top_p":          0.92,   # 0.9→0.92: 후보 토큰 풀 소폭 확대
-    "top_k":          50,     # 40→50: 동일 목적
-    "min_p":          0.05,
-    "repeat_penalty": 1.1,    # 1.15→1.1: 과도한 반복 억제 완화 (자연스러운 반복 허용)
-    # 이 파인튜닝 모델은 답변 전에 내부적으로 레거시 Gemma user 턴을
-    # 생성하기도 한다. end_of_turn을 stop으로 보내면 실제 model 답변 전에
-    # 생성이 끝나므로 llama.cpp 템플릿의 정식 턴 종료 토큰만 사용한다.
-    "stop": ["<turn|>", "<|turn>"],
-}
-
-
 def chat(
     messages: list[dict],
     max_tokens: int = 1024,
+    profile: str | None = None,
     **kwargs,
 ) -> str:
     """
@@ -44,8 +34,7 @@ def chat(
         "model": LLM_MODEL,
         "messages": messages,
         "max_tokens": max_tokens,
-        **DEFAULT_PARAMS,
-        **kwargs,
+        **sampling_params(profile, **kwargs),
     }
 
     try:
@@ -86,6 +75,7 @@ def chat(
 def chat_stream(
     messages: list[dict],
     max_tokens: int = 1024,
+    profile: str | None = None,
     **kwargs,
 ):
     """
@@ -99,8 +89,7 @@ def chat_stream(
         "messages": messages,
         "max_tokens": max_tokens,
         "stream": True,
-        **DEFAULT_PARAMS,
-        **kwargs,
+        **sampling_params(profile, **kwargs),
     }
 
     try:
@@ -148,6 +137,6 @@ def chat_json(
     return chat(
         messages,
         max_tokens=max_tokens,
-        temperature=0.1,
+        profile="structured",
         **kwargs,
     )

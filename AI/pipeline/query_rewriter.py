@@ -28,7 +28,7 @@ _ACTOR_PATTERNS = re.compile(
 
 _GENRE_MAP = {
     "액션": "액션", "action": "액션",
-    "로맨스": "로맨스", "romance": "로맨스", "멜로": "로맨스",
+    "로맨스": "로맨스", "로맨틱": "로맨스", "romance": "로맨스", "멜로": "로맨스",
     "공포": "공포", "horror": "공포", "호러": "공포",
     "코미디": "코미디", "comedy": "코미디", "웃긴": "코미디",
     "스릴러": "스릴러", "thriller": "스릴러",
@@ -42,11 +42,15 @@ _GENRE_MAP = {
     "역사": "역사", "historical": "역사",
     "미스터리": "미스터리", "mystery": "미스터리",
     "뮤지컬": "뮤지컬", "musical": "뮤지컬",
+    "음악": "음악", "music": "음악",
+    "가족": "가족", "family": "가족",
 }
 _GENRE_PATTERN = re.compile(
-    r"\b(" + "|".join(re.escape(k) for k in _GENRE_MAP) + r")\b",
+    r"(?<![가-힣A-Za-z])(" + "|".join(re.escape(k) for k in _GENRE_MAP) +
+    r")(?:이|가|은|는|을|를|과|와|도|랑)?(?![가-힣A-Za-z])",
     re.IGNORECASE,
 )
+_MUSIC_GENRE_PATTERN = re.compile(r"음악(?:이|을|과|도|이랑)?|\bmusic\b", re.IGNORECASE)
 
 _YEAR_RANGE  = re.compile(r"(\d{4})\s*[-~]\s*(\d{4})")
 _YEAR_AFTER  = re.compile(r"(\d{4})\s*년?\s*(?:이후|부터|이상)")
@@ -64,7 +68,22 @@ _MOOD_HINT_PATTERN = re.compile(
     r"가볍게|가벼운|유쾌|웃긴|재밌는|부담\s*없이|편하게|머리\s*비우고|힐링|"
     r"감동|뭉클|눈물\s*나는|마음\s*따뜻|우울할\s*때|기분\s*전환|"
     r"기분이?\s*(?:안\s*좋|별로)|기운\s*없|데이트|연인|커플|"
-    r"아이와|아이랑|아이하고|어린이와|어린이랑|자녀와|온\s*가족"
+    r"(?:밝|유쾌|설레).*?(?:로맨스|멜로)|(?:로맨스|멜로).*?(?:밝|유쾌|설레)|"
+    r"아이와|아이랑|아이하고|어린이와|어린이랑|자녀와|온\s*가족|"
+    r"유치원생|미취학|초등생|초등학생|아동|(?:어린|어린이|초등생|초등학생)\s*조카|조카(?:랑|와|하고)|"
+    r"보고\s*나면\s*기분(?:이)?\s*(?:좋|나아)|기분\s*좋아지는|행복해지|"
+    r"기분이?\s*(?:좀\s*)?나아|기분\s*좋게|기운을?\s*북돋|우울한?\s*기분을?\s*털어|"
+    r"마음이?\s*환해|긍정적인?\s*에너지|희망적인|"
+    r"(?:같이\s*)?얘기할\s*거리|생각할\s*거리|토론할\s*거리|토론하기\s*좋|"
+    r"대화\s*나누기\s*좋|곱씹|철학적|해석할\s*거리|여러\s*해석|결말.*의견이?\s*갈|"
+    r"인간과?\s*사회.*질문|"
+    r"(?:너무\s*)?(?:슬픈|슬프|슬퍼).*?(?:싫|말고|빼|제외)|슬프지\s*않|"
+    r"울적하게.*말고|눈물.*말고|비극적인?.*(?:제외|말고|빼)|이별.*없는|"
+    r"마음\s*아픈.*싫|새드\s*엔딩\s*아닌|(?:무겁고\s*)?우울한.*(?:빼|말고|제외)|"
+    r"(?:어른|성인)(?:이|도|들이?)?\s*(?:봐|보).*?(?:유치하지\s*않|애니)|"
+    r"성인이?\s*보기\s*좋은\s*애니|아이들용\s*말고\s*어른.*애니|"
+    r"(?:주제가?\s*)?성숙한\s*애니|성인용\s*애니|아동\s*애니\s*말고\s*깊이|"
+    r"어른\s*취향.*애니|사회적인?\s*주제.*애니|유치하지\s*않고.*애니|성인\s*관객.*애니"
 )
 _GENERIC_RECOMMENDATION_WORDS = re.compile(r"추천|골라|뭐\s*볼|볼\s*만한")
 _GENERIC_RECOMMENDATION_FILLER = re.compile(
@@ -83,7 +102,7 @@ _GENRE_NORMALIZE = {
     "comedy": "코미디", "thriller": "스릴러", "fantasy": "판타지",
     "animation": "애니메이션", "documentary": "다큐멘터리", "drama": "드라마",
     "crime": "범죄", "war": "전쟁", "history": "역사", "historical": "역사",
-    "mystery": "미스터리", "musical": "뮤지컬",
+    "mystery": "미스터리", "musical": "뮤지컬", "music": "음악", "family": "가족",
 }
 
 
@@ -91,7 +110,7 @@ def _regex_extract(text: str) -> dict:
     """regex로 필드 빠르게 추출. 없으면 None."""
     result = {
         "search_query": text,
-        "genre": None, "actor": None, "director": None,
+        "genre": None, "required_genres": [], "actor": None, "director": None,
         "language": None, "year_from": None, "year_to": None, "min_rating": None,
         "sort_latest": bool(re.search(r"최신|최근\s*개봉|새로\s*개봉|신작", text)),
         # 조건 없이 분위기만 말한 추천은 의미 유사도만으로 고르면 오래되고
@@ -112,9 +131,16 @@ def _regex_extract(text: str) -> dict:
         result["director"] = m.group(1).strip()
 
     # 장르
-    m = _GENRE_PATTERN.search(text)
-    if m:
-        result["genre"] = _GENRE_MAP.get(m.group(1).lower(), m.group(1))
+    genres = []
+    for match in _GENRE_PATTERN.finditer(text):
+        genre = _GENRE_MAP.get(match.group(1).lower(), match.group(1))
+        if genre not in genres:
+            genres.append(genre)
+    if _MUSIC_GENRE_PATTERN.search(text) and "음악" not in genres:
+        genres.append("음악")
+    if genres:
+        result["genre"] = genres[0]
+        result["required_genres"] = genres
 
     # 연도 범위 (우선순위: 범위 > 이후/이전(개방형) > 년대 > 단일)
     m = _YEAR_RANGE.search(text)

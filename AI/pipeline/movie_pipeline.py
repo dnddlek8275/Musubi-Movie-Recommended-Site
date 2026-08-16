@@ -114,11 +114,12 @@ def _rewrite_grounded_answer(
     raw = chat(
         messages,
         max_tokens=min(max_tokens, 384),
-        temperature=0.25,
-        top_p=0.8,
-        top_k=30,
+        profile="grounded_recommendation",
     )
-    polished = _restore_recommended_movie_titles(str(raw or "").strip(), movies)
+    # 일반 추천도 캐릭터 답변과 동일한 출력 정제를 거쳐 Gemma 채널명이나
+    # 선두 ``thought`` 라벨이 사용자 응답에 노출되지 않게 한다.
+    polished = clean_and_truncate(raw, "", max_sentences=4)
+    polished = _restore_recommended_movie_titles(polished, movies)
     polished = enforce_general_polite_answer(polished, movies)
     if polished.startswith("다음 영화들을 골라봤어요."):
         return ""
@@ -174,9 +175,7 @@ def _rewrite_character_grounded_answer(
     raw = chat(
         messages,
         max_tokens=min(max_tokens, 384),
-        temperature=0.45,
-        top_p=0.85,
-        top_k=40,
+        profile="character_recommendation",
     )
     polished = clean_and_truncate(raw, character_name)
     return _restore_recommended_movie_titles(polished, movies)
@@ -222,8 +221,13 @@ def run(user_message, character_name=None, history=None, top_k=3, max_tokens=102
     recommendation_context = build_recommendation_context(user_message, history)
     rewritten = rewrite(recommendation_context.search_message)
     timing_rewrite = time.perf_counter()
+    required_genres = [
+        genre for genre in rewritten.get("required_genres") or []
+        if genre not in recommendation_context.excluded_genres
+    ]
+    rewritten["required_genres"] = required_genres
     if rewritten.get("genre") in recommendation_context.excluded_genres:
-        rewritten["genre"] = None
+        rewritten["genre"] = required_genres[0] if required_genres else None
     search_q = rewritten.get("search_query", user_message)
     topic = rewritten.get("topic")
     personalization = preference_search_terms(user_context)
@@ -239,6 +243,7 @@ def run(user_message, character_name=None, history=None, top_k=3, max_tokens=102
         year_from=rewritten.get("year_from"), year_to=rewritten.get("year_to"),
         min_rating=rewritten.get("min_rating"),
         exclude_genres=recommendation_context.excluded_genres,
+        required_genres=rewritten.get("required_genres") or [],
     )
     print(f"  [MoviePipeline] search_query='{search_q}' filters={filters}")
     sort_latest = bool(rewritten.get("sort_latest"))
@@ -259,13 +264,16 @@ def run(user_message, character_name=None, history=None, top_k=3, max_tokens=102
         topic=topic,
     )
     requested_genre = str(rewritten.get("genre") or "").strip() or None
-    movies = filter_movies_by_requested_genre(movies, requested_genre)
+    requested_genres = rewritten.get("required_genres") or ([requested_genre] if requested_genre else [])
+    for genre in requested_genres:
+        movies = filter_movies_by_requested_genre(movies, genre)
     if not movies and requested_genre:
         # An explicit genre is a hard constraint. A retry may simplify the query,
         # but it must not silently broaden the result to unrelated genres.
         fallback_filters = MovieFilter(
             genre=requested_genre,
             exclude_genres=recommendation_context.excluded_genres,
+            required_genres=requested_genres,
         )
         movies = retrieve(
             f"{requested_genre} 영화",
@@ -277,7 +285,8 @@ def run(user_message, character_name=None, history=None, top_k=3, max_tokens=102
             quality_weight=quality_weight,
             topic=topic,
         )
-        movies = filter_movies_by_requested_genre(movies, requested_genre)
+        for genre in requested_genres:
+            movies = filter_movies_by_requested_genre(movies, genre)
     elif not movies:
         fallback_filters = MovieFilter(exclude_genres=recommendation_context.excluded_genres)
         movies = retrieve(

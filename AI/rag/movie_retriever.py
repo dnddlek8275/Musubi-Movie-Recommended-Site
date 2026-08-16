@@ -20,11 +20,14 @@ from rag.movie_quality import (
     blend_semantic_and_quality,
     expand_mood_query,
     prefer_evidenced_candidates,
+    prefer_bright_candidates,
+    prefer_explainable_candidates,
+    prefer_non_sad_candidates,
     prefer_well_received_candidates,
 )
 from pipeline.topic_grounding import filter_topic_candidates
 
-MILVUS_URI      = "http://localhost:19530"
+MILVUS_URI      = os.getenv("CINEVERSE_MILVUS_URI", "http://localhost:19530")
 COLLECTION_NAME = os.getenv("MOVIE_COLLECTION_NAME", "movies_active")
 RERANK_CANDIDATE_MULTIPLIER = max(
     1, int(os.getenv("RERANK_CANDIDATE_MULTIPLIER", "2"))
@@ -53,11 +56,16 @@ class MovieFilter:
     year_to:    int | None   = None
     min_rating: float | None = None
     exclude_genres: list[str] = field(default_factory=list)
+    required_genres: list[str] = field(default_factory=list)
 
     def to_expr(self) -> str | None:
         filters = []
         if self.genre:
             filters.append(f'genres like "%{self.genre}%"')
+        for genre in self.required_genres:
+            if genre and genre != self.genre:
+                safe_genre = str(genre).replace('"', '\\"')
+                filters.append(f'genres like "%{safe_genre}%"')
         if self.actor:
             filters.append(f'cast like "%{self.actor}%"')
         if self.director:
@@ -78,7 +86,9 @@ class MovieFilter:
 
 @lru_cache(maxsize=1)
 def get_client() -> MilvusClient:
-    return MilvusClient(uri=MILVUS_URI)
+    client = MilvusClient(uri=MILVUS_URI)
+    client.load_collection(COLLECTION_NAME)
+    return client
 
 
 def retrieve(
@@ -150,9 +160,15 @@ def retrieve(
     candidates = filter_topic_candidates(candidates, topic)
     if topic and not candidates:
         return []
+    # A latest-first request must still have enough real-user evidence. Raw
+    # ratings from one or two votes otherwise dominate the date sort despite
+    # providing no reliable recommendation signal.
+    candidates = prefer_evidenced_candidates(candidates, required=required)
     if not sort_latest:
         candidates = apply_query_preferences(query, candidates, required=required)
-        candidates = prefer_evidenced_candidates(candidates, required=required)
+        candidates = prefer_explainable_candidates(query, candidates, required=required)
+        candidates = prefer_non_sad_candidates(query, candidates, required=required)
+        candidates = prefer_bright_candidates(query, candidates, required=required)
         candidates = prefer_well_received_candidates(query, candidates, required=required)
 
     if sort_latest:
@@ -182,6 +198,7 @@ def retrieve(
             ranked,
             top_k=top_k,
             quality_weight=max(0.0, min(float(quality_weight), 1.0)),
+            query=query,
         )
 
     # 내부 점수 필드 제거 후 반환

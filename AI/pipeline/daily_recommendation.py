@@ -61,5 +61,5 @@ def generate_daily_copy(genre: str, movies: list[dict]) -> str:
             ),
         },
     ]
-    raw = chat(messages, max_tokens=96, temperature=0.25, top_p=0.8, top_k=30)
+    raw = chat(messages, max_tokens=96, profile="grounded_recommendation")
     return validate_daily_copy(raw, genre, movies) or fallback_daily_copy(genre)

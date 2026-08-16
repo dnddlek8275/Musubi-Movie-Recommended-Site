@@ -25,6 +25,7 @@ _ROLE_MARKER = re.compile(
     r"(?:<\|?user\|?>|<start_of_turn>\s*user|^\s*user\s*:|^\s*사용자\s*:)",
     re.IGNORECASE,
 )
+_MARKUP_ARTIFACT = re.compile(r"<\/?[A-Za-z][^>]*>|\bstyle\s*=", re.IGNORECASE)
 _GENERATED_USER_META_QUESTION = re.compile(
     r"^(?:너|당신)(?:는|은|가)?\s*(?:내|나의)\s*(?:질문|말|요청)(?:을|를)?\s*"
     r".{0,12}(?:기억|이해|알고|들었).{0,25}[?？]?$",
@@ -54,6 +55,8 @@ def output_rejection_reason(answer: str, user_message: str) -> str | None:
         return "empty_output"
     if _ROLE_MARKER.search(text):
         return "user_role_marker"
+    if _MARKUP_ARTIFACT.search(text):
+        return "markup_artifact"
     if len(text) <= 80 and _USER_ROLE_REQUEST.fullmatch(text):
         return "generated_user_request"
     normalize = lambda value: re.sub(r"[^0-9A-Za-z가-힣]+", "", str(value or "")).casefold()

@@ -14,9 +14,9 @@ from pymilvus import MilvusClient, AnnSearchRequest, RRFRanker
 from FlagEmbedding import BGEM3FlagModel
 from sentence_transformers import CrossEncoder
 
-MILVUS_URI = "http://localhost:19530"
+MILVUS_URI = os.getenv("CINEVERSE_MILVUS_URI", "http://localhost:19530")
 MOVIE_COLLECTION_NAME = os.getenv("MOVIE_COLLECTION_NAME", "movies_active")
-CHARACTER_COLLECTION_NAME = os.getenv("CHARACTER_COLLECTION_NAME", "characters_verified_v4")
+CHARACTER_COLLECTION_NAME = os.getenv("CHARACTER_COLLECTION_NAME", "characters_verified_v5")
 BGE_MODEL_NAME = "BAAI/bge-m3"
 RERANKER_MODEL_NAME = "BAAI/bge-reranker-v2-m3"
 
@@ -33,7 +33,10 @@ def get_reranker() -> CrossEncoder:
 
 @lru_cache(maxsize=1)
 def get_client() -> MilvusClient:
-    return MilvusClient(uri=MILVUS_URI)
+    client = MilvusClient(uri=MILVUS_URI)
+    client.load_collection(MOVIE_COLLECTION_NAME)
+    client.load_collection(CHARACTER_COLLECTION_NAME)
+    return client
 
 
 def embed_query(query: str) -> tuple[list[float], dict]:
