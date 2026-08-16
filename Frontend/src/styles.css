@@ -64,13 +64,13 @@ textarea {
 }
 
 .app-shell {
-  width: 100%;
-  min-width: 0;
+  width: 1920px;
   min-height: 100vh;
+  zoom: var(--page-scale, 1);
 }
 
 .page {
-  width: min(1620px, calc(100% - 96px));
+  width: 1620px;
   margin: 0 auto;
   padding: 25px 0 46px;
 }
@@ -98,13 +98,12 @@ textarea {
   }
 }
 
-@media (max-width: 1200px) {
-  .page {
-    width: calc(100% - 56px);
-  }
-}
-
 @media (max-width: 768px) {
+  .app-shell {
+    width: 100%;
+    zoom: 1;
+  }
+
   .page {
     width: 100%;
     padding: 16px 16px 36px;

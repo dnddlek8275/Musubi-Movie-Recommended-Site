@@ -27,6 +27,10 @@ const Recommendation = lazy(() => import('./components/recomendation/recomendati
 const SignupPage = lazy(() => import('./components/signup/SignupPage.jsx'));
 const UserActivityPage = lazy(() => import('./components/userActivity/UserActivityPage.jsx'));
 
+const DESIGN_WIDTH = 1920;
+// 모바일에서는 축소 캔버스 대신 실제 1열 반응형 레이아웃을 사용한다.
+const MOBILE_BREAKPOINT = 768;
+
 function PageLoadFallback() {
   return (
     <main
@@ -167,12 +171,34 @@ function App() {
   }, []);
 
   useLayoutEffect(() => {
+    const updateScale = () => {
+      document.body.style.height = 'auto';
+
+      if (window.innerWidth <= MOBILE_BREAKPOINT) {
+        document.documentElement.style.setProperty('--page-scale', '1');
+        return;
+      }
+
+      // 1920px 시안은 작은 데스크톱 화면에 맞춰 축소하되,
+      // 1920px보다 큰 화면에서 UI가 불필요하게 확대되지는 않게 한다.
+      const scale = Math.min(1, window.innerWidth / DESIGN_WIDTH);
+      document.documentElement.style.setProperty('--page-scale', String(scale));
+    };
+
     const platform = String(
       navigator.userAgentData?.platform || navigator.platform || navigator.userAgent || ''
     ).toLowerCase();
     document.documentElement.dataset.clientPlatform = platform.includes('win')
       ? 'windows'
       : 'default';
+
+    updateScale();
+    window.addEventListener('resize', updateScale);
+
+    return () => {
+      window.removeEventListener('resize', updateScale);
+      document.body.style.height = 'auto';
+    };
   }, []);
 
   const isAdminPage = pathname.startsWith('/admin');
