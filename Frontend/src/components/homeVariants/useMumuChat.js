@@ -12,7 +12,6 @@ import {
 } from '../../api.js';
 
 const STORAGE_KEY = 'cineverse.autochat.conversations';
-const ACTIVE_CONVERSATION_KEY = 'cineverse.autochat.activeConversation';
 
 function readStoredConversations() {
   try {
@@ -21,10 +20,6 @@ function readStoredConversations() {
   } catch (error) {
     return [];
   }
-}
-
-function readStoredActiveId() {
-  return String(window.localStorage.getItem(ACTIVE_CONVERSATION_KEY) || '');
 }
 
 function createConversation(roomId = '') {
@@ -64,6 +59,10 @@ export default function useMumuChat(authUser) {
   const [linkedConversations, setLinkedConversations] = useState([]);
   const abortRef = useRef(null);
   const titleRequestsRef = useRef(new Set());
+  const initialRoomIdRef = useRef(
+    new URLSearchParams(window.location.search).get('room') || '',
+  );
+  const roomEntryHandledRef = useRef(false);
 
   const updateConversation = (conversationId, updater) => {
     setConversations((current) => current.map((conversation) => (
@@ -72,23 +71,20 @@ export default function useMumuChat(authUser) {
   };
 
   useEffect(() => {
-    const searchParams = new URLSearchParams(window.location.search);
-    const roomId = searchParams.get('room') || '';
+    // 개발 모드의 effect 재실행에서도 URL room을 정확히 한 번만 소비한다.
+    if (roomEntryHandledRef.current) return undefined;
+    roomEntryHandledRef.current = true;
+
+    const roomId = initialRoomIdRef.current;
     const stored = authUser ? readStoredConversations() : [];
     const meaningfulStored = stored.filter((item) => (
       Boolean(item.roomId) || (Array.isArray(item.messages) && item.messages.length > 0)
     ));
-    const storedActiveId = readStoredActiveId();
+    // 새로고침하거나 다른 페이지에서 돌아왔을 때는 직전 대화를 자동으로
+    // 펼치지 않는다. URL로 특정 방을 명시한 경우에만 해당 기록을 연다.
     let conversation = roomId
       ? meaningfulStored.find((item) => String(item.roomId) === String(roomId))
-      : meaningfulStored.find((item) => item.id === storedActiveId)
-        || meaningfulStored
-          .slice()
-          .sort((left, right) => (
-            new Date(right.updatedAt || right.createdAt || 0)
-            - new Date(left.updatedAt || left.createdAt || 0)
-          ))[0]
-        || null;
+      : null;
 
     if (!conversation) conversation = createConversation(roomId);
     const nextConversations = meaningfulStored.some((item) => item.id === conversation.id)
@@ -97,6 +93,10 @@ export default function useMumuChat(authUser) {
 
     setConversations(nextConversations);
     setActiveId(conversation.id);
+
+    // 대화 기록에서 넘어온 room 파라미터는 한 번만 소비한다.
+    // 이후 새로고침하면 초기 비활성 화면으로 돌아간다.
+    if (roomId) window.history.replaceState({}, '', window.location.pathname);
 
     if (!authUser || !roomId) return undefined;
 
@@ -196,11 +196,6 @@ export default function useMumuChat(authUser) {
     if (!authUser) return;
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
   }, [authUser, conversations]);
-
-  useEffect(() => {
-    if (!authUser || !activeId) return;
-    window.localStorage.setItem(ACTIVE_CONVERSATION_KEY, activeId);
-  }, [activeId, authUser]);
 
   useEffect(() => {
     if (!authUser) return;

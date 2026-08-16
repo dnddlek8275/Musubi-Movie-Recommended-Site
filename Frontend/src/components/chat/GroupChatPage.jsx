@@ -356,6 +356,10 @@ function GroupChatPage({ authUser, onLogout }) {
   const characterSearchRequestRef = useRef(0);
   const scrollHideTimerRef = useRef(0);
   const visibleScrollbarRef = useRef(null);
+  const initialRoomParamRef = useRef(
+    new URLSearchParams(window.location.search).get('room') || '',
+  );
+  const roomEntryHandledRef = useRef(false);
 
   const showScrollbarWhileScrolling = (event) => {
     const element = event.currentTarget;
@@ -536,8 +540,12 @@ function GroupChatPage({ authUser, onLogout }) {
 
   // 마이페이지 등에서 ?room=<id>&members=<이름들> 로 들어오면 그 방 대화를 이어서 연다.
   useEffect(() => {
+    // 개발 모드의 effect 재실행에서도 URL room을 정확히 한 번만 소비한다.
+    if (roomEntryHandledRef.current) return;
+    roomEntryHandledRef.current = true;
+
     const params = new URLSearchParams(window.location.search);
-    const roomParam = params.get('room');
+    const roomParam = initialRoomParamRef.current;
 
     // 일반 진입에서는 저장된 대화 목록만 유지하고 활성 대화는 복원하지 않는다.
     // 특정 대화를 명시한 room 파라미터가 있을 때만 해당 대화를 연다.
@@ -545,6 +553,10 @@ function GroupChatPage({ authUser, onLogout }) {
       setActiveId('');
       return;
     }
+
+    // 기록에서 전달된 방은 이번 진입에서만 연다. 쿼리를 남겨두면
+    // 새로고침 때 다시 활성화되므로 즉시 기본 경로로 정리한다.
+    window.history.replaceState({}, '', window.location.pathname);
 
     if (!authUser) return;
     const memberNames = (params.get('members') || '')

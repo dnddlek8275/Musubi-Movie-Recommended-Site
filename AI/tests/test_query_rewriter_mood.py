@@ -46,6 +46,56 @@ class QueryRewriterMoodTests(unittest.TestCase):
         result = rewrite("기분이 안 좋을 때 볼 영화 추천해줘")
         self.assertEqual(result["quality_priority"], "mood")
 
+    def test_bedtime_restful_request_skips_llm_and_sets_mood_priority(self):
+        message = "잠들기 전에 편안하게 볼 영화 한 편 추천해줘"
+        result = rewrite(message)
+        self.assertEqual(result["search_query"], message)
+        self.assertEqual(result["quality_priority"], "mood")
+
+    def test_music_with_korean_particle_is_an_explicit_genre(self):
+        result = rewrite("음악이 좋고 보고 나면 기분 좋아지는 영화가 보고 싶어")
+        self.assertEqual(result["genre"], "음악")
+        self.assertEqual(result["quality_priority"], "mood")
+
+    def test_discussion_purpose_is_treated_as_explicit_mood(self):
+        result = rewrite("보고 나서 같이 얘기할 거리가 많은 SF 영화")
+        self.assertEqual(result["quality_priority"], "mood")
+
+    def test_school_age_relative_skips_llm_extraction(self):
+        result = rewrite("초등학생 조카랑 같이 볼 영화 골라줘")
+        self.assertEqual(result["search_query"], "초등학생 조카랑 같이 볼 영화 골라줘")
+        self.assertEqual(result["quality_priority"], "mood")
+
+    def test_avoid_sad_wording_is_explicit_mood(self):
+        result = rewrite("로맨스 영화 추천해줘. 너무 슬픈 건 싫어")
+        self.assertEqual(result["quality_priority"], "mood")
+
+    def test_bright_romance_wording_is_explicit_mood(self):
+        result = rewrite("밝은 로맨스 영화")
+        self.assertEqual(result["quality_priority"], "mood")
+
+    def test_adult_animation_wording_is_explicit_mood(self):
+        result = rewrite("어른이 봐도 유치하지 않은 애니메이션 영화 추천해줘")
+        self.assertEqual(result["genre"], "애니메이션")
+        self.assertEqual(result["quality_priority"], "mood")
+
+    def test_multiple_explicit_genres_are_preserved(self):
+        result = rewrite("음악 코미디 영화 추천해줘")
+        self.assertEqual(result["genre"], "음악")
+        self.assertEqual(result["required_genres"], ["음악", "코미디"])
+
+    def test_romantic_wording_maps_to_romance_in_multi_genre_query(self):
+        result = rewrite("로맨틱 코미디 영화")
+        self.assertEqual(result["required_genres"], ["로맨스", "코미디"])
+
+    def test_korean_particles_do_not_hide_additional_genres(self):
+        result = rewrite("한국 로맨스 중 코미디가 섞인 영화")
+        self.assertEqual(result["required_genres"], ["로맨스", "코미디"])
+
+    def test_family_is_preserved_as_a_structured_genre(self):
+        result = rewrite("가족 애니메이션 영화")
+        self.assertEqual(result["required_genres"], ["가족", "애니메이션"])
+
 
 if __name__ == "__main__":
     unittest.main()

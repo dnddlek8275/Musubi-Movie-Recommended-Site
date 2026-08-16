@@ -324,7 +324,9 @@ function App() {
       navigation={pageData.navigation}
       onLogout={handleLogout}
     >
-      <LazyPage>
+      {/* 경로가 바뀌면 페이지 내부의 일시 상태를 새로 시작한다.
+          채팅을 나갔다 돌아왔을 때 이전 활성 UI가 재사용되는 것을 막는다. */}
+      <LazyPage key={pathname}>
         {userActivityMatch ? (
           <UserActivityPage authUser={authUser} userId={userActivityMatch[1]} />
         ) : personMatch ? (
