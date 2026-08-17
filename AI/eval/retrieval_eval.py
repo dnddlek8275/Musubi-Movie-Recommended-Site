@@ -17,6 +17,7 @@
 """
 
 import json
+import os
 import random
 from pathlib import Path
 
@@ -25,7 +26,7 @@ from pymilvus import MilvusClient
 
 _BASE_DIR = Path(__file__).parent.parent
 API_BASE  = "http://localhost"
-MILVUS_URI = "http://localhost:19530"
+MILVUS_URI = os.getenv("CINEVERSE_MILVUS_URI", "http://localhost:19530")
 
 N_SAMPLES = 60
 QUERY_LEN = 60  # overview 앞부분 몇 글자를 쿼리로 쓸지

@@ -1,0 +1,58 @@
+{
+  "suite_version": "1.0.0",
+  "description": "관람 목적 표현 변형 40개 검색 평가셋. 학습 데이터로 사용하지 않는다.",
+  "thresholds": {
+    "hard_check_pass_rate": 1.0,
+    "critical_failure_count": 0,
+    "exact_duplicate_rate_max": 1.0,
+    "pair_similarity_max": 1.0,
+    "manual_average_min": 4.0,
+    "manual_dimension_min": 3.5
+  },
+  "manual_dimensions": ["relevance", "groundedness"],
+  "cases": [
+    {"id":"feelgood_01","category":"recommendation","endpoint":"/recommend","payload":{"message":"보고 나면 기분 좋아지는 영화 추천해줘"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["코미디","가족","애니메이션","로맨스","모험","음악"],"blocked_genres":["공포"],"overview_required":true}},
+    {"id":"feelgood_02","category":"recommendation","endpoint":"/recommend","payload":{"message":"영화 한 편 보고 기분이 좀 나아졌으면 좋겠어"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["코미디","가족","애니메이션","로맨스","모험","음악"],"blocked_genres":["공포"],"overview_required":true}},
+    {"id":"feelgood_03","category":"recommendation","endpoint":"/recommend","payload":{"message":"행복해지는 영화 세 편 골라줘"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["코미디","가족","애니메이션","로맨스","모험","음악"],"blocked_genres":["공포"],"overview_required":true}},
+    {"id":"feelgood_04","category":"recommendation","endpoint":"/recommend","payload":{"message":"마지막에 기분 좋게 끝나는 영화 보고 싶어"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["코미디","가족","애니메이션","로맨스","모험","음악"],"blocked_genres":["공포"],"overview_required":true}},
+    {"id":"feelgood_05","category":"recommendation","endpoint":"/recommend","payload":{"message":"지친 날 기운을 북돋아 줄 영화 추천해줘"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["코미디","가족","애니메이션","로맨스","모험","음악"],"blocked_genres":["공포"],"overview_required":true}},
+    {"id":"feelgood_06","category":"recommendation","endpoint":"/recommend","payload":{"message":"우울한 기분을 털어낼 수 있는 영화가 필요해"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["코미디","가족","애니메이션","로맨스","모험","음악"],"blocked_genres":["공포"],"overview_required":true}},
+    {"id":"feelgood_07","category":"recommendation","endpoint":"/recommend","payload":{"message":"마음이 환해지는 밝은 영화 보여줘"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["코미디","가족","애니메이션","로맨스","모험","음악"],"blocked_genres":["공포"],"overview_required":true}},
+    {"id":"feelgood_08","category":"recommendation","endpoint":"/recommend","payload":{"message":"웃고 나서 기분 전환할 영화 추천"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["코미디","가족","애니메이션","로맨스","모험","음악"],"blocked_genres":["공포"],"overview_required":true}},
+    {"id":"feelgood_09","category":"recommendation","endpoint":"/recommend","payload":{"message":"긍정적인 에너지를 주는 영화 보고 싶어"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["코미디","가족","애니메이션","로맨스","모험","음악"],"blocked_genres":["공포"],"overview_required":true}},
+    {"id":"feelgood_10","category":"recommendation","endpoint":"/recommend","payload":{"message":"편안하고 희망적인 영화 세 편 추천해줘"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["코미디","가족","애니메이션","로맨스","모험","음악"],"blocked_genres":["공포"],"overview_required":true}},
+
+    {"id":"discussion_01","category":"recommendation","endpoint":"/recommend","payload":{"message":"보고 나서 같이 얘기할 거리가 많은 SF 영화 추천해줘"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["SF","과학소설"],"overview_required":true}},
+    {"id":"discussion_02","category":"recommendation","endpoint":"/recommend","payload":{"message":"친구랑 보고 토론하기 좋은 SF 영화 골라줘"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["SF","과학소설"],"overview_required":true}},
+    {"id":"discussion_03","category":"recommendation","endpoint":"/recommend","payload":{"message":"생각할 거리를 던지는 SF 영화가 보고 싶어"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["SF","과학소설"],"overview_required":true}},
+    {"id":"discussion_04","category":"recommendation","endpoint":"/recommend","payload":{"message":"해석할 거리가 많은 SF 작품 추천"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["SF","과학소설"],"overview_required":true}},
+    {"id":"discussion_05","category":"recommendation","endpoint":"/recommend","payload":{"message":"철학적인 질문을 남기는 SF 영화 세 편"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["SF","과학소설"],"overview_required":true}},
+    {"id":"discussion_06","category":"recommendation","endpoint":"/recommend","payload":{"message":"끝나고도 곱씹게 되는 SF 영화 추천해줘"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["SF","과학소설"],"overview_required":true}},
+    {"id":"discussion_07","category":"recommendation","endpoint":"/recommend","payload":{"message":"여운이 길고 대화 나누기 좋은 SF 영화"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["SF","과학소설"],"overview_required":true}},
+    {"id":"discussion_08","category":"recommendation","endpoint":"/recommend","payload":{"message":"인간과 사회에 대해 질문하는 SF 추천"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["SF","과학소설"],"overview_required":true}},
+    {"id":"discussion_09","category":"recommendation","endpoint":"/recommend","payload":{"message":"결말을 두고 의견이 갈릴 만한 SF 영화"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["SF","과학소설"],"overview_required":true}},
+    {"id":"discussion_10","category":"recommendation","endpoint":"/recommend","payload":{"message":"보고 난 뒤 여러 해석을 나눌 수 있는 SF 영화"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["SF","과학소설"],"overview_required":true}},
+
+    {"id":"avoid_sad_01","category":"recommendation","endpoint":"/recommend","payload":{"message":"데이트 영화 추천해줘. 너무 슬픈 건 싫어"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["로맨스","코미디"],"overview_required":true}},
+    {"id":"avoid_sad_02","category":"recommendation","endpoint":"/recommend","payload":{"message":"로맨스 보고 싶은데 슬픈 영화는 빼줘"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["로맨스","코미디"],"overview_required":true}},
+    {"id":"avoid_sad_03","category":"recommendation","endpoint":"/recommend","payload":{"message":"울적하게 끝나는 건 말고 밝은 로맨스 추천"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["로맨스","코미디"],"overview_required":true}},
+    {"id":"avoid_sad_04","category":"recommendation","endpoint":"/recommend","payload":{"message":"눈물 쏟는 멜로 말고 유쾌한 연애 영화"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["로맨스","코미디"],"overview_required":true}},
+    {"id":"avoid_sad_05","category":"recommendation","endpoint":"/recommend","payload":{"message":"비극적인 사랑 이야기는 제외하고 로맨스 골라줘"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["로맨스","코미디"],"overview_required":true}},
+    {"id":"avoid_sad_06","category":"recommendation","endpoint":"/recommend","payload":{"message":"이별하고 우는 내용 없는 데이트 영화 추천"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["로맨스","코미디"],"overview_required":true}},
+    {"id":"avoid_sad_07","category":"recommendation","endpoint":"/recommend","payload":{"message":"마음 아픈 건 싫고 설레는 로맨틱 코미디가 좋아"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["로맨스","코미디"],"overview_required":true}},
+    {"id":"avoid_sad_08","category":"recommendation","endpoint":"/recommend","payload":{"message":"새드 엔딩 아닌 로맨스 영화 세 편"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["로맨스","코미디"],"overview_required":true}},
+    {"id":"avoid_sad_09","category":"recommendation","endpoint":"/recommend","payload":{"message":"무겁고 우울한 멜로는 빼고 편한 연애 영화"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["로맨스","코미디"],"overview_required":true}},
+    {"id":"avoid_sad_10","category":"recommendation","endpoint":"/recommend","payload":{"message":"슬프지 않고 기분 좋게 볼 로맨스 추천해줘"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["로맨스","코미디"],"overview_required":true}},
+
+    {"id":"adult_animation_01","category":"recommendation","endpoint":"/recommend","payload":{"message":"어른이 봐도 유치하지 않은 애니메이션 추천"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["애니메이션"],"overview_required":true}},
+    {"id":"adult_animation_02","category":"recommendation","endpoint":"/recommend","payload":{"message":"성인이 보기 좋은 애니메이션 영화 골라줘"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["애니메이션"],"overview_required":true}},
+    {"id":"adult_animation_03","category":"recommendation","endpoint":"/recommend","payload":{"message":"아이들용 말고 어른을 위한 애니 추천"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["애니메이션"],"overview_required":true}},
+    {"id":"adult_animation_04","category":"recommendation","endpoint":"/recommend","payload":{"message":"주제가 성숙한 애니메이션 세 편 추천해줘"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["애니메이션"],"overview_required":true}},
+    {"id":"adult_animation_05","category":"recommendation","endpoint":"/recommend","payload":{"message":"생각할 거리 있는 성인용 애니 영화"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["애니메이션"],"overview_required":true}},
+    {"id":"adult_animation_06","category":"recommendation","endpoint":"/recommend","payload":{"message":"가볍게 만든 아동 애니 말고 깊이 있는 작품"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["애니메이션"],"overview_required":true}},
+    {"id":"adult_animation_07","category":"recommendation","endpoint":"/recommend","payload":{"message":"어른 취향의 진지한 애니메이션 추천해줘"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["애니메이션"],"overview_required":true}},
+    {"id":"adult_animation_08","category":"recommendation","endpoint":"/recommend","payload":{"message":"사회적인 주제를 다루는 애니메이션 영화"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["애니메이션"],"overview_required":true}},
+    {"id":"adult_animation_09","category":"recommendation","endpoint":"/recommend","payload":{"message":"유치하지 않고 여운 남는 애니 추천"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["애니메이션"],"overview_required":true}},
+    {"id":"adult_animation_10","category":"recommendation","endpoint":"/recommend","payload":{"message":"성인 관객도 몰입할 애니메이션 작품 추천"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["애니메이션"],"overview_required":true}}
+  ]
+}

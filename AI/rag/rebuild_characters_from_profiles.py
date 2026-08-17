@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 from pymilvus import DataType, MilvusClient
 
 from rag.embedder import embed
+from rag.character_knowledge import load_verified_facts, lore_fact_text
 
 
 ALLOWED_SOURCE_HOSTS = {
@@ -19,6 +20,7 @@ ALLOWED_SOURCE_HOSTS = {
     "www.marvel.com",
     "movies.disney.com",
     "www.tolkienestate.com",
+    "www.pixar.com",
 }
 
 
@@ -132,7 +134,8 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--profiles", default="character_profiles_ALL_50.json")
     parser.add_argument("--relations", default="data/character_relations_verified_v1.json")
-    parser.add_argument("--collection", default="characters_verified_v4")
+    parser.add_argument("--facts", default="data/character_facts_verified_v1.json")
+    parser.add_argument("--collection", default="characters_verified_v6")
     parser.add_argument("--milvus-uri", default="http://127.0.0.1:19530")
     parser.add_argument("--batch-size", type=int, default=10)
     args = parser.parse_args()
@@ -143,6 +146,9 @@ def main() -> None:
         raise RuntimeError(f"expected 50 characters, got {len(characters)}")
     relation_payload, relations = load_verified_relations(
         args.relations, {character["name"] for character in characters}
+    )
+    fact_payload, facts = load_verified_facts(
+        args.facts, {character["name"] for character in characters}
     )
     client = MilvusClient(uri=args.milvus_uri)
     create_collection(client, args.collection)
@@ -177,14 +183,36 @@ def main() -> None:
                 "verified_at": relation_payload.get("verified_at"),
             }, ensure_ascii=False),
         })
+    fact_entities = []
+    for fact in facts:
+        fact_entities.append({
+            "character_name": fact["character_name"],
+            "movie": fact["source_work"],
+            "lang": "ko",
+            "data_type": "lore_fact",
+            "_text": lore_fact_text(fact),
+            "metadata": json.dumps({
+                "fact_id": fact["fact_id"],
+                "category": fact["category"],
+                "evidence_type": fact["evidence_type"],
+                "evidence_note": fact["evidence_note"],
+                "source_title": fact["source_title"],
+                "source_publisher": fact["source_publisher"],
+                "source_url": fact["source_url"],
+                "fact_version": fact_payload.get("version"),
+                "verified_at": fact_payload.get("verified_at"),
+            }, ensure_ascii=False),
+        })
     insert_batches(client, args.collection, profile_entities, args.batch_size, "profiles")
     insert_batches(client, args.collection, relation_entities, args.batch_size, "relations")
+    insert_batches(client, args.collection, fact_entities, args.batch_size, "lore facts")
     client.flush(collection_name=args.collection)
     stats = client.get_collection_stats(args.collection)
     print(json.dumps({
         "collection": args.collection,
         "profiles": len(profile_entities),
         "relations": len(relation_entities),
+        "lore_facts": len(fact_entities),
         **stats,
     }, ensure_ascii=False))
 

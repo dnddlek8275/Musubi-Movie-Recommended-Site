@@ -10,6 +10,7 @@ from pipeline.tone_presets import (
     build_tone_guidance,
     build_turn_guidance,
     build_profiled_listen_fallback,
+    current_activity_reply,
     enforce_dialogue_policy,
     is_character_relation_question,
     is_listen_only_request,
@@ -71,6 +72,22 @@ class TonePresetTests(unittest.TestCase):
         self.assertTrue(is_safe_listening_answer("그래, 말해 봐. 듣고 있을게."))
         self.assertFalse(is_safe_listening_answer("무슨 일이야?"))
         self.assertFalse(is_safe_listening_answer("이렇게 해봐. 듣고 있을게."))
+
+    def test_current_activity_guard_covers_natural_present_time_variants(self):
+        for message in (
+            "오늘 실제로 어디 갔다 왔어?",
+            "오늘 어디 갔어?",
+            "오늘 뭐 했어?",
+            "방금 뭐 하고 있었어?",
+            "지금 뭐 하고 있어?",
+            "요즘 뭐 하고 지내?",
+        ):
+            with self.subTest(message=message):
+                self.assertIsNotNone(current_activity_reply(message))
+
+        # Past plot questions need separate grounding rather than being treated
+        # as a claim about a real current activity.
+        self.assertIsNone(current_activity_reply("어제 어디 갔어?"))
 
     def test_profiled_listen_fallbacks_are_unique_for_all_characters(self):
         answers = [build_profiled_listen_fallback(name) for name in sorted(self.profile_names)]

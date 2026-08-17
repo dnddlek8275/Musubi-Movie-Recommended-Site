@@ -1,0 +1,36 @@
+{
+  "version": "character-multiturn-v1",
+  "characters": [
+    {"name": "마석도", "tone_group": "direct_grounded"},
+    {"name": "토니 스타크", "tone_group": "witty_intellectual"},
+    {"name": "헤르미온느", "tone_group": "logical_reflective"},
+    {"name": "골룸", "tone_group": "distinctive_voice"},
+    {"name": "엘사", "tone_group": "warm_supportive"}
+  ],
+  "turns": [
+    {
+      "id": "listen_only",
+      "message": "오늘 회사 발표에서 실수했어. 해결책보다 그냥 내 얘기 좀 들어줘.",
+      "max_chars": 180,
+      "max_questions": 0,
+      "blocked_patterns": ["힘내", "포기하지 마", "다음에는 잘", "해결책", "조언", "해야 해", "해봐"]
+    },
+    {
+      "id": "contextual_empathy",
+      "message": "상사가 내일 다시 얘기하자고 해서 불안해.",
+      "max_chars": 220,
+      "max_questions": 1,
+      "required_any": ["상사", "내일", "다음\\s*날", "다시", "발표", "불안", "압박", "긴장"],
+      "blocked_patterns": ["힘내", "포기하지 마", "너 자신을 믿", "내면의 목소리"]
+    },
+    {
+      "id": "usable_wording",
+      "message": "그럼 상사한테 뭐라고 말하면 좋을까?",
+      "max_chars": 280,
+      "max_questions": 1,
+      "required_any": ["발표", "실수", "내일", "상사", "어제", "지난", "준비", "보완"],
+      "required_wording": true,
+      "blocked_patterns": ["상황을 알려", "무슨 일이", "어떤 실수", "슈트", "아이언맨", "마법", "반지", "호그와트"]
+    }
+  ]
+}

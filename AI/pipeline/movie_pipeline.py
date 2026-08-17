@@ -6,6 +6,7 @@ from difflib import SequenceMatcher
 from cineverse_prompt import build_system_prompt, clean_and_truncate, truncate_to_sentences, load_profiles
 from rag.movie_retriever import MovieFilter, retrieve, format_for_prompt, to_response
 from pipeline.query_rewriter import rewrite
+from pipeline.retrieval_policy import choose_rerank_mode
 from pipeline.recommendation_context import build_recommendation_context
 from pipeline.recommendation_presenter import (
     build_character_grounded_answer,
@@ -90,7 +91,7 @@ def _rewrite_grounded_answer(
             "role": "system",
             "content": (
                 "너는 Musubi의 추천 문장 편집자다. 영화 선택과 사실 판단은 이미 끝났다. "
-                "아래 검증된 초안의 사실만 사용해 부드러운 한국어 존댓말 3~4문장으로 다듬어라. "
+                "아래 검증된 초안의 사실만 사용해 부드러운 한국어 존댓말 2~3문장으로 다듬어라. "
                 "후보 영화 제목은 철자까지 그대로 모두 한 번씩 언급하고, 후보 밖 영화나 새 사실을 추가하지 마라. "
                 "'가장 잘 맞는 선택', '다른 결의 대안', '취향 확장 선택', '정보가 확인된 작품' 같은 "
                 "내부 분류나 검증 문구를 쓰지 마라. 마크다운, 목록, 제목, 굵은 글씨도 쓰지 마라. "
@@ -113,12 +114,12 @@ def _rewrite_grounded_answer(
     ]
     raw = chat(
         messages,
-        max_tokens=min(max_tokens, 384),
+        max_tokens=min(max_tokens, 150),
         profile="grounded_recommendation",
     )
     # 일반 추천도 캐릭터 답변과 동일한 출력 정제를 거쳐 Gemma 채널명이나
     # 선두 ``thought`` 라벨이 사용자 응답에 노출되지 않게 한다.
-    polished = clean_and_truncate(raw, "", max_sentences=4)
+    polished = clean_and_truncate(raw, "", max_sentences=3)
     polished = _restore_recommended_movie_titles(polished, movies)
     polished = enforce_general_polite_answer(polished, movies)
     if polished.startswith("다음 영화들을 골라봤어요."):
@@ -231,12 +232,20 @@ def run(user_message, character_name=None, history=None, top_k=3, max_tokens=102
     search_q = rewritten.get("search_query", user_message)
     topic = rewritten.get("topic")
     personalization = preference_search_terms(user_context)
-    has_explicit_filter = any(
+    has_metadata_filter = any(
         rewritten.get(field) is not None
         for field in ("genre", "actor", "director", "language", "year_from", "year_to", "min_rating")
-    ) or bool(rewritten.get("sort_latest")) or bool(topic)
-    if personalization and not has_explicit_filter:
+    )
+    has_explicit_filter = has_metadata_filter or bool(rewritten.get("sort_latest")) or bool(topic)
+    personalization_applied = bool(personalization and not has_explicit_filter)
+    if personalization_applied:
         search_q = f"{search_q} 사용자 선호 {personalization}"
+    rerank_mode = choose_rerank_mode(
+        has_metadata_filter=has_metadata_filter,
+        quality_priority=rewritten.get("quality_priority"),
+        has_topic=bool(topic),
+        has_personalization=personalization_applied,
+    )
     filters = MovieFilter(
         genre=rewritten.get("genre"), actor=rewritten.get("actor"),
         director=rewritten.get("director"), language=rewritten.get("language"),
@@ -262,6 +271,7 @@ def run(user_message, character_name=None, history=None, top_k=3, max_tokens=102
         required_count=top_k,
         quality_weight=quality_weight,
         topic=topic,
+        rerank_mode=rerank_mode,
     )
     requested_genre = str(rewritten.get("genre") or "").strip() or None
     requested_genres = rewritten.get("required_genres") or ([requested_genre] if requested_genre else [])
@@ -284,6 +294,7 @@ def run(user_message, character_name=None, history=None, top_k=3, max_tokens=102
             required_count=top_k,
             quality_weight=quality_weight,
             topic=topic,
+            rerank_mode=rerank_mode,
         )
         for genre in requested_genres:
             movies = filter_movies_by_requested_genre(movies, genre)
@@ -298,6 +309,7 @@ def run(user_message, character_name=None, history=None, top_k=3, max_tokens=102
             required_count=top_k,
             quality_weight=quality_weight,
             topic=topic,
+            rerank_mode=rerank_mode,
         )
     timing_retrieve = time.perf_counter()
     if topic and not movies:
@@ -344,7 +356,7 @@ def run(user_message, character_name=None, history=None, top_k=3, max_tokens=102
             "'추천하겠다', '~한다', '~이다'처럼 딱딱한 문어체는 피하고 "
             "'추천해요', '어떠세요?', '~영화예요'처럼 자연스러운 해요체를 사용한다.\n"
             "추천 소개와 추천 이유를 각각 짧은 문단으로 나누고 문단 사이에는 빈 줄을 넣는다. "
-            "한 문단에는 한 문장만 쓰며 전체는 2~4문장으로 제한한다.\n"
+            "한 문단에는 한 문장만 쓰며 전체는 2~3문장으로 제한한다.\n"
             "마크다운 헤더·볼드·번호 목록 없이 자연스러운 한국어 문장으로만 답하세요."
         )
 

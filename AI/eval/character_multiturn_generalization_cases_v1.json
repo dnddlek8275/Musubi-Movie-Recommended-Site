@@ -1,0 +1,32 @@
+{
+  "version": "character-multiturn-generalization-v1",
+  "dialogues": [
+    {
+      "id": "broken_confidence",
+      "characters": ["차태식", "데드풀", "엘사", "세베루스 스네이프"],
+      "turns": [
+        {"message": "친구에게만 말한 비밀이 다른 사람에게 퍼졌어. 지금은 판단하지 말고 들어줘.", "max_chars": 180, "max_questions": 0, "blocked_patterns": ["힘내", "포기하지 마", "해야 해", "해봐"]},
+        {"message": "친구는 별일 아니라는 듯 행동해서 더 화가 나.", "max_chars": 220, "max_questions": 1, "required_any": ["친구", "믿", "배신", "상처", "무신경", "무책임", "책임", "잘못", "사과", "별일", "화", "태도", "가볍", "태연", "마음", "기분", "속"]},
+        {"message": "관계를 끊기 전에 뭐라고 보내는 게 좋을까?", "max_chars": 280, "max_questions": 1, "required_any": ["비밀", "다른 사람", "믿고", "신뢰", "이야기", "동의", "경계", "퍼졌", "전해"], "required_wording": true}
+      ]
+    },
+    {
+      "id": "interview_recovery",
+      "characters": ["피터 파커", "스티브 로저스", "장첸", "헤르미온느"],
+      "turns": [
+        {"message": "오늘 면접에서 말을 제대로 못했어. 일단 조언 말고 들어줘.", "max_chars": 180, "max_questions": 0, "blocked_patterns": ["힘내", "포기하지 마", "해야 해", "해봐"]},
+        {"message": "그 회사에서 내일 한 번 더 통화하자는데 또 망칠까 봐 불안해.", "max_chars": 230, "max_questions": 1, "required_any": ["회사", "내일", "통화", "면접", "불안"]},
+        {"message": "전화 받으면 첫마디를 어떻게 하면 좋을까?", "max_chars": 280, "max_questions": 1, "required_any": ["면접", "통화", "전화", "연락", "어제", "오늘", "기회", "안녕", "반갑", "말씀", "지원자", "담당자", "감사", "시간", "성함"], "required_wording": true, "blocked_patterns": ["거미줄", "방패", "호그와트"]}
+      ]
+    },
+    {
+      "id": "borrowed_property_boundary",
+      "characters": ["원더우먼", "조커", "골룸", "마석도"],
+      "turns": [
+        {"message": "친구가 내 물건을 허락 없이 가져갔어. 우선 내 얘기만 들어줘.", "max_chars": 180, "max_questions": 0, "blocked_patterns": ["힘내", "포기하지 마", "해야 해", "해봐"]},
+        {"message": "이번이 세 번째라서 이제는 믿어도 되는지 모르겠어.", "max_chars": 230, "max_questions": 1, "required_any": ["세\\s*(?:번째|번)", "반복", "물건", "허락"]},
+        {"message": "싸우지 않고 선을 긋고 싶은데 뭐라고 말할까?", "max_chars": 280, "max_questions": 1, "required_any": ["물건", "허락", "먼저", "물어"], "required_wording": true, "blocked_patterns": ["죽", "때려", "박살", "반지", "올가미"]}
+      ]
+    }
+  ]
+}

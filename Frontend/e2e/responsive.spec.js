@@ -34,11 +34,12 @@ for (const path of ['/home', '/chat/group', '/recommendations']) {
 }
 
 for (const viewport of [
-  { width: 1512, height: 982 },
-  { width: 1366, height: 768 },
-  { width: 1210, height: 768 },
+  { width: 1512, height: 982, expectedColumns: 3 },
+  { width: 1366, height: 768, expectedColumns: 2 },
+  { width: 1210, height: 768, expectedColumns: 2 },
+  { width: 900, height: 700, expectedColumns: 1 },
 ]) {
-  test(`/home 핵심 카드가 ${viewport.width}px 폭에서 같은 밀도로 겹치지 않는다`, async ({ page }) => {
+  test(`/home 핵심 카드가 ${viewport.width}px 폭에서 겹치지 않고 ${viewport.expectedColumns}열로 보인다`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await page.goto('/home');
     await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
@@ -48,26 +49,37 @@ for (const viewport of [
 
     const layout = await middleGrid.evaluate((element) => {
       const shell = document.querySelector('.app-shell').getBoundingClientRect();
+      const viewportWidth = document.documentElement.clientWidth;
       const children = Array.from(element.children).map((child) => {
         const rect = child.getBoundingClientRect();
-        return { left: rect.left, right: rect.right, width: rect.width };
+        return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, width: rect.width };
       });
+      const rows = new Set(children.map(({ left }) => Math.round(left)));
 
       return {
-        viewportWidth: document.documentElement.clientWidth,
+        viewportWidth,
         shellWidth: shell.width,
         children,
+        columns: rows.size,
       };
     });
 
     expect(layout.shellWidth).toBeLessThanOrEqual(layout.viewportWidth + 1);
+    expect(layout.columns).toBe(viewport.expectedColumns);
     for (const child of layout.children) {
       expect(child.width).toBeGreaterThan(0);
       expect(child.left).toBeGreaterThanOrEqual(-1);
       expect(child.right).toBeLessThanOrEqual(layout.viewportWidth + 1);
     }
-    expect(layout.children[0].right).toBeLessThan(layout.children[1].left);
-    expect(layout.children[1].right).toBeLessThan(layout.children[2].left);
+    for (let i = 0; i < layout.children.length; i += 1) {
+      for (let j = i + 1; j < layout.children.length; j += 1) {
+        const a = layout.children[i];
+        const b = layout.children[j];
+        const overlapsHorizontally = a.left < b.right && b.left < a.right;
+        const overlapsVertically = a.top < b.bottom && b.top < a.bottom;
+        expect(overlapsHorizontally && overlapsVertically).toBe(false);
+      }
+    }
   });
 }
 

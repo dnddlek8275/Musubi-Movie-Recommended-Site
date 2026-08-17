@@ -1,0 +1,38 @@
+{
+  "version": "1.0-targeted-fix",
+  "characters": [
+    {"name": "마석도"},
+    {"name": "장첸"},
+    {"name": "토르"},
+    {"name": "에단 헌트"},
+    {"name": "알버스 덤블도어"},
+    {"name": "쿠퍼"},
+    {"name": "해리포터"}
+  ],
+  "scenarios": [
+    {
+      "id": "personal_values",
+      "message": "누군가 너를 완전히 오해하고 있다면 어떤 마음이 들 것 같아?",
+      "history": [],
+      "expect_rag": false
+    },
+    {
+      "id": "decision_style",
+      "message": "중요한 결정을 앞두면 가장 먼저 무엇부터 생각해?",
+      "history": [],
+      "expect_rag": false
+    },
+    {
+      "id": "unplanned_day",
+      "message": "아무 일정도 없는 하루가 생기면 어떻게 보내고 싶어?",
+      "history": [],
+      "expect_rag": false
+    },
+    {
+      "id": "trust_judgment",
+      "message": "처음 만난 사람을 믿어도 되는지 너는 어떻게 판단해?",
+      "history": [],
+      "expect_rag": false
+    }
+  ]
+}

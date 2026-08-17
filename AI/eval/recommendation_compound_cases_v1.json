@@ -1,0 +1,35 @@
+{
+  "suite_version": "1.0.0",
+  "description": "장르·연도·언어·평점·관람 목적·제외 조건 복합 추천 평가셋.",
+  "thresholds": {
+    "hard_check_pass_rate": 1.0,
+    "critical_failure_count": 0,
+    "exact_duplicate_rate_max": 1.0,
+    "pair_similarity_max": 1.0,
+    "manual_average_min": 4.0,
+    "manual_dimension_min": 3.5
+  },
+  "manual_dimensions": ["relevance", "groundedness"],
+  "cases": [
+    {"id":"compound_01","category":"recommendation","endpoint":"/recommend","payload":{"message":"2015년 이후 SF 중 보고 나서 토론하기 좋고 공포는 제외한 영화 추천해줘"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["SF","과학소설"],"blocked_genres":["공포"],"year_from":2015,"overview_required":true}},
+    {"id":"compound_02","category":"recommendation","endpoint":"/recommend","payload":{"message":"2010년 이후 음악 영화 중 보고 나면 기분 좋아지고 평점 7점 이상인 작품"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["음악"],"year_from":2010,"min_rating":7.0,"overview_required":true}},
+    {"id":"compound_03","category":"recommendation","endpoint":"/recommend","payload":{"message":"2020년 이후 어른이 봐도 유치하지 않은 애니메이션 세 편 추천"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["애니메이션"],"year_from":2020,"overview_required":true}},
+    {"id":"compound_04","category":"recommendation","endpoint":"/recommend","payload":{"message":"2010년 이후 밝은 데이트 로맨스 추천해줘. 공포와 전쟁은 빼줘"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["로맨스"],"blocked_genres":["공포","전쟁"],"year_from":2010,"overview_required":true}},
+    {"id":"compound_05","category":"recommendation","endpoint":"/recommend","payload":{"message":"2020년 이후 초등학생 조카와 볼 애니메이션 추천해줘. 공포는 제외"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["애니메이션"],"blocked_genres":["공포"],"year_from":2020,"child_safe_certification":true,"overview_required":true}},
+    {"id":"compound_06","category":"recommendation","endpoint":"/recommend","payload":{"message":"2018년 이후 한국 코미디 중 지친 날 기분 전환할 영화"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["코미디"],"year_from":2018,"language":"ko","overview_required":true}},
+    {"id":"compound_07","category":"recommendation","endpoint":"/recommend","payload":{"message":"2015년 이후 영어 액션 영화 중 공포는 제외하고 평점 7점 이상"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["액션"],"blocked_genres":["공포"],"year_from":2015,"language":"en","min_rating":7.0,"overview_required":true}},
+    {"id":"compound_08","category":"recommendation","endpoint":"/recommend","payload":{"message":"2010년 이후 일본 애니메이션 중 성인이 보기 좋고 평점 7점 이상인 작품"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["애니메이션"],"year_from":2010,"language":"ja","min_rating":7.0,"overview_required":true}},
+    {"id":"compound_09","category":"recommendation","endpoint":"/recommend","payload":{"message":"2010년 이전 SF 영화 중 생각할 거리가 많고 평점 7점 이상인 작품"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["SF","과학소설"],"year_to":2010,"min_rating":7.0,"overview_required":true}},
+    {"id":"compound_10","category":"recommendation","endpoint":"/recommend","payload":{"message":"2015년 이후 음악 코미디 중 기분 좋게 볼 영화, 공포는 빼줘"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_all":["음악","코미디"],"blocked_genres":["공포"],"year_from":2015,"overview_required":true}},
+    {"id":"compound_11","category":"recommendation","endpoint":"/recommend","payload":{"message":"2020년 이후 한국 액션 영화 중 평점 6점 이상이고 공포는 제외"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["액션"],"blocked_genres":["공포"],"year_from":2020,"language":"ko","min_rating":6.0,"overview_required":true}},
+    {"id":"compound_12","category":"recommendation","endpoint":"/recommend","payload":{"message":"2010년 이후 로맨틱 코미디 중 너무 슬픈 건 싫고 평점 6점 이상"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_all":["로맨스","코미디"],"year_from":2010,"min_rating":6.0,"overview_required":true}},
+    {"id":"compound_13","category":"recommendation","endpoint":"/recommend","payload":{"message":"2015년 이후 가족 애니메이션 중 아이와 볼 수 있고 전쟁은 제외한 영화"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_all":["가족","애니메이션"],"blocked_genres":["전쟁"],"year_from":2015,"child_safe_certification":true,"overview_required":true}},
+    {"id":"compound_14","category":"recommendation","endpoint":"/recommend","payload":{"message":"2000년 이후 일본 SF 영화 중 보고 나서 여러 해석을 나눌 작품"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["SF","과학소설"],"year_from":2000,"language":"ja","overview_required":true}},
+    {"id":"compound_15","category":"recommendation","endpoint":"/recommend","payload":{"message":"2015년 이후 영어 음악 영화 중 희망적이고 평점 6.5점 이상"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_any":["음악"],"year_from":2015,"language":"en","min_rating":6.5,"overview_required":true}},
+    {"id":"compound_16","category":"recommendation","endpoint":"/recommend","payload":{"message":"2010년 이후 성인용 애니메이션 중 범죄 장르이고 평점 6점 이상"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_all":["애니메이션","범죄"],"year_from":2010,"min_rating":6.0,"overview_required":true}},
+    {"id":"compound_17","category":"recommendation","endpoint":"/recommend","payload":{"message":"2000년 이후 드라마 SF 중 인간과 사회를 생각하게 하고 공포는 제외"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_all":["드라마","SF"],"blocked_genres":["공포"],"year_from":2000,"overview_required":true}},
+    {"id":"compound_18","category":"recommendation","endpoint":"/recommend","payload":{"message":"2018년 이후 한국 로맨스 중 슬프지 않고 코미디가 섞인 영화"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_all":["로맨스","코미디"],"year_from":2018,"language":"ko","overview_required":true}},
+    {"id":"compound_19","category":"recommendation","endpoint":"/recommend","payload":{"message":"2020년 이후 영어 가족 애니메이션 중 전체 관람가로 확인된 작품"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_all":["가족","애니메이션"],"year_from":2020,"language":"en","child_safe_certification":true,"overview_required":true}},
+    {"id":"compound_20","category":"recommendation","endpoint":"/recommend","payload":{"message":"2010년 이후 미스터리 SF 중 토론할 거리 있고 평점 6점 이상"},"checks":{"min_movies":3,"unique_titles":true,"required_genres_all":["미스터리","SF"],"year_from":2010,"min_rating":6.0,"overview_required":true}}
+  ]
+}

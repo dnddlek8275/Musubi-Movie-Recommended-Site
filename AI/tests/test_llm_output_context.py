@@ -22,6 +22,18 @@ class LlmOutputContextTests(unittest.TestCase):
             "인터스텔라야. 우주와 시간의 경계를 넘나드는 영화지.",
         )
 
+    def test_removes_bare_leading_thought_label(self):
+        self.assertEqual(
+            clean_and_truncate("thought 그냥 잠이나 실컷 자고 싶네.", "마석도"),
+            "그냥 잠이나 실컷 자고 싶네.",
+        )
+
+    def test_keeps_thought_inside_normal_english_sentence(self):
+        self.assertEqual(
+            clean_and_truncate("That thought still matters.", ""),
+            "That thought still matters.",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

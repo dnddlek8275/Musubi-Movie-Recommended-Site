@@ -1,0 +1,42 @@
+{
+  "version": "1.0-targeted-manual-review",
+  "characters": [
+    {"name": "골룸"},
+    {"name": "마석도"},
+    {"name": "차태식"},
+    {"name": "피터 파커"},
+    {"name": "해리포터"}
+  ],
+  "scenarios": [
+    {
+      "id": "reflective_voice",
+      "message": "비 오는 날 혼자 걷게 되면 무슨 생각을 해?",
+      "history": [],
+      "expect_rag": false
+    },
+    {
+      "id": "personal_values",
+      "message": "누군가 너를 완전히 오해하고 있다면 어떤 마음이 들 것 같아?",
+      "history": [],
+      "expect_rag": false
+    },
+    {
+      "id": "decision_style",
+      "message": "중요한 결정을 앞두면 가장 먼저 무엇부터 생각해?",
+      "history": [],
+      "expect_rag": false
+    },
+    {
+      "id": "unplanned_day",
+      "message": "아무 일정도 없는 하루가 생기면 어떻게 보내고 싶어?",
+      "history": [],
+      "expect_rag": false
+    },
+    {
+      "id": "trust_judgment",
+      "message": "처음 만난 사람을 믿어도 되는지 너는 어떻게 판단해?",
+      "history": [],
+      "expect_rag": false
+    }
+  ]
+}

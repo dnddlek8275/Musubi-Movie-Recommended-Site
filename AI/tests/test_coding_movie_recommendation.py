@@ -31,6 +31,30 @@ from pipeline.topic_grounding import (
 
 
 class CodingMovieRecommendationTests(unittest.TestCase):
+    def test_coding_book_request_is_not_misrouted_to_movie_search(self):
+        messages = (
+            "코드 관련 책을 추천해줘",
+            "프로그래밍 도서 좀 골라줘",
+            "집중할 때 들을 노래 추천해줘",
+            "서울 맛집 추천해줘",
+            "친구랑 할 게임 추천해줘",
+            "요즘 볼 웹툰 추천해줘",
+            "주말 여행지 추천해줘",
+        )
+        for message in messages:
+            with self.subTest(message=message):
+                self.assertEqual(classify(message), Intent.CHARACTER_CHAT)
+
+    def test_book_topic_can_still_explicitly_request_a_movie(self):
+        messages = (
+            "코딩 책을 소재로 한 영화 추천해줘",
+            "게임을 소재로 한 영화 추천해줘",
+            "여행지 풍경이 멋진 영화 추천해줘",
+        )
+        for message in messages:
+            with self.subTest(message=message):
+                self.assertEqual(classify(message), Intent.MOVIE_RECOMMEND)
+
     def test_polite_can_you_recommend_expression_routes_to_movie_pipeline(self):
         messages = (
             "코딩 관련된 영화를 보고 싶은데 추천해 줄 수 있어?",

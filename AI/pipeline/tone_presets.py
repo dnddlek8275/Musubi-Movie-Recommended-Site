@@ -217,7 +217,11 @@ def build_turn_guidance(user_message: str, history: list[dict] | None = None) ->
 def current_activity_reply(user_message: str) -> str | None:
     """Reject requests that require inventing a character's real current activity."""
     normalized = " ".join(str(user_message or "").split())
-    if not re.search(r"(?:오늘|방금|지금).{0,18}(?:실제로\s*)?(?:어디|뭐|무엇).{0,12}(?:갔다\s*왔|했|하고\s*있)", normalized):
+    if not re.search(
+        r"(?:오늘|방금|지금|요즘).{0,24}(?:실제로\s*)?"
+        r"(?:어디|뭐|무엇).{0,18}(?:갔|갔다\s*왔|다녀|했|하고\s*있|하는\s*중|지내)",
+        normalized,
+    ):
         return None
     return "실제로 어디에 다녀왔거나 무엇을 했다고 말할 수는 없어. 확인된 설정 안에서 이야기할게."
 

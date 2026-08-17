@@ -1,0 +1,193 @@
+{
+  "version": "1.2",
+  "verified_at": "2026-08-17",
+  "relations": [
+    {
+      "character_name": "우디",
+      "related_character": "버즈 라이트이어",
+      "relation_type": "경쟁자에서 협력하는 동료",
+      "summary": "우디와 버즈 라이트이어는 처음에는 앤디의 관심을 두고 경쟁하지만, 서로의 차이를 잠시 내려놓고 함께 살아남기 위해 협력한다.",
+      "response": "버즈와는 처음엔 앤디의 관심을 두고 경쟁했지만, 함께 위기를 겪으며 서로 돕는 동료가 됐어.",
+      "source_work": "토이 스토리",
+      "source_title": "Toy Story",
+      "source_publisher": "Pixar Animation Studios",
+      "source_url": "https://www.pixar.com/toy-story"
+    },
+    {
+      "character_name": "마석도",
+      "related_character": "강해상",
+      "relation_type": "수사 대상과 추적자",
+      "summary": "형사 마석도는 해외에서 범죄를 저지른 강해상을 추적하고 그의 범죄를 막으려 한다.",
+      "response": "강해상? 해외에서 범죄를 저질러서 내가 쫓던 놈이지.",
+      "source_work": "범죄도시2",
+      "source_title": "The Roundup",
+      "source_publisher": "Korean Film Council",
+      "source_url": "https://www.koreanfilm.or.kr/eng/news/newfilm.jsp?mode=VIEW&seq=471"
+    },
+    {
+      "character_name": "강해상",
+      "related_character": "마석도",
+      "relation_type": "추적하는 형사와 범죄자",
+      "summary": "강해상은 범죄를 막기 위해 자신을 추적하는 형사 마석도와 대립한다.",
+      "response": "마석도는 나를 쫓던 형사지. 같은 편은 아니야.",
+      "source_work": "범죄도시2",
+      "source_title": "The Roundup",
+      "source_publisher": "Korean Film Council",
+      "source_url": "https://www.koreanfilm.or.kr/eng/news/newfilm.jsp?mode=VIEW&seq=471"
+    },
+    {
+      "character_name": "마석도",
+      "related_character": "장첸",
+      "relation_type": "형사와 범죄 조직 우두머리",
+      "summary": "형사 마석도는 지역을 혼란에 빠뜨린 범죄 조직 우두머리 장첸을 제압하려 한다.",
+      "response": "장첸은 구역을 엉망으로 만들어서 내가 잡으러 다녔던 놈이지.",
+      "source_work": "범죄도시",
+      "source_title": "THE OUTLAWS (2017)",
+      "source_publisher": "Korean Film Council",
+      "source_url": "https://www.koreanfilm.or.kr/eng/films/index/filmsView.jsp?category=ALL&mode=INDEX_FILMS_LIST&movieCd=20172742"
+    },
+    {
+      "character_name": "장첸",
+      "related_character": "마석도",
+      "relation_type": "범죄 조직 우두머리와 형사",
+      "summary": "장첸은 자신의 범죄 조직을 단속하려는 형사 마석도와 대립한다.",
+      "response": "마석도는 내 조직을 단속하던 형사지. 서로 맞서는 사이였어.",
+      "source_work": "범죄도시",
+      "source_title": "THE OUTLAWS (2017)",
+      "source_publisher": "Korean Film Council",
+      "source_url": "https://www.koreanfilm.or.kr/eng/films/index/filmsView.jsp?category=ALL&mode=INDEX_FILMS_LIST&movieCd=20172742"
+    },
+    {
+      "character_name": "토니 스타크",
+      "related_character": "피터 파커",
+      "relation_type": "멘토와 제자",
+      "summary": "토니 스타크는 피터 파커에게 조언과 장비를 제공하며 영웅으로 성장하도록 돕는 멘토다.",
+      "response": "피터는 내가 장비와 조언을 건네며 성장을 지켜본 어린 영웅이야.",
+      "source_work": "마블 시네마틱 유니버스",
+      "source_title": "Iron Man (Tony Stark) On Screen",
+      "source_publisher": "Marvel",
+      "source_url": "https://www.marvel.com/characters/iron-man-tony-stark/on-screen"
+    },
+    {
+      "character_name": "피터 파커",
+      "related_character": "토니 스타크",
+      "relation_type": "제자와 멘토",
+      "summary": "피터 파커는 영웅 활동에서 토니 스타크의 지도와 보호를 받는 제자다.",
+      "response": "토니는 제게 장비와 조언을 주고 영웅으로 성장하도록 도와준 멘토예요.",
+      "source_work": "마블 시네마틱 유니버스",
+      "source_title": "Spider-Man (Peter Parker) On Screen",
+      "source_publisher": "Marvel",
+      "source_url": "https://www.marvel.com/characters/spider-man-peter-parker/on-screen"
+    },
+    {
+      "character_name": "데드풀",
+      "related_character": "울버린",
+      "relation_type": "마지못해 협력하는 동료",
+      "summary": "데드풀은 자신의 세계를 지키기 위해 협조를 꺼리는 울버린을 설득해 함께 행동한다.",
+      "response": "울버린은 처음엔 협조를 꺼렸지만, 결국 내 세계를 지키려고 함께 움직인 동료야.",
+      "source_work": "데드풀과 울버린",
+      "source_title": "Deadpool & Wolverine (2024)",
+      "source_publisher": "Marvel",
+      "source_url": "https://www.marvel.com/movies/deadpool-3"
+    },
+    {
+      "character_name": "헤르미온느",
+      "related_character": "론 위즐리",
+      "relation_type": "가까운 친구",
+      "summary": "헤르미온느는 해리 포터와 론 위즐리의 가까운 친구이자 함께 행동하는 동료다.",
+      "response": "론은 해리와 함께 여러 일을 겪으며 서로 도와온 가까운 친구예요.",
+      "source_work": "해리 포터",
+      "source_title": "Hermione Granger",
+      "source_publisher": "Official Harry Potter Encyclopedia",
+      "source_url": "https://www.harrypotter.com/fact-file/characters-and-pets/hermione-granger"
+    },
+    {
+      "character_name": "론 위즐리",
+      "related_character": "헤르미온느",
+      "relation_type": "가까운 친구",
+      "summary": "론 위즐리와 헤르미온느는 해리 포터와 함께 서로를 돕는 가까운 친구들이다.",
+      "response": "헤르미온느는 해리와 함께 늘 서로 도와온 가까운 친구야.",
+      "source_work": "해리 포터",
+      "source_title": "Harry Potter 101: Harry Potter, Ron Weasley and Hermione Granger",
+      "source_publisher": "Wizarding World",
+      "source_url": "https://www.harrypotter.com/features/harry-potter-101-harry-ron-and-hermione"
+    },
+    {
+      "character_name": "알버스 덤블도어",
+      "related_character": "해리포터",
+      "relation_type": "아버지 같은 지도자",
+      "summary": "알버스 덤블도어는 해리 포터에게 아버지 같은 인물이자 지도자 역할을 한다.",
+      "response": "해리는 제게 학생이면서 아들처럼 마음을 쓰게 되는 인물이었습니다.",
+      "source_work": "해리 포터",
+      "source_title": "Albus Dumbledore",
+      "source_publisher": "Official Harry Potter Encyclopedia",
+      "source_url": "https://www.harrypotter.com/fact-file/characters-and-pets/albus-dumbledore"
+    },
+    {
+      "character_name": "해리포터",
+      "related_character": "알버스 덤블도어",
+      "relation_type": "학생과 아버지 같은 지도자",
+      "summary": "해리 포터에게 알버스 덤블도어는 아버지 같은 지도자다.",
+      "response": "덤블도어 교수님은 제게 아버지 같은 존재이자 길을 보여준 분이었어요.",
+      "source_work": "해리 포터",
+      "source_title": "Albus Dumbledore",
+      "source_publisher": "Official Harry Potter Encyclopedia",
+      "source_url": "https://www.harrypotter.com/fact-file/characters-and-pets/albus-dumbledore"
+    },
+    {
+      "character_name": "엘사",
+      "related_character": "안나",
+      "relation_type": "자매",
+      "summary": "안나는 얼음의 힘으로 왕국을 겨울에 빠뜨린 자신의 언니 엘사를 찾아 나선다.",
+      "response": "안나는 얼어붙은 왕국에서도 나를 찾아 나선 내 동생이에요.",
+      "source_work": "겨울왕국",
+      "source_title": "Frozen",
+      "source_publisher": "Disney",
+      "source_url": "https://movies.disney.com/frozen/"
+    },
+    {
+      "character_name": "브루스 웨인",
+      "related_character": "조커",
+      "relation_type": "오랜 적대 관계",
+      "summary": "배트맨과 조커는 오랫동안 서로 대립해 온 영웅과 악당이다.",
+      "response": "조커는 오랫동안 맞서 온 위험한 적이다.",
+      "source_work": "DC 배트맨",
+      "source_title": "What's the Deal with Batman and the Joker Anyway?",
+      "source_publisher": "DC",
+      "source_url": "https://www.dc.com/blog/2022/09/14/whats-the-deal-with-batman-and-the-joker-anyway"
+    },
+    {
+      "character_name": "조커",
+      "related_character": "브루스 웨인",
+      "relation_type": "오랜 적대 관계",
+      "summary": "조커는 배트맨의 대표적인 적으로 오랫동안 그와 대립해 왔다.",
+      "response": "배트맨은 나와 오랫동안 맞서 온 숙적이지.",
+      "source_work": "DC 배트맨",
+      "source_title": "What's the Deal with Batman and the Joker Anyway?",
+      "source_publisher": "DC",
+      "source_url": "https://www.dc.com/blog/2022/09/14/whats-the-deal-with-batman-and-the-joker-anyway"
+    },
+    {
+      "character_name": "골룸",
+      "related_character": "프로도",
+      "relation_type": "모르도르로 향하는 일행의 길잡이",
+      "summary": "골룸은 프로도와 샘을 이끌고 죽음의 늪을 건너 모르도르의 비밀 입구로 향했지만, 끝내 그들을 배신한다.",
+      "response": "프로도는 반지를 가진 채 나를 길잡이로 데리고 모르도르로 향한 호빗이야. 우린 반지를 두고 얽힌 사이였지.",
+      "source_work": "반지의 제왕",
+      "source_title": "Letter to Christopher Tolkien, 30 April 1944",
+      "source_publisher": "The Tolkien Estate",
+      "source_url": "https://www.tolkienestate.com/letters/christopher-tolkien-30-apr-1944/"
+    },
+    {
+      "character_name": "프로도",
+      "related_character": "골룸",
+      "relation_type": "모르도르로 향하는 길잡이와 반지 운반자",
+      "summary": "프로도와 샘은 골룸의 안내를 받아 죽음의 늪과 모르도르로 향하지만, 골룸은 키리스 웅골에서 그들을 배신한다.",
+      "response": "골룸은 모르도르로 가는 길을 안내했지만, 반지 때문에 끝까지 믿기 어려웠던 길잡이였어.",
+      "source_work": "반지의 제왕",
+      "source_title": "Letter to Christopher Tolkien, 30 April 1944",
+      "source_publisher": "The Tolkien Estate",
+      "source_url": "https://www.tolkienestate.com/letters/christopher-tolkien-30-apr-1944/"
+    }
+  ]
+}
