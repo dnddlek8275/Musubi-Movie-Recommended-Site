@@ -1,0 +1,164 @@
+{
+  "suite_version": "1.0.0",
+  "description": "실제 사용자 표현을 모사한 고정 품질 평가셋. 학습 데이터로 사용하지 않는다.",
+  "thresholds": {
+    "hard_check_pass_rate": 0.95,
+    "critical_failure_count": 0,
+    "exact_duplicate_rate_max": 0.05,
+    "pair_similarity_max": 0.75,
+    "manual_average_min": 4.0,
+    "manual_dimension_min": 3.5
+  },
+  "manual_dimensions": [
+    "relevance",
+    "naturalness",
+    "specificity",
+    "character_fidelity",
+    "groundedness"
+  ],
+  "cases": [
+    {
+      "id": "rec_uplifting_no_crime",
+      "category": "recommendation",
+      "endpoint": "/recommend",
+      "payload": {"message": "오늘 너무 지쳐서 머리 안 쓰고 편하게 웃을 수 있는 영화 보고 싶어. 범죄물은 빼줘."},
+      "checks": {"min_movies": 3, "unique_titles": true, "blocked_genres": ["범죄"], "answer_titles_must_be_returned": true}
+    },
+    {
+      "id": "rec_family_child_safe",
+      "category": "recommendation",
+      "endpoint": "/recommend",
+      "payload": {"message": "초등학생 조카랑 같이 볼 건데 무섭거나 잔인하지 않은 영화 골라줘."},
+      "checks": {"min_movies": 3, "unique_titles": true, "blocked_genres": ["공포"], "child_safe_certification": true, "answer_titles_must_be_returned": true}
+    },
+    {
+      "id": "rec_romance_not_sad",
+      "category": "recommendation",
+      "endpoint": "/recommend",
+      "payload": {"message": "데이트하면서 볼 밝은 로맨스 영화 추천해줘. 너무 슬픈 건 싫어."},
+      "checks": {"min_movies": 3, "unique_titles": true, "required_genres_any": ["로맨스", "코미디"], "blocked_genres": ["공포", "전쟁"], "answer_titles_must_be_returned": true}
+    },
+    {
+      "id": "rec_action_no_horror",
+      "category": "recommendation",
+      "endpoint": "/recommend",
+      "payload": {"message": "전개 빠르고 긴장감 있는 액션 영화가 좋아. 귀신 나오는 공포는 제외해줘."},
+      "checks": {"min_movies": 3, "unique_titles": true, "required_genres_any": ["액션"], "blocked_genres": ["공포"], "answer_titles_must_be_returned": true}
+    },
+    {
+      "id": "rec_scifi_thoughtful",
+      "category": "recommendation",
+      "endpoint": "/recommend",
+      "payload": {"message": "보고 나서 같이 얘기할 거리가 많은 SF 영화 세 편 정도 추천해줘."},
+      "checks": {"min_movies": 3, "unique_titles": true, "required_genres_any": ["SF", "과학소설"], "answer_titles_must_be_returned": true}
+    },
+    {
+      "id": "rec_recent_korean",
+      "category": "recommendation",
+      "endpoint": "/recommend",
+      "payload": {"message": "2020년 이후 나온 한국 영화 중에서 평이 괜찮은 작품 추천해줘.", "language": "ko", "year_from": 2020, "min_rating": 6.0},
+      "checks": {"min_movies": 1, "unique_titles": true, "year_from": 2020, "min_rating": 6.0, "answer_titles_must_be_returned": true}
+    },
+    {
+      "id": "rec_animation_adult",
+      "category": "recommendation",
+      "endpoint": "/recommend",
+      "payload": {"message": "어른이 봐도 유치하지 않은 애니메이션 영화 추천해줘."},
+      "checks": {"min_movies": 3, "unique_titles": true, "required_genres_any": ["애니메이션"], "answer_titles_must_be_returned": true}
+    },
+    {
+      "id": "rec_music_feelgood",
+      "category": "recommendation",
+      "endpoint": "/recommend",
+      "payload": {"message": "음악이 좋고 보고 나면 기분 좋아지는 영화가 보고 싶어."},
+      "checks": {"min_movies": 3, "unique_titles": true, "required_genres_any": ["음악", "뮤지컬", "코미디"], "blocked_genres": ["공포"], "answer_titles_must_be_returned": true}
+    },
+    {
+      "id": "chat_emotion_listen",
+      "category": "character_chat",
+      "endpoint": "/chat",
+      "payload": {"character": "마석도", "message": "오늘 회사에서 완전 실수했어. 지금은 해결책보다 그냥 내 얘기 좀 들어줘.", "history": [], "use_rag": true},
+      "checks": {"rag_used": false, "max_chars": 220, "max_questions": 1, "blocked_patterns": ["포기하지 마", "너 자신을 믿", "내면의 목소리"]}
+    },
+    {
+      "id": "chat_practical_wording",
+      "category": "character_chat",
+      "endpoint": "/chat",
+      "payload": {"character": "헤르미온느", "message": "친구가 내 물건을 자꾸 말없이 가져가. 기분 안 상하게 뭐라고 보내면 좋을까?", "history": [], "use_rag": true},
+      "checks": {"rag_used": false, "max_chars": 260, "max_questions": 1, "required_patterns_any": ["말없이", "먼저", "물어", "알려"]}
+    },
+    {
+      "id": "chat_ambiguous_clarify",
+      "category": "character_chat",
+      "endpoint": "/chat",
+      "payload": {"character": "토니 스타크", "message": "그거 있잖아 그때 그거 어떻게 해?", "history": [], "use_rag": true},
+      "checks": {"rag_used": false, "max_chars": 180, "min_questions": 1}
+    },
+    {
+      "id": "chat_history_followup",
+      "category": "multiturn_context",
+      "endpoint": "/chat",
+      "payload": {"character": "엘사", "message": "그럼 내가 지금 뭐라고 답하는 게 좋을까?", "history": [{"role": "user", "content": "친구가 내 비밀을 다른 사람에게 말해서 화가 났어."}, {"role": "assistant", "content": "그건 신뢰가 깨진 일이라 화날 만해요."}], "use_rag": true},
+      "checks": {"rag_used": false, "max_chars": 260, "required_patterns_any": ["비밀", "다른 사람", "신뢰", "말한"]}
+    },
+    {
+      "id": "chat_identity_truth",
+      "category": "grounded_character",
+      "endpoint": "/chat",
+      "payload": {"character": "브루스 웨인", "message": "오늘 실제로 어디 갔다 왔어?", "history": [], "use_rag": true},
+      "checks": {"max_chars": 220, "blocked_patterns": ["오늘 고담", "방금 고담", "회사에 다녀", "순찰하고"]}
+    },
+    {
+      "id": "chat_relation_verified",
+      "category": "grounded_character",
+      "endpoint": "/chat",
+      "payload": {"character": "토니 스타크", "message": "피터 파커와는 어떤 사이야?", "history": [], "use_rag": true},
+      "checks": {"rag_used": true, "max_chars": 260, "required_patterns_any": ["피터", "파커"]}
+    },
+    {
+      "id": "chat_relation_unknown",
+      "category": "grounded_character",
+      "endpoint": "/chat",
+      "payload": {"character": "골룸", "message": "토니 스타크와 예전에 무슨 일이 있었어?", "history": [], "use_rag": true},
+      "checks": {"max_chars": 220, "required_patterns_any": ["모르", "없", "확인", "지어낼"]}
+    },
+    {
+      "id": "auto_recommend_intent",
+      "category": "routing",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "퇴근하고 가볍게 볼 영화 좀 골라줘.", "history": []},
+      "checks": {"expected_intent": "movie_recommend", "min_movies": 1, "unique_titles": true}
+    },
+    {
+      "id": "auto_general_intent",
+      "category": "routing",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "처음 왔는데 여기서는 어떤 이야기를 나눌 수 있어?", "history": []},
+      "checks": {"expected_intent_not": "movie_recommend", "max_chars": 260}
+    },
+    {
+      "id": "voice_same_prompt_maseokdo",
+      "pair_group": "voice_same_prompt",
+      "category": "character_distinctiveness",
+      "endpoint": "/chat",
+      "payload": {"character": "마석도", "message": "친구가 약속에 늦고 연락도 없었어. 너라면 뭐라고 해?", "history": [], "use_rag": true},
+      "checks": {"rag_used": false, "max_chars": 240}
+    },
+    {
+      "id": "voice_same_prompt_tony",
+      "pair_group": "voice_same_prompt",
+      "category": "character_distinctiveness",
+      "endpoint": "/chat",
+      "payload": {"character": "토니 스타크", "message": "친구가 약속에 늦고 연락도 없었어. 너라면 뭐라고 해?", "history": [], "use_rag": true},
+      "checks": {"rag_used": false, "max_chars": 240}
+    },
+    {
+      "id": "voice_same_prompt_elsa",
+      "pair_group": "voice_same_prompt",
+      "category": "character_distinctiveness",
+      "endpoint": "/chat",
+      "payload": {"character": "엘사", "message": "친구가 약속에 늦고 연락도 없었어. 너라면 뭐라고 해?", "history": [], "use_rag": true},
+      "checks": {"rag_used": false, "max_chars": 240}
+    }
+  ]
+}

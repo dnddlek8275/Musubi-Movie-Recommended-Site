@@ -20,7 +20,9 @@ _MOVIE_CONTEXT = re.compile(
 _FOLLOWUP = re.compile(
     r"너무\s*(?:무겁|무거|어둡|어두|우울|슬프|슬퍼|무섭|무서|잔인|폭력적|길|오래됐)|"
     r"(?:좀\s*)?더\s*(?:밝|가볍|가벼|유쾌|최신|최근|짧|재밌)|"
-    r"다른\s*(?:거|걸|영화|작품)|별로|마음에\s*안|싫어|싫다|말고|빼줘|제외|"
+    r"다른\s*(?:거|것|걸|건|게|영화|작품)(?:도|은|는|을|이|가)?|"
+    r"또\s*(?:보여|알려|추천|골라)|추가로\s*(?:보여|알려|추천|골라)|"
+    r"별로|마음에\s*안|싫어|싫다|말고|빼줘|제외|"
     r"\d{4}\s*년?\s*(?:이후|이전|부터|까지|이상|이하)?\s*만|"
     r"평점\s*\d+(?:\.\d+)?\s*(?:점|이상|이하)?\s*만?|"
     r"(?:한국어|영어|일본어|중국어|프랑스어)\s*(?:영화|작품)?\s*만",
@@ -35,6 +37,15 @@ _COORDINATED_NEGATED_GENRES = re.compile(
     re.IGNORECASE,
 )
 _QUOTED_TITLE = re.compile(r"['‘’\"“”]([^'‘’\"“”]{1,80})['‘’\"“”]")
+_TITLE_RECALL = re.compile(r"(?:영화|제목).{0,12}(?:뭐였|뭐였지|알려)|뭐였지", re.IGNORECASE)
+_OVERVIEW_REQUEST = re.compile(r"줄거리|내용|무슨\s*내용", re.IGNORECASE)
+_LIGHT_COMPARISON = re.compile(r"(?:더\s*)?(?:가볍|가벼|편하|유쾌|밝)", re.IGNORECASE)
+_REMAINDER_COMPARISON = re.compile(r"말고.{0,20}(?:나머지|둘\s*중|것\s*중|거\s*중)", re.IGNORECASE)
+_ORDINALS = (
+    (re.compile(r"첫\s*번째|1\s*번째|첫째"), 0),
+    (re.compile(r"두\s*번째|2\s*번째|둘째"), 1),
+    (re.compile(r"세\s*번째|3\s*번째|셋째"), 2),
+)
 
 
 @dataclass
@@ -45,6 +56,100 @@ class RecommendationContext:
     excluded_titles: list[str] = field(default_factory=list)
 
 
+def _latest_structured_movies(history: list[dict] | None) -> list[dict]:
+    for item in reversed(history or []):
+        if item.get("role") != "assistant":
+            continue
+        raw_movies = item.get("recommended_movies") or item.get("movies") or []
+        movies = [movie for movie in raw_movies if isinstance(movie, dict) and movie.get("title")]
+        if movies:
+            return movies
+    return []
+
+
+def _mentioned_ordinal(message: str) -> int | None:
+    for pattern, index in _ORDINALS:
+        if pattern.search(message):
+            return index
+    if re.search(r"마지막", message):
+        return -1
+    return None
+
+
+def _genre_names(movie: dict) -> list[str]:
+    raw = movie.get("genres_list") or movie.get("genres") or []
+    if isinstance(raw, str):
+        return [part.strip() for part in raw.split(",") if part.strip()]
+    if isinstance(raw, list):
+        return [str(part).strip() for part in raw if str(part).strip()]
+    return []
+
+
+def _lightness_score(movie: dict) -> int:
+    scores = {
+        "코미디": 4,
+        "가족": 3,
+        "애니메이션": 3,
+        "음악": 2,
+        "모험": 1,
+        "로맨스": 1,
+        "공포": -2,
+        "스릴러": -1,
+        "범죄": -1,
+        "전쟁": -2,
+    }
+    return sum(scores.get(genre, 0) for genre in _genre_names(movie))
+
+
+def build_card_followup_reply(
+    user_message: str,
+    history: list[dict] | None,
+) -> tuple[str, list[dict]] | None:
+    """Answer narrow card references using only the latest structured metadata."""
+    movies = _latest_structured_movies(history)
+    if not movies:
+        return None
+
+    ordinal = _mentioned_ordinal(user_message)
+    if (
+        ordinal is not None
+        and _REMAINDER_COMPARISON.search(user_message)
+        and _LIGHT_COMPARISON.search(user_message)
+    ):
+        excluded_index = ordinal if ordinal >= 0 else len(movies) - 1
+        candidates = [movie for index, movie in enumerate(movies) if index != excluded_index]
+        if len(candidates) < 2:
+            return None
+        ranked = sorted(candidates, key=_lightness_score, reverse=True)
+        if _lightness_score(ranked[0]) == _lightness_score(ranked[1]):
+            titles = "와 ".join(f"‘{movie['title']}’" for movie in ranked[:2])
+            return f"장르 정보만으로는 {titles} 중 어느 쪽이 더 가벼운지 구분하기 어려워.", []
+        selected = ranked[0]
+        genres = _genre_names(selected)
+        genre_text = " · ".join(genres[:2]) or "등록된 장르"
+        return (
+            f"장르 정보만 보면 ‘{selected['title']}’이 더 가벼운 쪽이야. "
+            f"{genre_text} 장르로 표시되어 있어.",
+            [selected],
+        )
+
+    if ordinal is None:
+        return None
+    selected_index = ordinal if ordinal >= 0 else len(movies) - 1
+    if selected_index >= len(movies):
+        return None
+    selected = movies[selected_index]
+    title = str(selected.get("title") or "").strip()
+    if _OVERVIEW_REQUEST.search(user_message):
+        overview = str(selected.get("overview") or "").strip()
+        if overview:
+            return f"‘{title}’의 등록된 줄거리는 이래. {overview}", [selected]
+        return f"‘{title}’의 줄거리 정보는 현재 카드에 없어.", [selected]
+    if _TITLE_RECALL.search(user_message):
+        return f"{selected_index + 1}번째 영화는 ‘{title}’이야.", [selected]
+    return None
+
+
 def _recent_movie_request(history: list[dict] | None) -> str:
     for item in reversed(history or []):
         if item.get("role") != "user":
@@ -52,6 +157,31 @@ def _recent_movie_request(history: list[dict] | None) -> str:
         content = str(item.get("content") or "").strip()
         if _MOVIE_CONTEXT.search(content):
             return content
+    return ""
+
+
+def _has_structured_recommendations(history: list[dict] | None) -> bool:
+    """Return true only when the conversation actually contains movie cards."""
+    return any(
+        item.get("role") == "assistant"
+        and bool(item.get("recommended_movies") or item.get("movies"))
+        for item in history or []
+    )
+
+
+def _request_before_latest_movie_cards(history: list[dict] | None) -> str:
+    """Recover the user request that produced the latest structured movie cards."""
+    items = list(history or [])
+    for assistant_index in range(len(items) - 1, -1, -1):
+        item = items[assistant_index]
+        if item.get("role") != "assistant" or not (
+            item.get("recommended_movies") or item.get("movies")
+        ):
+            continue
+        for user_index in range(assistant_index - 1, -1, -1):
+            user_item = items[user_index]
+            if user_item.get("role") == "user":
+                return str(user_item.get("content") or "").strip()
     return ""
 
 
@@ -68,7 +198,7 @@ def _recommendation_thread_request(history: list[dict] | None) -> str:
             root_index = index
             break
     if root_index is None:
-        return _recent_movie_request(history)
+        return _recent_movie_request(history) or _request_before_latest_movie_cards(history)
 
     messages = [str(items[root_index].get("content") or "").strip()]
     for item in items[root_index + 1:]:
@@ -81,7 +211,10 @@ def _recommendation_thread_request(history: list[dict] | None) -> str:
 
 
 def is_movie_recommendation_followup(user_message: str, history: list[dict] | None) -> bool:
-    return bool(_FOLLOWUP.search(user_message) and _recent_movie_request(history))
+    return bool(
+        _FOLLOWUP.search(user_message)
+        and (_recent_movie_request(history) or _has_structured_recommendations(history))
+    )
 
 
 def _previous_titles(history: list[dict] | None) -> list[str]:

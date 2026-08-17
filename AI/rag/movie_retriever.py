@@ -30,10 +30,14 @@ from pipeline.topic_grounding import filter_topic_candidates
 MILVUS_URI      = os.getenv("CINEVERSE_MILVUS_URI", "http://localhost:19530")
 COLLECTION_NAME = os.getenv("MOVIE_COLLECTION_NAME", "movies_active")
 RERANK_CANDIDATE_MULTIPLIER = max(
-    1, int(os.getenv("RERANK_CANDIDATE_MULTIPLIER", "2"))
+    1, int(os.getenv("RERANK_CANDIDATE_MULTIPLIER", "1"))
 )
 RERANK_CANDIDATE_MINIMUM = max(
-    1, int(os.getenv("RERANK_CANDIDATE_MINIMUM", "18"))
+    1, int(os.getenv("RERANK_CANDIDATE_MINIMUM", "12"))
+)
+RERANK_CANDIDATE_COMPLEX_MAXIMUM = max(
+    RERANK_CANDIDATE_MINIMUM,
+    int(os.getenv("RERANK_CANDIDATE_COMPLEX_MAXIMUM", "18")),
 )
 
 OUTPUT_FIELDS = [
@@ -100,6 +104,7 @@ def retrieve(
     required_count: int | None = None,
     quality_weight: float = 0.30,
     topic: dict | None = None,
+    rerank_mode: str = "standard",
 ) -> list[dict]:
     """
     영화를 하이브리드 검색 후 CrossEncoder로 재순위.
@@ -179,15 +184,43 @@ def retrieve(
         ranked = [m for m in ranked if not m.get("release_date") or m["release_date"] <= today]
         ranked.sort(key=lambda m: m.get("release_date") or "", reverse=True)
         ranked = ranked[:top_k]
+    elif rerank_mode == "skip":
+        # Exact metadata constraints (genre/actor/director/language/year/rating)
+        # are already enforced by Milvus. Preserve the hybrid RRF order and apply
+        # the inexpensive quality blend without competing with llama-server for GPU.
+        direct_limit = max(top_k, RERANK_CANDIDATE_MINIMUM)
+        ranked = blend_semantic_and_quality(
+            candidates[:direct_limit],
+            top_k=top_k,
+            quality_weight=max(0.0, min(float(quality_weight), 1.0)),
+            query=query,
+        )
+        print(
+            f"  [MovieRetriever] rerank=skip candidates={min(len(candidates), direct_limit)} "
+            f"reason=metadata_filter"
+        )
     else:
         # Keep the wide Milvus pool for recall, but only send the strongest RRF
         # candidates to the GPU CrossEncoder. For the production top_k=9 path this
-        # reduces 90 pair evaluations to 18 without changing the final output size.
+        # reduces 90 pair evaluations to 12 while retaining four candidates per
+        # final recommendation card (required_count=3).
         rerank_limit = max(
             RERANK_CANDIDATE_MINIMUM,
             top_k * RERANK_CANDIDATE_MULTIPLIER,
         )
+        if rerank_mode == "complex":
+            rerank_limit = max(
+                top_k,
+                min(
+                    RERANK_CANDIDATE_COMPLEX_MAXIMUM,
+                    max(rerank_limit, top_k * 2),
+                ),
+            )
         rerank_candidates = candidates[:rerank_limit]
+        print(
+            f"  [MovieRetriever] rerank={rerank_mode} "
+            f"candidates={len(rerank_candidates)}"
+        )
         ranked = rerank(
             effective_query,
             rerank_candidates,

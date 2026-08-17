@@ -1,0 +1,36 @@
+{
+  "tested_at_kst": "2026-08-17",
+  "request": {
+    "message": "오늘 뭐 볼까?",
+    "history": []
+  },
+  "baseline": {
+    "rewrite_seconds": 5.795,
+    "retrieve_seconds": 0.927,
+    "answer_seconds": 4.694,
+    "total_seconds": 11.418934
+  },
+  "optimized": {
+    "http_status": 200,
+    "rewrite_seconds": 0.001,
+    "retrieve_seconds": 2.027,
+    "answer_seconds": 4.673,
+    "pipeline_total_seconds": 6.702,
+    "http_total_seconds": 6.705965,
+    "intent": "movie_recommend",
+    "movie_count": 3,
+    "empty_answer": false,
+    "llm_prompt_tokens": 470,
+    "llm_output_tokens": 77,
+    "llm_generation_tokens_per_second": 21.161496848860743
+  },
+  "improvement": {
+    "seconds_reduced": 4.712969,
+    "percent_reduced": 41.3
+  },
+  "postcheck": {
+    "api_service": "active",
+    "llama_service": "active",
+    "root_disk_usage_percent": 55
+  }
+}

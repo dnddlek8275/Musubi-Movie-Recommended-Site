@@ -1,0 +1,56 @@
+{
+  "tested_at_kst": "2026-08-17 14:43-14:54",
+  "target": "http://127.0.0.1/chat/auto on GPU VM via SSH",
+  "request": {
+    "message": "액션 영화 세 편 추천해줘",
+    "history": []
+  },
+  "scope": "AI API direct; backend and public network latency excluded",
+  "model": "gemma-4-12b-it-base-q4_k_m.gguf",
+  "single": {
+    "http_status": 200,
+    "total_seconds": 6.494362,
+    "pipeline_seconds": {
+      "retrieve": 1.886,
+      "answer": 4.603,
+      "total": 6.490
+    },
+    "llm": {
+      "prompt_tokens": 480,
+      "output_tokens": 78,
+      "prompt_seconds": 0.8532,
+      "generation_seconds": 3.7225,
+      "generation_tokens_per_second": 20.953598256660623
+    },
+    "intent": "movie_recommend",
+    "movie_count": 3
+  },
+  "concurrent_5": {
+    "latencies_seconds": [17.482063, 18.814440, 19.103429, 18.687126, 18.683776],
+    "http_200": 5,
+    "mean_seconds": 18.554167,
+    "p50_seconds": 18.687126,
+    "p95_seconds": 19.103429,
+    "max_seconds": 19.103429,
+    "all_intent_movie_recommend": true,
+    "all_movie_count": 3,
+    "empty_answers": 0
+  },
+  "baseline": {
+    "single_seconds": 7.719,
+    "concurrent_5_mean_seconds": 21.038,
+    "concurrent_5_p50_seconds": 21.318,
+    "concurrent_5_p95_seconds": 21.555
+  },
+  "postcheck": {
+    "api_service": "active",
+    "llama_service": "active",
+    "health_llm": "ok",
+    "health_milvus": "ok (8 collections)",
+    "health_embedder": "ok",
+    "root_disk_usage_percent": 55,
+    "idle_vram_mib": 12634,
+    "vram_total_mib": 15360,
+    "skip_chat_parsing_present": false
+  }
+}

@@ -5,6 +5,7 @@ llama-server (OpenAI 호환) 호출 모듈
 
 import json
 import os
+import time
 import requests
 
 from llm.sampling import DEFAULT_PARAMS, sampling_params
@@ -12,6 +13,49 @@ from llm.sampling import DEFAULT_PARAMS, sampling_params
 LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "http://localhost:8081")
 LLM_MODEL    = os.environ.get("LLM_MODEL", "gemma-4-12b-it.Q4_K_M.gguf")
 LLM_TIMEOUT  = int(os.environ.get("LLM_TIMEOUT", "300"))
+
+
+def _server_metric(data: dict, usage_key: str, timing_key: str):
+    usage = data.get("usage") or {}
+    timings = data.get("timings") or {}
+    value = usage.get(usage_key)
+    if value is None:
+        value = timings.get(timing_key)
+    return value
+
+
+def _log_timing(
+    data: dict,
+    *,
+    started_at: float,
+    profile: str | None,
+    stream: bool,
+    ttft_seconds: float | None,
+    status: str = "ok",
+) -> None:
+    """Emit one machine-readable timing line without logging prompt contents."""
+    timings = data.get("timings") or {}
+    payload = {
+        "event": "llm_timing",
+        "status": status,
+        "profile": profile or "default",
+        "stream": stream,
+        "request_seconds": round(time.perf_counter() - started_at, 4),
+        # A non-streaming HTTP response cannot reveal exact first-token arrival.
+        "ttft_seconds": round(ttft_seconds, 4) if ttft_seconds is not None else None,
+        "prompt_tokens": _server_metric(data, "prompt_tokens", "prompt_n"),
+        "output_tokens": _server_metric(data, "completion_tokens", "predicted_n"),
+        "prompt_seconds": (
+            round(float(timings["prompt_ms"]) / 1000, 4)
+            if timings.get("prompt_ms") is not None else None
+        ),
+        "generation_seconds": (
+            round(float(timings["predicted_ms"]) / 1000, 4)
+            if timings.get("predicted_ms") is not None else None
+        ),
+        "generation_tokens_per_second": timings.get("predicted_per_second"),
+    }
+    print("  [LLMTiming] " + json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
 
 def chat(
     messages: list[dict],
@@ -36,6 +80,7 @@ def chat(
         "max_tokens": max_tokens,
         **sampling_params(profile, **kwargs),
     }
+    started_at = time.perf_counter()
 
     try:
         resp = requests.post(
@@ -69,6 +114,14 @@ def chat(
     if finish == "length":
         print(f"  [LLM] ⚠ finish=length — max_tokens({max_tokens}) 부족할 수 있음")
 
+    _log_timing(
+        data,
+        started_at=started_at,
+        profile=profile,
+        stream=False,
+        ttft_seconds=None,
+    )
+
     return content
 
 
@@ -91,6 +144,10 @@ def chat_stream(
         "stream": True,
         **sampling_params(profile, **kwargs),
     }
+    started_at = time.perf_counter()
+    first_token_at = None
+    final_data: dict = {}
+    completed = False
 
     try:
         resp = requests.post(
@@ -107,22 +164,37 @@ def chat_stream(
     if not resp.ok:
         resp.raise_for_status()
 
-    for line in resp.iter_lines():
-        if not line:
-            continue
-        decoded = line.decode("utf-8")
-        if decoded == "data: [DONE]":
-            break
-        if not decoded.startswith("data: "):
-            continue
-        try:
-            chunk = json.loads(decoded[6:])
-            delta = chunk["choices"][0]["delta"]
-            token = delta.get("content") or delta.get("reasoning_content") or ""
-            if token:
-                yield token
-        except (json.JSONDecodeError, KeyError):
-            continue
+    try:
+        for line in resp.iter_lines():
+            if not line:
+                continue
+            decoded = line.decode("utf-8")
+            if decoded == "data: [DONE]":
+                completed = True
+                break
+            if not decoded.startswith("data: "):
+                continue
+            try:
+                chunk = json.loads(decoded[6:])
+                if chunk.get("usage") or chunk.get("timings"):
+                    final_data = chunk
+                delta = chunk["choices"][0]["delta"]
+                token = delta.get("content") or delta.get("reasoning_content") or ""
+                if token:
+                    if first_token_at is None:
+                        first_token_at = time.perf_counter()
+                    yield token
+            except (json.JSONDecodeError, KeyError):
+                continue
+    finally:
+        _log_timing(
+            final_data,
+            started_at=started_at,
+            profile=profile,
+            stream=True,
+            ttft_seconds=(first_token_at - started_at) if first_token_at is not None else None,
+            status="ok" if completed else "incomplete",
+        )
 
 
 def chat_json(

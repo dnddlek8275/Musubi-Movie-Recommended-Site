@@ -36,6 +36,7 @@ from pipeline.character_pipeline import (
     resolve_character_names,
 )
 from pipeline.movie_pipeline import run as movie_run
+from pipeline.recommendation_context import build_card_followup_reply
 from pipeline.web_search_pipeline import run as web_search_run
 
 app = FastAPI(title="Musubi AI API", version="2.0.0")
@@ -595,6 +596,17 @@ def chat_auto(req: AutoRequest):
     사용자 입력을 자동으로 분류해서
     영화 추천 또는 캐릭터 대화 파이프라인으로 라우팅.
     """
+    card_followup = build_card_followup_reply(req.message, req.history)
+    if card_followup:
+        answer, movies = card_followup
+        return AutoResponse(
+            intent=Intent.CHARACTER_CHAT,
+            character=req.character or "",
+            answer=answer,
+            movies=movies,
+            emotion="thinking",
+        )
+
     intent = classify(req.message, history=req.history)
 
     if intent == Intent.WEB_SEARCH:
@@ -673,23 +685,26 @@ def chat_stream(req: ChatRequest):
     from llm.client import chat_stream as llm_stream
     from pipeline.character_pipeline import (
         _ANSWER_NOW_REMINDER,
-        _character_identity_reply,
+        _guard_generated_answer,
+        _is_relation_followup,
         _relation_answer,
+        _relation_names_from_context,
         _should_use_character_rag,
+        _strip_identity_bleed,
+        _strip_name_claim_bleed,
         _verified_relation_chunks,
+        character_preflight_reply,
     )
-    from pipeline.input_clarity import get_ambiguous_input_reply
-    from pipeline.dialogue_guard import (
-        log_dialogue_guard_event,
-        output_rejection_reason,
-    )
+    from pipeline.dialogue_guard import log_dialogue_guard_event
     from pipeline.user_context import build_user_context_prompt
     from pipeline.tone_presets import (
         build_turn_guidance,
+        build_profiled_listen_fallback,
         build_recovery_reply,
         enforce_dialogue_policy,
         is_character_relation_question,
-        mentioned_characters,
+        is_listen_only_request,
+        is_safe_listening_answer,
     )
     import os
 
@@ -708,40 +723,30 @@ def chat_stream(req: ChatRequest):
     except KeyError:
         raise HTTPException(status_code=404, detail=f"캐릭터 '{req.character}'를 찾을 수 없습니다.")
 
-    ambiguous_reply = get_ambiguous_input_reply(req.message)
-    if ambiguous_reply:
-        log_dialogue_guard_event(
-            reason="ambiguous_input",
-            mode="character_stream",
-            user_message=req.message,
-            character_name=character_name,
-        )
-        def recovery_event_generator():
+    preflight = character_preflight_reply(character_name, req.message, profiles)
+    if preflight:
+        reason, answer = preflight
+        intent = "character_chat"
+        if reason == "ambiguous_input":
+            log_dialogue_guard_event(
+                reason=reason,
+                mode="character_stream",
+                user_message=req.message,
+                character_name=character_name,
+            )
+            answer = build_recovery_reply(character_name)
+            intent = "input_recovery"
+
+        def preflight_event_generator():
             payload = {
-                "answer": build_recovery_reply(character_name),
+                "answer": answer,
                 "character": character_name,
-                "intent": "input_recovery",
+                "intent": intent,
             }
             yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
 
-        return StreamingResponse(recovery_event_generator(), media_type="text/event-stream")
-
-    identity_reply = _character_identity_reply(character_name, req.message, profiles)
-    if identity_reply:
-        def identity_event_generator():
-            yield f"data: {json.dumps(identity_reply, ensure_ascii=False)}\n\n"
-            yield "data: [DONE]\n\n"
-
-        return StreamingResponse(identity_event_generator(), media_type="text/event-stream")
-
-    lore_fact_reply = character_lore_fact_reply(character_name, req.message)
-    if lore_fact_reply:
-        def lore_fact_event_generator():
-            yield f"data: {json.dumps(lore_fact_reply, ensure_ascii=False)}\n\n"
-            yield "data: [DONE]\n\n"
-
-        return StreamingResponse(lore_fact_event_generator(), media_type="text/event-stream")
+        return StreamingResponse(preflight_event_generator(), media_type="text/event-stream")
 
     intent = classify(req.message, history=req.history)
     if intent == Intent.MOVIE_RECOMMEND:
@@ -771,20 +776,26 @@ def chat_stream(req: ChatRequest):
     user_context_prompt = build_user_context_prompt(req.user_context)
     if user_context_prompt:
         messages.append({"role": "system", "content": user_context_prompt})
-    relation_question = is_character_relation_question(req.message)
-    relation_names = (
-        mentioned_characters(req.message, profiles, exclude=character_name)
-        if relation_question
-        else []
+    relation_names = _relation_names_from_context(
+        character_name, req.message, req.history, profiles,
+    )
+    relation_question = (
+        is_character_relation_question(req.message)
+        or _is_relation_followup(req.message, relation_names)
     )
     relation_grounded = not relation_question
     relation_answer = None
 
-    if req.use_rag and _should_use_character_rag(req.message, profiles):
+    if req.use_rag and (relation_question or _should_use_character_rag(req.message, profiles)):
         try:
-            chunks = retrieve(character_name, req.message, top_k=3)
+            rag_query = req.message
+            if relation_question and relation_names and not any(
+                name in req.message for name in relation_names
+            ):
+                rag_query = f"{req.message}\n관계 대상: {', '.join(relation_names)}"
+            chunks = retrieve(character_name, rag_query, top_k=3)
             if relation_question:
-                chunks = _verified_relation_chunks(chunks, relation_names, req.message)
+                chunks = _verified_relation_chunks(chunks, relation_names, rag_query)
                 relation_grounded = bool(chunks)
                 relation_answer = _relation_answer(chunks)
             rag_ctx = format_context(chunks)
@@ -809,6 +820,10 @@ def chat_stream(req: ChatRequest):
         try:
             raw = "".join(llm_stream(messages, max_tokens=512, profile="character_chat"))
             answer = clean_and_truncate(raw, character_name) or "..."
+            if is_listen_only_request(req.message) and not is_safe_listening_answer(answer):
+                answer = build_profiled_listen_fallback(character_name)
+            answer = _strip_identity_bleed(answer, character_name)
+            answer = _strip_name_claim_bleed(answer, character_name, profiles)
             answer = enforce_dialogue_policy(
                 character_name,
                 req.message,
@@ -818,16 +833,18 @@ def chat_stream(req: ChatRequest):
                 history=req.history,
                 relation_answer=relation_answer,
             )
-            rejection = output_rejection_reason(answer, req.message)
-            if rejection:
-                log_dialogue_guard_event(
-                    reason=rejection,
-                    mode="character_stream",
-                    user_message=req.message,
-                    character_name=character_name,
-                )
-                answer = build_recovery_reply(character_name)
-            yield f"data: {json.dumps(answer, ensure_ascii=False)}\n\n"
+            answer = _guard_generated_answer(
+                answer,
+                req.message,
+                mode="character_stream",
+                character_name=character_name,
+            )
+            payload = {
+                "answer": answer,
+                "character": character_name,
+                "intent": Intent.CHARACTER_CHAT,
+            }
+            yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
         finally:

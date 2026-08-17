@@ -368,13 +368,17 @@ export default function useMumuChat(authUser) {
     const history = (activeConversation.messages || [])
       .filter((message) => !message.pending && !message.error)
       .slice(-10)
-      .map((message) => ({
-        role: message.role,
-        content: String(message.content || message.text || '').slice(0, 1000),
-        ...(message.character && message.character !== '무무'
-          ? { character: message.character }
-          : {}),
-      }));
+      .map((message) => {
+        const movies = message.movies || message.recommended_movies || [];
+        return {
+          role: message.role,
+          content: String(message.content || message.text || '').slice(0, 1000),
+          ...(message.character && message.character !== '무무'
+            ? { character: message.character }
+            : {}),
+          ...(movies.length > 0 ? { recommended_movies: movies.slice(0, 3) } : {}),
+        };
+      });
     const pendingId = `pending-${crypto.randomUUID()}`;
     const createdAt = new Date().toISOString();
     const isFirstMessage = history.length === 0;

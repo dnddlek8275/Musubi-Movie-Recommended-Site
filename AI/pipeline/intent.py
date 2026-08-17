@@ -33,6 +33,17 @@ _WEB_SEARCH_PATTERNS = re.compile(
     re.IGNORECASE,
 )
 
+# ``추천`` alone is not a movie intent. Keep verified non-movie targets out of
+# the movie pipeline even when their topic also matches a movie title (for
+# example, ``코드 관련 책을 추천해줘`` or ``친구랑 할 게임 추천해줘``).
+_NON_MOVIE_RECOMMENDATION_PATTERNS = re.compile(
+    r"(?:책|도서|노래|음악|맛집|식당|게임|웹툰|여행지).{0,20}(?:추천|골라|알려)|"
+    r"(?:추천|골라|알려).{0,20}(?:책|도서|노래|음악|맛집|식당|게임|웹툰|여행지)",
+    re.IGNORECASE,
+)
+
+_EXPLICIT_MOVIE_TARGET = re.compile(r"영화|필름|무비", re.IGNORECASE)
+
 class Intent:
     INPUT_RECOVERY  = "input_recovery"
     MOVIE_RECOMMEND = "movie_recommend"
@@ -54,6 +65,12 @@ def classify(user_message: str, history: list[dict] | None = None) -> str:
         return Intent.WEB_SEARCH
 
     if is_mumu_personal_chat(user_message):
+        return Intent.CHARACTER_CHAT
+
+    if (
+        _NON_MOVIE_RECOMMENDATION_PATTERNS.search(user_message)
+        and not _EXPLICIT_MOVIE_TARGET.search(user_message)
+    ):
         return Intent.CHARACTER_CHAT
 
     if _MOVIE_PATTERNS.search(user_message):

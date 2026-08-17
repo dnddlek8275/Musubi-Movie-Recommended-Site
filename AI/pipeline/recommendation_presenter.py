@@ -51,6 +51,17 @@ _GENRE_CLAIM_TERMS = re.compile(
 _NUMERIC_FACT_CLAIM = re.compile(r"\d+(?:\.\d+)?\s*(?:년|점|분|위)")
 
 
+def _korean_object_particle(value: str) -> str:
+    """Return 을/를 for a Korean label, defaulting safely for Latin labels."""
+    text = str(value or "").strip()
+    if not text:
+        return "를"
+    last = ord(text[-1])
+    if 0xAC00 <= last <= 0xD7A3:
+        return "을" if (last - 0xAC00) % 28 else "를"
+    return "를"
+
+
 def _genres(movie: dict) -> list[str]:
     raw = movie.get("genres_list") or movie.get("genres") or []
     if isinstance(raw, str):
@@ -274,9 +285,16 @@ def _reason(
             return (
                 f"{requested_genre}에 {' · '.join(related_genres[:2])} 요소가 더해진 작품이에요."
             )
+        object_particle = _korean_object_particle(requested_genre)
         if release_date:
-            return f"{release_date} 개봉작으로, {requested_genre}을 찾을 때 살펴볼 만해요."
-        return f"{requested_genre}을 중심으로 찾을 때 먼저 살펴볼 만한 작품이에요."
+            return (
+                f"{release_date} 개봉작으로, {requested_genre}{object_particle} "
+                "찾을 때 살펴볼 만해요."
+            )
+        return (
+            f"{requested_genre}{object_particle} 중심으로 찾을 때 "
+            "먼저 살펴볼 만한 작품이에요."
+        )
     if genres:
         return f"{' · '.join(genres[:2])} 장르 정보를 기준으로 요청과 가까운 작품을 골랐어요."
     if rating >= 7.0:

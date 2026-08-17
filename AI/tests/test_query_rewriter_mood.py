@@ -42,6 +42,16 @@ class QueryRewriterMoodTests(unittest.TestCase):
         )
         self.assertEqual(result["quality_priority"], "generic")
 
+    def test_short_generic_questions_skip_llm_rewrite(self):
+        for message in ("오늘 뭐 볼까?", "오늘 뭐 보면 좋을까?"):
+            with self.subTest(message=message):
+                result = rewrite(message)
+                self.assertEqual(
+                    result["search_query"],
+                    "흥행에 성공하고 많은 관객에게 사랑받은 인기 명작 영화",
+                )
+                self.assertEqual(result["quality_priority"], "generic")
+
     def test_mood_recommendation_requests_quality_priority(self):
         result = rewrite("기분이 안 좋을 때 볼 영화 추천해줘")
         self.assertEqual(result["quality_priority"], "mood")

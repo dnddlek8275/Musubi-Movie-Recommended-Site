@@ -6,9 +6,14 @@
 
 .index-hero-grid {
   display: grid;
-  grid-template-columns: 1126px 470px;
+  /* 1920px 시안의 비율은 유지하되 실제 CSS 뷰포트 안에서 함께 줄어든다. */
+  grid-template-columns: minmax(0, 1126fr) minmax(320px, 470fr);
   gap: 24px;
   align-items: stretch;
+}
+
+.index-hero-grid > * {
+  min-width: 0;
 }
 
 .index-hero-left {
@@ -475,9 +480,16 @@
 .index-middle-grid {
   margin-top: 80px;
   display: grid;
-  /* 보조 정보는 조금 더 조밀하게, AI 추천은 메인 카드처럼 보이도록 폭을 재배분한다. */
-  grid-template-columns: 535px 550px 475px;
+  /* 고정 1620px 폭은 브라우저 확대/노트북 화면에서 우측 카드를 잘라낸다. */
+  grid-template-columns:
+    minmax(0, 535fr)
+    minmax(0, 550fr)
+    minmax(320px, 475fr);
   gap: 30px;
+}
+
+.index-middle-grid > * {
+  min-width: 0;
 }
 
 .index-stack {
@@ -1086,6 +1098,40 @@
 
 .genre-tone--horror {
   background: linear-gradient(145deg, #5e1717, #111);
+}
+
+/* 좁은 데스크톱 또는 브라우저 확대: 정보 카드를 2열로 재배치한다. */
+@media (max-width: 1399px) {
+  .index-middle-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.04fr);
+    gap: 24px;
+  }
+
+  .rank-card {
+    min-height: 0;
+    grid-column: 1 / -1;
+  }
+
+  .rank-card .index-rank-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 24px;
+  }
+}
+
+/* 큰 배율에서도 카드를 숨기거나 전체 캔버스를 축소하지 않고 한 열로 보여준다. */
+@media (max-width: 960px) {
+  .index-hero-grid,
+  .index-middle-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rank-card {
+    grid-column: auto;
+  }
+
+  .rank-card .index-rank-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* ===== 모바일 레이아웃 (<= 768px) ===== */

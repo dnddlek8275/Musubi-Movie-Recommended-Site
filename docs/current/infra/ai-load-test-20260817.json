@@ -1,0 +1,87 @@
+{
+  "tested_at_utc": "2026-08-17T03:09:18.177236+00:00",
+  "tested_at_kst": "2026-08-17T12:09:18.177236+09:00",
+  "endpoint": "http://127.0.0.1:18080/chat/auto",
+  "scope": "direct_gpu_ai_api_via_ssh_tunnel",
+  "request": {
+    "message": "액션 영화 세 편 추천해줘",
+    "history": []
+  },
+  "concurrency": 5,
+  "wall_seconds": 21.576,
+  "responses": {
+    "200": 5
+  },
+  "success_latency_seconds": {
+    "min": 20.331,
+    "avg": 21.038,
+    "p50": 21.318,
+    "p95": 21.555,
+    "max": 21.555
+  },
+  "gpu_peak": {
+    "utilization_percent": 100,
+    "vram_used_mib": 12634,
+    "temperature_c": 61
+  },
+  "post_test_health": {
+    "ai_api": "active",
+    "llama_server": "active",
+    "watchdog_timer": "active",
+    "llm": "ok",
+    "milvus": "ok (8 collections)",
+    "embedder": "ok",
+    "cuda_oom": false,
+    "gpu_xid_error": false,
+    "fatal_error": false,
+    "root_disk_usage_percent": 55,
+    "available_memory_gib": 50
+  },
+  "results": [
+    {
+      "request_id": 1,
+      "status": 200,
+      "seconds": 21.414,
+      "intent": "movie_recommend",
+      "movie_count": 3,
+      "answer_length": 157,
+      "error": null
+    },
+    {
+      "request_id": 2,
+      "status": 200,
+      "seconds": 20.331,
+      "intent": "movie_recommend",
+      "movie_count": 3,
+      "answer_length": 157,
+      "error": null
+    },
+    {
+      "request_id": 3,
+      "status": 200,
+      "seconds": 20.572,
+      "intent": "movie_recommend",
+      "movie_count": 3,
+      "answer_length": 157,
+      "error": null
+    },
+    {
+      "request_id": 4,
+      "status": 200,
+      "seconds": 21.318,
+      "intent": "movie_recommend",
+      "movie_count": 3,
+      "answer_length": 157,
+      "error": null
+    },
+    {
+      "request_id": 5,
+      "status": 200,
+      "seconds": 21.555,
+      "intent": "movie_recommend",
+      "movie_count": 3,
+      "answer_length": 157,
+      "error": null
+    }
+  ]
+}

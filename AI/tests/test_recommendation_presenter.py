@@ -1,6 +1,7 @@
 import unittest
 
 from pipeline.recommendation_presenter import (
+    _korean_object_particle,
     build_character_grounded_answer,
     build_grounded_answer,
     filter_movies_by_requested_genre,
@@ -11,6 +12,11 @@ from pipeline.recommendation_presenter import (
 
 
 class RecommendationPresenterTests(unittest.TestCase):
+    def test_korean_object_particle_matches_genre_final_consonant(self):
+        self.assertEqual(_korean_object_particle("공포"), "를")
+        self.assertEqual(_korean_object_particle("액션"), "을")
+        self.assertEqual(_korean_object_particle("SF"), "를")
+
     def test_explicit_genre_drops_mismatched_cards(self):
         movies = [
             {"title": "액션 카드", "genres": "액션, 스릴러"},
@@ -173,6 +179,19 @@ class RecommendationPresenterTests(unittest.TestCase):
             ["레이디와 트램프", "알파 앤 오메가", "로빈슨 가족"],
         )
 
+    def test_child_query_filters_unsafe_certification_at_output_boundary(self):
+        movies = [
+            {"title": "전체 관람", "genres": "애니메이션", "certification": "ALL", "certification_country": "KR"},
+            {"title": "12세", "genres": "애니메이션", "certification": "12", "certification_country": "KR"},
+        ]
+        prepared = prepare_recommendations(
+            movies,
+            "초등학생 조카랑 같이 볼 영화",
+            {},
+            limit=3,
+        )
+        self.assertEqual([movie["title"] for movie in prepared], ["전체 관람"])
+
     def test_alternative_reasons_explain_real_differences(self):
         movies = [
             {"title": "A", "genres": "로맨스, 코미디", "year": 2020, "vote_average": 6.5},
@@ -185,6 +204,70 @@ class RecommendationPresenterTests(unittest.TestCase):
         self.assertIn("미스터리", reasons[1])
         self.assertIn("7.3", reasons[2])
         self.assertEqual(len(set(reasons)), 3)
+
+    def test_thoughtful_scifi_reason_uses_overview_evidence(self):
+        movies = prepare_recommendations(
+            [{"title": "A", "genres": "SF, 드라마", "overview": "기술이 인간의 미래와 선택에 미치는 영향"}],
+            "보고 나서 같이 얘기할 거리가 많은 SF 영화",
+            {"genre": "SF"},
+            limit=1,
+        )
+        self.assertIn("기술", movies[0]["recommendation_reason"])
+        self.assertIn("이야기할 근거", movies[0]["recommendation_reason"])
+
+    def test_feelgood_reason_uses_overview_evidence(self):
+        movies = prepare_recommendations(
+            [{"title": "A", "genres": "음악, 코미디", "overview": "친구들과 음악으로 꿈과 희망을 찾는다"}],
+            "음악이 좋고 보고 나면 기분 좋아지는 영화",
+            {"genre": "음악"},
+            limit=1,
+        )
+        self.assertIn("꿈", movies[0]["recommendation_reason"])
+        self.assertIn("기분 좋은", movies[0]["recommendation_reason"])
+
+    def test_adult_animation_reason_uses_mature_theme_evidence(self):
+        movies = prepare_recommendations(
+            [{"title": "A", "genres": "애니메이션, 드라마", "overview": "사회의 편견과 가족 관계를 다룬다"}],
+            "어른이 봐도 유치하지 않은 애니메이션",
+            {"genre": "애니메이션"},
+            limit=1,
+        )
+        self.assertIn("사회", movies[0]["recommendation_reason"])
+        self.assertIn("성인도 깊이", movies[0]["recommendation_reason"])
+
+    def test_avoid_sad_reason_precedes_generic_date_reason(self):
+        movies = prepare_recommendations(
+            [{"title": "A", "genres": "로맨스, 코미디", "overview": "새 출발과 유쾌한 사랑 이야기"}],
+            "데이트 영화 추천해줘. 너무 슬픈 건 싫어",
+            {"genre": "로맨스"},
+            limit=1,
+        )
+        self.assertIn("너무 슬프지 않은", movies[0]["recommendation_reason"])
+
+    def test_bright_date_reason_uses_synopsis_evidence(self):
+        movies = prepare_recommendations(
+            [{"title": "A", "genres": "로맨스, 코미디", "overview": "새 출발과 유쾌한 사랑 이야기"}],
+            "밝은 데이트 로맨스",
+            {"genre": "로맨스"},
+            limit=1,
+        )
+        self.assertIn("밝은 데이트 분위기", movies[0]["recommendation_reason"])
+
+    def test_bright_date_alternatives_explain_metadata_differences(self):
+        movies = prepare_recommendations(
+            [
+                {"title": "A", "genres": "로맨스, 코미디", "year": 2020, "overview": "사랑과 새 출발"},
+                {"title": "B", "genres": "로맨스, 애니메이션", "year": 2021, "overview": "따뜻한 사랑"},
+                {"title": "C", "genres": "로맨스, 코미디", "year": 2023, "vote_average": 7.4, "overview": "설레는 사랑"},
+            ],
+            "밝은 데이트 로맨스",
+            {"genre": "로맨스"},
+            limit=3,
+        )
+        reasons = [movie["recommendation_reason"] for movie in movies]
+        self.assertIn("밝은 데이트", reasons[0])
+        self.assertIn("애니메이션", reasons[1])
+        self.assertGreaterEqual(len(set(reasons)), 2)
 
 
 if __name__ == "__main__":

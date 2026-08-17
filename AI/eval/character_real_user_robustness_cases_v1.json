@@ -1,0 +1,123 @@
+{
+  "suite_version": "character-real-user-robustness-v1",
+  "description": "오타, 축약, 짧은 말, 문맥 후속, 정정 및 주제 전환을 포함한 캐릭터 대화 강건성 평가셋",
+  "thresholds": {
+    "hard_check_pass_rate": 0.95,
+    "critical_failure_count": 0,
+    "exact_duplicate_rate_max": 0.05,
+    "pair_similarity_max": 0.9,
+    "manual_average_min": 4.0,
+    "manual_dimension_min": 3.5
+  },
+  "manual_dimensions": ["relevance", "naturalness", "specificity", "character_fidelity", "groundedness"],
+  "cases": [
+    {
+      "id": "typo_listen_only",
+      "category": "typo",
+      "endpoint": "/chat",
+      "payload": {"character": "마석도", "message": "오널 면접 망함... 조언말고 걍 들어줘", "history": [], "use_rag": false},
+      "checks": {"rag_used": false, "max_chars": 180, "max_questions": 0, "blocked_patterns": ["해야", "해봐", "방법", "단계", "입\\s*(?:닥|닫)", "새끼"]}
+    },
+    {
+      "id": "typo_property_wording",
+      "category": "typo",
+      "endpoint": "/chat",
+      "payload": {"character": "헤르미온느", "message": "칭구가 내물건 말업이 또가져감... 머라 보내?", "history": [], "use_rag": false},
+      "checks": {"rag_used": false, "max_chars": 280, "max_questions": 1, "required_patterns_any": ["물건", "허락", "먼저", "물어"]}
+    },
+    {
+      "id": "typo_secret_wording",
+      "category": "typo",
+      "endpoint": "/chat",
+      "payload": {"character": "토니 스타크", "message": "친구가 내 비밀 퍼트림; 지금 머라보내는게 나음?", "history": [], "use_rag": false},
+      "checks": {"rag_used": false, "max_chars": 280, "max_questions": 1, "required_patterns_any": ["비밀", "믿", "신뢰", "다른 사람", "퍼"]}
+    },
+    {
+      "id": "short_failure_clarify",
+      "category": "short_input",
+      "endpoint": "/chat",
+      "payload": {"character": "피터 파커", "message": "나 망함", "history": [], "use_rag": false},
+      "checks": {"rag_used": false, "max_chars": 180, "min_questions": 1, "max_questions": 1}
+    },
+    {
+      "id": "slang_anger_context",
+      "category": "slang",
+      "endpoint": "/chat",
+      "payload": {"character": "고니", "message": "친구가 비밀 까발리고 태연한데 개빡쳐", "history": [], "use_rag": false},
+      "checks": {"rag_used": false, "max_chars": 220, "max_questions": 1, "required_patterns_any": ["비밀", "친구", "태도", "화", "빡", "신뢰"]}
+    },
+    {
+      "id": "emoji_listen_only",
+      "category": "informal",
+      "endpoint": "/chat",
+      "payload": {"character": "엘사", "message": "오늘 진짜 최악이야 ㅠㅠ 지금은 그냥 들어줘", "history": [], "use_rag": false},
+      "checks": {"rag_used": false, "max_chars": 180, "max_questions": 0, "blocked_patterns": ["해야", "해봐", "방법", "단계"]}
+    },
+    {
+      "id": "pronoun_property_followup",
+      "category": "context_followup",
+      "endpoint": "/chat",
+      "payload": {"character": "브루스 웨인", "message": "근데 걔가 또 그랬어", "history": [{"role": "user", "content": "친구가 허락 없이 내 물건을 가져갔어."}, {"role": "assistant", "content": "허락 없이 가져간 건 경계를 넘은 행동이야."}], "use_rag": false},
+      "checks": {"rag_used": false, "max_chars": 220, "max_questions": 1, "required_patterns_any": ["반복", "또", "물건", "허락", "경계", "신뢰"]}
+    },
+    {
+      "id": "correction_interview_to_presentation",
+      "category": "correction",
+      "endpoint": "/chat",
+      "payload": {"character": "스티브 로저스", "message": "아니 면접 말고 발표였어. 내일 다시 해야돼", "history": [{"role": "user", "content": "오늘 면접을 망쳤어."}, {"role": "assistant", "content": "면접에서 어려움을 겪었군요."}], "use_rag": false},
+      "checks": {"rag_used": false, "max_chars": 230, "max_questions": 1, "required_patterns_any": ["발표", "내일", "다시"]}
+    },
+    {
+      "id": "topic_switch_identity",
+      "category": "topic_switch",
+      "endpoint": "/chat",
+      "payload": {"character": "브루스 웨인", "message": "그 얘긴 됐고 너 이름이 뭐야?", "history": [{"role": "user", "content": "친구가 비밀을 퍼뜨렸어."}, {"role": "assistant", "content": "신뢰가 깨진 일이군."}], "use_rag": false},
+      "checks": {"rag_used": false, "max_chars": 180, "required_patterns_any": ["브루스", "웨인"], "blocked_patterns": ["비밀을 퍼", "친구에게"]}
+    },
+    {
+      "id": "topic_switch_simple_chat",
+      "category": "topic_switch",
+      "endpoint": "/chat",
+      "payload": {"character": "데드풀", "message": "아 됐고 딴얘기하자. 요즘 어때?", "history": [{"role": "user", "content": "회사 발표를 망쳤어."}, {"role": "assistant", "content": "발표가 꼬였구나."}], "use_rag": false},
+      "checks": {"rag_used": false, "max_chars": 220, "max_questions": 1, "blocked_patterns": ["발표를 보완", "상사에게", "내일 수정"]}
+    },
+    {
+      "id": "nospace_ambiguous",
+      "category": "spacing",
+      "endpoint": "/chat",
+      "payload": {"character": "닥터 스트레인지", "message": "그거어떻게하면됨", "history": [], "use_rag": false},
+      "checks": {"rag_used": false, "max_chars": 180, "max_questions": 1, "required_patterns_any": ["무엇", "무슨", "구체", "정확", "어떤"]}
+    },
+    {
+      "id": "relation_spacing_typo",
+      "category": "spacing",
+      "endpoint": "/chat",
+      "payload": {"character": "토니 스타크", "message": "피터파커랑무슨사이임?", "history": [], "use_rag": true},
+      "checks": {"max_chars": 260, "required_patterns_any": ["피터", "파커", "확인", "관계"]}
+    },
+    {
+      "id": "noisy_voice_maseokdo",
+      "pair_group": "noisy_same_prompt",
+      "category": "distinctiveness",
+      "endpoint": "/chat",
+      "payload": {"character": "마석도", "message": "친구가 약속 또늦고 연락도없음; 머라함?", "history": [], "use_rag": false},
+      "checks": {"rag_used": false, "max_chars": 260}
+    },
+    {
+      "id": "noisy_voice_tony",
+      "pair_group": "noisy_same_prompt",
+      "category": "distinctiveness",
+      "endpoint": "/chat",
+      "payload": {"character": "토니 스타크", "message": "친구가 약속 또늦고 연락도없음; 머라함?", "history": [], "use_rag": false},
+      "checks": {"rag_used": false, "max_chars": 260}
+    },
+    {
+      "id": "noisy_voice_elsa",
+      "pair_group": "noisy_same_prompt",
+      "category": "distinctiveness",
+      "endpoint": "/chat",
+      "payload": {"character": "엘사", "message": "친구가 약속 또늦고 연락도없음; 머라함?", "history": [], "use_rag": false},
+      "checks": {"rag_used": false, "max_chars": 260}
+    }
+  ]
+}

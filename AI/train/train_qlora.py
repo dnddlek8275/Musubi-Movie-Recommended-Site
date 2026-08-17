@@ -10,14 +10,25 @@ import os
 import json
 import torch
 from pathlib import Path
-from datasets import Dataset
-from transformers import TrainingArguments, DataCollatorForLanguageModeling, Trainer
+
+try:
+    from train.tokenization import tokenize_conversation
+except ModuleNotFoundError:
+    from tokenization import tokenize_conversation
 
 # ── 설정 ─────────────────────────────────────────────────────
 BASE_MODEL   = "google/gemma-4-12b-it"
 LORA_ADAPTER = str(Path(__file__).parent.parent / "checkpoint-3038")
-DATA_PATH    = Path(__file__).parent.parent / "data" / "train_clean.jsonl"
-OUTPUT_DIR   = Path(__file__).parent.parent / "gemma4-cineverse-v2"
+SPLIT_DIR    = Path(os.environ.get(
+    "CINEVERSE_SPLIT_DIR",
+    Path(__file__).parent.parent / "data" / "splits" / "v1",
+))
+TRAIN_PATH   = SPLIT_DIR / "train.jsonl"
+DEV_PATH     = SPLIT_DIR / "dev.jsonl"
+OUTPUT_DIR   = Path(os.environ.get(
+    "CINEVERSE_OUTPUT_DIR",
+    Path(__file__).parent.parent / "gemma4-cineverse-v2",
+))
 
 LORA_R       = 32
 LORA_ALPHA   = 16
@@ -30,17 +41,23 @@ GRAD_ACCUM   = 16
 EPOCHS       = 2
 LR           = 2e-4
 WARMUP_RATIO = 0.05
+MAX_STEPS    = int(os.environ.get("CINEVERSE_MAX_STEPS", "-1"))
+TRAIN_LIMIT  = int(os.environ.get("CINEVERSE_TRAIN_LIMIT", "0"))
+DEV_LIMIT    = int(os.environ.get("CINEVERSE_DEV_LIMIT", "0"))
+EVAL_STEPS   = int(os.environ.get("CINEVERSE_EVAL_STEPS", "200"))
 
 HF_TOKEN = os.environ.get("HF_TOKEN", "")
 
 # ──────────────────────────────────────────────────────────────
 
 
-def build_and_tokenize(path: Path, tokenizer, max_length: int) -> Dataset:
+def build_and_tokenize(path: Path, tokenizer, max_length: int, limit: int = 0):
     """메인 프로세스에서 직접 토크나이징 — multiprocessing/pickle 없음.
 
     Gemma-4는 멀티모달 프로세서이므로 내부 텍스트 토크나이저를 직접 사용.
     """
+    from datasets import Dataset
+
     # Gemma4UnifiedProcessor → 내부 text tokenizer 추출
     text_tok = getattr(tokenizer, "tokenizer", tokenizer)
 
@@ -49,31 +66,33 @@ def build_and_tokenize(path: Path, tokenizer, max_length: int) -> Dataset:
         for l in path.read_text(encoding="utf-8").splitlines()
         if l.strip()
     ]
+    if limit > 0:
+        records = records[:limit]
 
-    input_ids_list = []
+    tokenized = []
     for i, r in enumerate(records):
         if i % 5000 == 0:
             print(f"  토크나이징 {i}/{len(records)}...")
 
-        convs = r["conversations"]
-        text = ""
-        for turn in convs:
-            role = "model" if turn["role"] == "assistant" else "user"
-            text += f"<start_of_turn>{role}\n{turn['content']}<end_of_turn>\n"
-        text += "<eos>"
+        tokenized.append(tokenize_conversation(r, text_tok, max_length))
 
-        enc = text_tok(text, max_length=max_length, truncation=True, padding=False)
-        input_ids_list.append(enc["input_ids"])
-
-    return Dataset.from_dict({
-        "input_ids": input_ids_list,
-        "labels":    [ids[:] for ids in input_ids_list],
-    })
+    supervised = [sum(label != -100 for label in row["labels"]) for row in tokenized]
+    print(
+        f"  supervised tokens: total={sum(supervised)}, "
+        f"avg={sum(supervised) / len(supervised):.1f}, min={min(supervised)}, max={max(supervised)}"
+    )
+    return Dataset.from_list(tokenized)
 
 
 def main():
     # ── 1. Unsloth 모델 로드 ──────────────────────────────────
     from unsloth import FastLanguageModel
+    from transformers import (
+        DataCollatorForSeq2Seq,
+        EarlyStoppingCallback,
+        Trainer,
+        TrainingArguments,
+    )
 
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name     = BASE_MODEL,
@@ -110,16 +129,24 @@ def main():
         text_tok.pad_token = text_tok.eos_token
 
     # ── 2. 데이터셋 ──────────────────────────────────────────
-    print(f"[INFO] 데이터 로드: {DATA_PATH}")
-    dataset = build_and_tokenize(DATA_PATH, tokenizer, MAX_SEQ_LEN)  # text_tok 내부 추출
-    split   = dataset.train_test_split(test_size=0.02, seed=42)
-    print(f"[INFO] train={len(split['train'])} eval={len(split['test'])}")
+    if not TRAIN_PATH.exists() or not DEV_PATH.exists():
+        raise FileNotFoundError(
+            f"고정 분할 데이터가 필요합니다: {TRAIN_PATH}, {DEV_PATH}. "
+            "먼저 train/prepare_splits.py를 실행하세요."
+        )
+    print(f"[INFO] train 데이터 로드: {TRAIN_PATH}")
+    train_dataset = build_and_tokenize(TRAIN_PATH, tokenizer, MAX_SEQ_LEN, TRAIN_LIMIT)
+    print(f"[INFO] dev 데이터 로드: {DEV_PATH}")
+    eval_dataset = build_and_tokenize(DEV_PATH, tokenizer, MAX_SEQ_LEN, DEV_LIMIT)
+    print(f"[INFO] train={len(train_dataset)} eval={len(eval_dataset)}")
 
     # ── 3. 학습 설정 ─────────────────────────────────────────
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    steps_per_epoch = len(split["train"]) // (BATCH_SIZE * GRAD_ACCUM)
+    steps_per_epoch = len(train_dataset) // (BATCH_SIZE * GRAD_ACCUM)
     warmup_steps    = int(WARMUP_RATIO * steps_per_epoch * EPOCHS)
 
+    use_bf16 = bool(torch.cuda.is_available() and torch.cuda.is_bf16_supported())
+    print(f"[INFO] precision={'bf16' if use_bf16 else 'fp16'}")
     args = TrainingArguments(
         output_dir                  = str(OUTPUT_DIR),
         num_train_epochs            = EPOCHS,
@@ -129,31 +156,41 @@ def main():
         learning_rate               = LR,
         warmup_steps                = warmup_steps,
         lr_scheduler_type           = "cosine",
-        bf16                        = True,
-        fp16                        = False,
+        bf16                        = use_bf16,
+        fp16                        = not use_bf16,
         optim                       = "adamw_8bit",
         logging_steps               = 50,
         eval_strategy               = "steps",
-        eval_steps                  = 200,
+        eval_steps                  = EVAL_STEPS,
         save_strategy               = "steps",
-        save_steps                  = 500,
+        save_steps                  = EVAL_STEPS,
         save_total_limit            = 3,
-        load_best_model_at_end      = False,
+        load_best_model_at_end      = True,
+        metric_for_best_model       = "eval_loss",
+        greater_is_better           = False,
         report_to                   = "none",
         dataloader_num_workers      = 0,   # multiprocessing 완전 비활성화
         remove_unused_columns       = False,
         seed                        = 42,
+        max_steps                   = MAX_STEPS,
     )
 
-    # DataCollatorForLanguageModeling: 패딩 + labels 자동 처리 (text_tok 사용)
-    collator = DataCollatorForLanguageModeling(tokenizer=text_tok, mlm=False)
+    # 기존 LanguageModeling collator는 user token의 -100 label을 덮어쓴다.
+    # Seq2Seq collator로 assistant-only label을 그대로 보존한다.
+    collator = DataCollatorForSeq2Seq(
+        tokenizer=text_tok,
+        model=model,
+        padding=True,
+        label_pad_token_id=-100,
+    )
 
     trainer = Trainer(
         model         = model,
         args          = args,
-        train_dataset = split["train"],
-        eval_dataset  = split["test"],
+        train_dataset = train_dataset,
+        eval_dataset  = eval_dataset,
         data_collator = collator,
+        callbacks     = [EarlyStoppingCallback(early_stopping_patience=3)],
     )
 
     # ── 4. 학습 시작 ─────────────────────────────────────────
@@ -164,7 +201,9 @@ def main():
     final_dir = OUTPUT_DIR / "final"
     model.save_pretrained(str(final_dir))
     tokenizer.save_pretrained(str(final_dir))
-    print(f"[INFO] LoRA adapter 저장: {final_dir}")
+    print(f"[INFO] dev loss 기준 최적 LoRA adapter 저장: {final_dir}")
+    print(f"[INFO] best checkpoint: {trainer.state.best_model_checkpoint}")
+    print(f"[INFO] best eval loss: {trainer.state.best_metric}")
 
     print("""
 [NEXT] LoRA → GGUF 변환 순서:

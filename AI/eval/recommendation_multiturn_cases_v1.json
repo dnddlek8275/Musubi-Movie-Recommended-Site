@@ -1,0 +1,86 @@
+{
+  "scenarios": [
+    {
+      "id": "romance_progressive_refinement",
+      "turns": [
+        {
+          "message": "로맨스 영화 추천해줘",
+          "expect_followup": false,
+          "checks": {"min_movies": 3, "unique_titles": true, "required_genres_any": ["로맨스"]}
+        },
+        {
+          "message": "더 밝은 걸로",
+          "expect_followup": true,
+          "required_context_terms": ["로맨스", "밝은"],
+          "exclude_previous_turn": true,
+          "blocked_overview_patterns": ["암|희귀병|불치병|투병|시한부|사별|비극|장례|살인 사건|극단적"],
+          "checks": {"min_movies": 3, "unique_titles": true, "required_genres_any": ["로맨스"]}
+        },
+        {
+          "message": "2020년 이후만",
+          "expect_followup": true,
+          "required_context_terms": ["로맨스", "밝은", "2020년 이후만"],
+          "exclude_previous_turn": true,
+          "blocked_overview_patterns": ["암|희귀병|불치병|투병|시한부|사별|비극|장례|살인 사건|극단적"],
+          "checks": {"min_movies": 3, "unique_titles": true, "required_genres_any": ["로맨스"], "year_from": 2020}
+        },
+        {
+          "message": "방금 추천한 영화는 제외하고 다른 걸로",
+          "expect_followup": true,
+          "required_context_terms": ["로맨스", "밝은", "2020년 이후만"],
+          "exclude_previous_turn": true,
+          "blocked_overview_patterns": ["암|희귀병|불치병|투병|시한부|사별|비극|장례|살인 사건|극단적"],
+          "checks": {"min_movies": 3, "unique_titles": true, "required_genres_any": ["로맨스"], "year_from": 2020}
+        }
+      ]
+    },
+    {
+      "id": "music_language_rating_refinement",
+      "turns": [
+        {
+          "message": "2015년 이후 영어 음악 영화 추천해줘",
+          "expect_followup": false,
+          "checks": {"min_movies": 3, "required_genres_any": ["음악"], "year_from": 2015, "language": "en"}
+        },
+        {
+          "message": "평점 7점 이상만",
+          "expect_followup": true,
+          "required_context_terms": ["2015년 이후", "영어", "음악", "평점 7점 이상만"],
+          "exclude_previous_turn": true,
+          "checks": {"min_movies": 3, "required_genres_any": ["음악"], "year_from": 2015, "language": "en", "min_rating": 7.0}
+        },
+        {
+          "message": "좀 더 최신 걸로",
+          "expect_followup": true,
+          "required_context_terms": ["평점 7점 이상만", "최신"],
+          "exclude_previous_turn": true,
+          "checks": {"min_movies": 3, "required_genres_any": ["음악"], "year_from": 2015, "language": "en", "min_rating": 7.0}
+        }
+      ]
+    },
+    {
+      "id": "animation_language_refinement",
+      "turns": [
+        {
+          "message": "2010년 이후 일본 애니메이션 영화 추천해줘",
+          "expect_followup": false,
+          "checks": {"min_movies": 3, "required_genres_any": ["애니메이션"], "year_from": 2010, "language": "ja"}
+        },
+        {
+          "message": "평점 7.5점 이상만",
+          "expect_followup": true,
+          "required_context_terms": ["2010년 이후", "일본", "애니메이션", "평점 7.5점 이상만"],
+          "exclude_previous_turn": true,
+          "checks": {"min_movies": 3, "required_genres_any": ["애니메이션"], "year_from": 2010, "language": "ja", "min_rating": 7.5}
+        },
+        {
+          "message": "공포는 빼고 다른 작품으로",
+          "expect_followup": true,
+          "required_context_terms": ["평점 7.5점 이상만", "공포는 빼고"],
+          "exclude_previous_turn": true,
+          "checks": {"min_movies": 3, "required_genres_any": ["애니메이션"], "blocked_genres": ["공포"], "year_from": 2010, "language": "ja", "min_rating": 7.5}
+        }
+      ]
+    }
+  ]
+}

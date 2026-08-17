@@ -7,6 +7,8 @@
 .agents/
 .codex/
 *.swp
+.DS_Store
+**/.DS_Store
 
 # Local Codex/repository recovery artifacts
 .repo-backups/
@@ -56,8 +58,14 @@ AI/data/
 !AI/data/
 AI/data/*
 !AI/data/topic_profiles.json
+!AI/data/character_facts_verified_v1.json
+!AI/data/character_relations_verified_v1.json
 AI/output/
 AI/outputs/
+AI/eval/*_202608*.json
+AI/eval/*_202608*.csv
+AI/eval/candidate_package_*.json
+AI/eval/production_canary_*.json
 **/*.gguf
 **/*.safetensors
 **/*.ckpt
@@ -67,8 +75,14 @@ movies_final.csv
 
 # Local archives and demonstrations
 backups/
+server-archives/
+tmp/
 *.zip
+*.tar.gz
 *.mov
+
+# Local presentation workspace (final delivery documents are kept under docs/)
+Musubi_발표자료/
 
 # Finder alias accidentally copied into the project
 PostgreSQL 17

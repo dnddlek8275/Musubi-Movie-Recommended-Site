@@ -1,0 +1,654 @@
+{
+  "tested_at_kst": "2026-08-17T12:16:15+09:00/2026-08-17T12:20:42+09:00",
+  "endpoint": "http://127.0.0.1:18080/chat/auto",
+  "scope": "direct_gpu_ai_api_via_ssh_tunnel",
+  "request": {
+    "message": "액션 영화 세 편 추천해줘",
+    "history": []
+  },
+  "request_timeout_seconds": 70,
+  "stage_cooldown_seconds_minimum": 10,
+  "stages": [
+    {
+      "tested_at_utc": "2026-08-17T03:16:57.034528+00:00",
+      "endpoint": "http://127.0.0.1:18080/chat/auto",
+      "scope": "direct_gpu_ai_api_via_ssh_tunnel",
+      "request": {
+        "message": "액션 영화 세 편 추천해줘",
+        "history": []
+      },
+      "concurrency": 10,
+      "wall_seconds": 41.528,
+      "responses": {
+        "200": 10
+      },
+      "success_latency_seconds": {
+        "min": 19.402,
+        "avg": 30.565,
+        "p50": 21.677,
+        "p95": 41.52,
+        "max": 41.52
+      },
+      "results": [
+        {
+          "request_id": 1,
+          "status": 200,
+          "seconds": 19.535,
+          "intent": "movie_recommend",
+          "movie_count": 3,
+          "answer_length": 157,
+          "error": null
+        },
+        {
+          "request_id": 2,
+          "status": 200,
+          "seconds": 19.402,
+          "intent": "movie_recommend",
+          "movie_count": 3,
+          "answer_length": 157,
+          "error": null
+        },
+        {
+          "request_id": 3,
+          "status": 200,
+          "seconds": 21.677,
+          "intent": "movie_recommend",
+          "movie_count": 3,
+          "answer_length": 157,
+          "error": null
+        },
+        {
+          "request_id": 4,
+          "status": 200,
+          "seconds": 39.882,
+          "intent": "movie_recommend",
+          "movie_count": 3,
+          "answer_length": 157,
+          "error": null
+        },
+        {
+          "request_id": 5,
+          "status": 200,
+          "seconds": 20.118,
+          "intent": "movie_recommend",
+          "movie_count": 3,
+          "answer_length": 157,
+          "error": null
+        },
+        {
+          "request_id": 6,
+          "status": 200,
+          "seconds": 40.461,
+          "intent": "movie_recommend",
+          "movie_count": 3,
+          "answer_length": 160,
+          "error": null
+        },
+        {
+          "request_id": 7,
+          "status": 200,
+          "seconds": 41.52,
+          "intent": "movie_recommend",
+          "movie_count": 3,
+          "answer_length": 157,
+          "error": null
+        },
+        {
+          "request_id": 8,
+          "status": 200,
+          "seconds": 21.142,
+          "intent": "movie_recommend",
+          "movie_count": 3,
+          "answer_length": 157,
+          "error": null
+        },
+        {
+          "request_id": 9,
+          "status": 200,
+          "seconds": 40.794,
+          "intent": "movie_recommend",
+          "movie_count": 3,
+          "answer_length": 157,
+          "error": null
+        },
+        {
+          "request_id": 10,
+          "status": 200,
+          "seconds": 41.12,
+          "intent": "movie_recommend",
+          "movie_count": 3,
+          "answer_length": 157,
+          "error": null
+        }
+      ],
+      "gpu_peak": {
+        "utilization_percent": 100,
+        "vram_used_mib": 12634,
+        "temperature_c": 63
+      }
+    },
+    {
+      "tested_at_utc": "2026-08-17T03:18:53.084055+00:00",
+      "endpoint": "http://127.0.0.1:18080/chat/auto",
+      "scope": "direct_gpu_ai_api_via_ssh_tunnel",
+      "request": {
+        "message": "액션 영화 세 편 추천해줘",
+        "history": []
+      },
+      "concurrency": 20,
+      "wall_seconds": 42.54,
+      "responses": {
+        "200": 10,
+        "429": 5,
+        "503": 5
+      },
+      "success_latency_seconds": {
+        "min": 19.774,
+        "avg": 31.106,
+        "p50": 22.025,
+        "p95": 42.533,
+        "max": 42.533
+      },
+      "results": [
+        {
+          "request_id": 1,
+          "status": 429,
+          "seconds": 0.051,
+          "intent": null,
+          "movie_count": 0,
+          "answer_length": 0,
+          "error": "HTTP Error 429: Too Many Requests"
+        },
+        {
+          "request_id": 2,
+          "status": 503,
+          "seconds": 40.058,
+          "intent": null,
+          "movie_count": 0,
+          "answer_length": 0,
+          "error": "HTTP Error 503: Service Unavailable"
+        },
+        {
+          "request_id": 3,
+          "status": 200,
+          "seconds": 40.939,
+          "intent": "movie_recommend",
+          "movie_count": 3,
+          "answer_length": 157,
+          "error": null
+        },
+        {
+          "request_id": 4,
+          "status": 200,
+          "seconds": 21.001,
+          "intent": "movie_recommend",
+          "movie_count": 3,
+          "answer_length": 157,
+          "error": null
+        },
+        {
+          "request_id": 5,
+          "status": 429,
+          "seconds": 0.056,
+          "intent": null,
+          "movie_count": 0,
+          "answer_length": 0,
+          "error": "HTTP Error 429: Too Many Requests"
+        },
+        {
+          "request_id": 6,
+          "status": 503,
+          "seconds": 40.058,
+          "intent": null,
+          "movie_count": 0,
+          "answer_length": 0,
+          "error": "HTTP Error 503: Service Unavailable"
+        },
+        {
+          "request_id": 7,
+          "status": 200,
+          "seconds": 22.025,
+          "intent": "movie_recommend",
+          "movie_count": 3,
+          "answer_length": 160,
+          "error": null
+        },
+        {
+          "request_id": 8,
+          "status": 503,
+          "seconds": 40.058,
+          "intent": null,
+          "movie_count": 0,
+          "answer_length": 0,
+          "error": "HTTP Error 503: Service Unavailable"
+        },
+        {
+          "request_id": 9,
+          "status": 200,
+          "seconds": 19.774,
+          "intent": "movie_recommend",
+          "movie_count": 3,
+          "answer_length": 157,
+          "error": null
+        },
+        {
+          "request_id": 10,
+          "status": 503,
+          "seconds": 40.058,
+          "intent": null,
+          "movie_count": 0,
+          "answer_length": 0,
+          "error": "HTTP Error 503: Service Unavailable"
+        },
+        {
+          "request_id": 11,
+          "status": 200,
+          "seconds": 41.963,
+          "intent": "movie_recommend",
+          "movie_count": 3,
+          "answer_length": 161,
+          "error": null
+        },
+        {
+          "request_id": 12,
+          "status": 429,
+          "seconds": 0.056,
+          "intent": null,
+          "movie_count": 0,
+          "answer_length": 0,
+          "error": "HTTP Error 429: Too Many Requests"
+        },
+        {
+          "request_id": 13,
+          "status": 200,
+          "seconds": 20.223,
+          "intent": "movie_recommend",
+          "movie_count": 3,
+          "answer_length": 157,
+          "error": null
+        },
+        {
+          "request_id": 14,
+          "status": 200,
+          "seconds": 42.207,
+          "intent": "movie_recommend",
+          "movie_count": 3,
+          "answer_length": 158,
+          "error": null
+        },
+        {
+          "request_id": 15,
+          "status": 200,
+          "seconds": 19.877,
+          "intent": "movie_recommend",
+          "movie_count": 3,
+          "answer_length": 157,
+          "error": null
+        },
+        {
+          "request_id": 16,
+          "status": 503,
+          "seconds": 40.051,
+          "intent": null,
+          "movie_count": 0,
+          "answer_length": 0,
+          "error": "HTTP Error 503: Service Unavailable"
+        },
+        {
+          "request_id": 17,
+          "status": 429,
+          "seconds": 0.055,
+          "intent": null,
+          "movie_count": 0,
+          "answer_length": 0,
+          "error": "HTTP Error 429: Too Many Requests"
+        },
+        {
+          "request_id": 18,
+          "status": 429,
+          "seconds": 0.055,
+          "intent": null,
+          "movie_count": 0,
+          "answer_length": 0,
+          "error": "HTTP Error 429: Too Many Requests"
+        },
+        {
+          "request_id": 19,
+          "status": 200,
+          "seconds": 42.533,
+          "intent": "movie_recommend",
+          "movie_count": 3,
+          "answer_length": 157,
+          "error": null
+        },
+        {
+          "request_id": 20,
+          "status": 200,
+          "seconds": 40.519,
+          "intent": "movie_recommend",
+          "movie_count": 3,
+          "answer_length": 157,
+          "error": null
+        }
+      ],
+      "gpu_peak": {
+        "utilization_percent": 100,
+        "vram_used_mib": 12634,
+        "temperature_c": 66
+      }
+    },
+    {
+      "tested_at_utc": "2026-08-17T03:20:42.493320+00:00",
+      "endpoint": "http://127.0.0.1:18080/chat/auto",
+      "scope": "direct_gpu_ai_api_via_ssh_tunnel",
+      "request": {
+        "message": "액션 영화 세 편 추천해줘",
+        "history": []
+      },
+      "concurrency": 30,
+      "wall_seconds": 42.529,
+      "responses": {
+        "200": 10,
+        "429": 15,
+        "503": 5
+      },
+      "success_latency_seconds": {
+        "min": 20.224,
+        "avg": 31.108,
+        "p50": 20.849,
+        "p95": 42.522,
+        "max": 42.522
+      },
+      "results": [
+        {
+          "request_id": 1,
+          "status": 200,
+          "seconds": 20.723,
+          "intent": "movie_recommend",
+          "movie_count": 3,
+          "answer_length": 157,
+          "error": null
+        },
+        {
+          "request_id": 2,
+          "status": 429,
+          "seconds": 0.054,
+          "intent": null,
+          "movie_count": 0,
+          "answer_length": 0,
+          "error": "HTTP Error 429: Too Many Requests"
+        },
+        {
+          "request_id": 3,
+          "status": 200,
+          "seconds": 20.849,
+          "intent": "movie_recommend",
+          "movie_count": 3,
+          "answer_length": 152,
+          "error": null
+        },
+        {
+          "request_id": 4,
+          "status": 429,
+          "seconds": 0.054,
+          "intent": null,
+          "movie_count": 0,
+          "answer_length": 0,
+          "error": "HTTP Error 429: Too Many Requests"
+        },
+        {
+          "request_id": 5,
+          "status": 429,
+          "seconds": 0.06,
+          "intent": null,
+          "movie_count": 0,
+          "answer_length": 0,
+          "error": "HTTP Error 429: Too Many Requests"
+        },
+        {
+          "request_id": 6,
+          "status": 429,
+          "seconds": 0.059,
+          "intent": null,
+          "movie_count": 0,
+          "answer_length": 0,
+          "error": "HTTP Error 429: Too Many Requests"
+        },
+        {
+          "request_id": 7,
+          "status": 429,
+          "seconds": 0.06,
+          "intent": null,
+          "movie_count": 0,
+          "answer_length": 0,
+          "error": "HTTP Error 429: Too Many Requests"
+        },
+        {
+          "request_id": 8,
+          "status": 429,
+          "seconds": 0.054,
+          "intent": null,
+          "movie_count": 0,
+          "answer_length": 0,
+          "error": "HTTP Error 429: Too Many Requests"
+        },
+        {
+          "request_id": 9,
+          "status": 503,
+          "seconds": 40.055,
+          "intent": null,
+          "movie_count": 0,
+          "answer_length": 0,
+          "error": "HTTP Error 503: Service Unavailable"
+        },
+        {
+          "request_id": 10,
+          "status": 429,
+          "seconds": 0.054,
+          "intent": null,
+          "movie_count": 0,
+          "answer_length": 0,
+          "error": "HTTP Error 429: Too Many Requests"
+        },
+        {
+          "request_id": 11,
+          "status": 200,
+          "seconds": 20.224,
+          "intent": "movie_recommend",
+          "movie_count": 3,
+          "answer_length": 157,
+          "error": null
+        },
+        {
+          "request_id": 12,
+          "status": 200,
+          "seconds": 20.609,
+          "intent": "movie_recommend",
+          "movie_count": 3,
+          "answer_length": 160,
+          "error": null
+        },
+        {
+          "request_id": 13,
+          "status": 503,
+          "seconds": 40.054,
+          "intent": null,
+          "movie_count": 0,
+          "answer_length": 0,
+          "error": "HTTP Error 503: Service Unavailable"
+        },
+        {
+          "request_id": 14,
+          "status": 200,
+          "seconds": 40.227,
+          "intent": "movie_recommend",
+          "movie_count": 3,
+          "answer_length": 157,
+          "error": null
+        },
+        {
+          "request_id": 15,
+          "status": 429,
+          "seconds": 0.053,
+          "intent": null,
+          "movie_count": 0,
+          "answer_length": 0,
+          "error": "HTTP Error 429: Too Many Requests"
+        },
+        {
+          "request_id": 16,
+          "status": 429,
+          "seconds": 0.059,
+          "intent": null,
+          "movie_count": 0,
+          "answer_length": 0,
+          "error": "HTTP Error 429: Too Many Requests"
+        },
+        {
+          "request_id": 17,
+          "status": 429,
+          "seconds": 0.053,
+          "intent": null,
+          "movie_count": 0,
+          "answer_length": 0,
+          "error": "HTTP Error 429: Too Many Requests"
+        },
+        {
+          "request_id": 18,
+          "status": 429,
+          "seconds": 0.059,
+          "intent": null,
+          "movie_count": 0,
+          "answer_length": 0,
+          "error": "HTTP Error 429: Too Many Requests"
+        },
+        {
+          "request_id": 19,
+          "status": 503,
+          "seconds": 40.048,
+          "intent": null,
+          "movie_count": 0,
+          "answer_length": 0,
+          "error": "HTTP Error 503: Service Unavailable"
+        },
+        {
+          "request_id": 20,
+          "status": 200,
+          "seconds": 20.612,
+          "intent": "movie_recommend",
+          "movie_count": 3,
+          "answer_length": 157,
+          "error": null
+        },
+        {
+          "request_id": 21,
+          "status": 503,
+          "seconds": 40.047,
+          "intent": null,
+          "movie_count": 0,
+          "answer_length": 0,
+          "error": "HTTP Error 503: Service Unavailable"
+        },
+        {
+          "request_id": 22,
+          "status": 429,
+          "seconds": 0.053,
+          "intent": null,
+          "movie_count": 0,
+          "answer_length": 0,
+          "error": "HTTP Error 429: Too Many Requests"
+        },
+        {
+          "request_id": 23,
+          "status": 200,
+          "seconds": 41.215,
+          "intent": "movie_recommend",
+          "movie_count": 3,
+          "answer_length": 160,
+          "error": null
+        },
+        {
+          "request_id": 24,
+          "status": 200,
+          "seconds": 42.522,
+          "intent": "movie_recommend",
+          "movie_count": 3,
+          "answer_length": 157,
+          "error": null
+        },
+        {
+          "request_id": 25,
+          "status": 429,
+          "seconds": 0.059,
+          "intent": null,
+          "movie_count": 0,
+          "answer_length": 0,
+          "error": "HTTP Error 429: Too Many Requests"
+        },
+        {
+          "request_id": 26,
+          "status": 200,
+          "seconds": 41.727,
+          "intent": "movie_recommend",
+          "movie_count": 3,
+          "answer_length": 157,
+          "error": null
+        },
+        {
+          "request_id": 27,
+          "status": 200,
+          "seconds": 42.377,
+          "intent": "movie_recommend",
+          "movie_count": 3,
+          "answer_length": 160,
+          "error": null
+        },
+        {
+          "request_id": 28,
+          "status": 429,
+          "seconds": 0.052,
+          "intent": null,
+          "movie_count": 0,
+          "answer_length": 0,
+          "error": "HTTP Error 429: Too Many Requests"
+        },
+        {
+          "request_id": 29,
+          "status": 503,
+          "seconds": 40.047,
+          "intent": null,
+          "movie_count": 0,
+          "answer_length": 0,
+          "error": "HTTP Error 503: Service Unavailable"
+        },
+        {
+          "request_id": 30,
+          "status": 429,
+          "seconds": 0.047,
+          "intent": null,
+          "movie_count": 0,
+          "answer_length": 0,
+          "error": "HTTP Error 429: Too Many Requests"
+        }
+      ],
+      "gpu_peak": {
+        "utilization_percent": 100,
+        "vram_used_mib": 12634,
+        "temperature_c": 68
+      }
+    }
+  ],
+  "post_test_health": {
+    "ai_api": "active",
+    "llama_server": "active",
+    "watchdog_timer": "active",
+    "llm": "ok",
+    "milvus": "ok (8 collections)",
+    "embedder": "ok",
+    "cuda_oom": false,
+    "gpu_xid_error": false,
+    "fatal_error": false,
+    "root_disk_usage_percent": 55,
+    "available_memory_gib": 47
+  }
+}

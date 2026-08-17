@@ -1,30 +1,38 @@
 # AI 품질 개선 배포 인계서
 
+최종 갱신: 2026-08-17
+
 ## 범위
 
-- 기존 `google/gemma-4-12b-it` 모델은 유지한다.
-- 이번 후보는 모델 교체가 아니라 프롬프트, 프로필, 검색, 추천, 캐릭터 대화 및 출력 안전 정책 개선이다.
-- Codex는 운영 배포를 수행하지 않는다. 실제 배포와 트래픽 전환은 사용자가 진행한다.
+- 현재 운영 모델 `gemma-4-12b-it-base-q4_k_m.gguf`는 유지한다.
+- 운영 모델 SHA-256은 `9808e158b9092505fd072c33813961ffab6a5c98f2f804815ec5e2b7d64bf1a4`다.
+- 이번 변경은 검증된 프롬프트, 검색, 추천, 캐릭터 대화, 출력 안전 정책과 지식 데이터만 반영한다.
+- 테스트 모델, 평가 산출물, 학습 파일, 운영 비밀값은 전송하거나 덮어쓰지 않는다.
 
 ## AI 런타임 배포 대상
 
 - `AI/api/main.py`
 - `AI/character_profiles_ALL_50.json`
+- `AI/data/character_facts_verified_v1.json` (신규 검증 지식, 누락 금지)
+- `AI/data/character_relations_verified_v1.json` (검증 관계)
 - `AI/cineverse_prompt.py`
 - `AI/llm/client.py`
-- `AI/llm/sampling.py` (신규 파일이므로 누락 금지)
 - `AI/pipeline/character_pipeline.py`
 - `AI/pipeline/daily_recommendation.py`
 - `AI/pipeline/dialogue_guard.py`
+- `AI/pipeline/general_prompt.py`
 - `AI/pipeline/movie_pipeline.py`
 - `AI/pipeline/query_rewriter.py`
 - `AI/pipeline/recommendation_context.py`
 - `AI/pipeline/recommendation_presenter.py`
+- `AI/pipeline/retrieval_policy.py`
 - `AI/pipeline/tone_presets.py`
+- `AI/rag/character_knowledge.py` (신규 파일이므로 누락 금지)
 - `AI/rag/character_retriever.py`
 - `AI/rag/movie_quality.py`
 - `AI/rag/movie_retriever.py`
 - `AI/rag/retriever.py`
+- `AI/ops/warm_llm_slots.py`
 
 ## 배포 대상에서 제외
 
@@ -37,11 +45,13 @@
 
 ## 배포 전 확인
 
-1. 운영 환경의 모델이 `google/gemma-4-12b-it`인지 확인한다.
+1. 운영 환경의 모델 경로와 SHA-256이 위 운영 기준과 일치하는지 확인한다.
 2. 운영 캐릭터 컬렉션이 평가 환경의 `characters_verified_v5`와 호환되는지 확인한다.
-3. `AI/llm/sampling.py`가 신규 파일로 함께 반영됐는지 확인한다.
-4. 운영 환경 변수와 기존 비밀값은 덮어쓰지 않는다.
-5. 기존 운영 버전의 파일 또는 이미지 태그를 롤백 가능하게 보존한다.
+3. 두 검증 JSON과 `AI/rag/character_knowledge.py`가 함께 반영됐는지 확인한다.
+4. 운영 `characters_verified_v5` 컬렉션은 이번 소스 배포에서 변경하지 않는다.
+5. systemd에 `--skip-chat-parsing` 옵션이 없는지 확인한다.
+6. 운영 환경 변수와 기존 비밀값은 덮어쓰지 않는다.
+7. 기존 운영 소스는 롤백 가능한 디렉터리에 백업한다.
 
 ## 배포 직후 스모크 입력
 
@@ -54,6 +64,10 @@
 5. 토니 스타크: `피터파커랑무슨사이임?`
 6. 브루스 웨인: 물건 무단 사용 이력 뒤 `근데 걔가 또 그랬어`
 7. 스티브 로저스: 면접 이력 뒤 `아니 면접 말고 발표였어. 내일 다시 해야돼`
+8. 우디: `버즈 라이트이어랑 무슨 사이야?`
+9. 스티브 로저스: `내 방패는 무슨 물질로 만들어졌지?`
+10. 토르: `내 망치 이름이 뭐지?`
+11. 토니 스타크: `가슴에 있는 장치를 뭐라고 불러?`
 
 ## 합격 조건
 
@@ -70,7 +84,7 @@
 - 실사용자형 강건성 평가: 15/15 통과
 - 캐릭터 유사도 0.90 이상: 0쌍
 - 수동 검수 전체 평균: 4.587/5
-- 로컬 회귀 테스트: 255건 통과
+- 로컬 전체 회귀 테스트: 288건 통과
 - Team2 원격 회귀 테스트: 201건 통과
 
 ## 롤백 조건
