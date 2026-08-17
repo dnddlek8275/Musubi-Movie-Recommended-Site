@@ -24,6 +24,9 @@ ALLOWED_SOURCE_HOSTS = {
     "www.tolkienestate.com",
 }
 FACT_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+RELATION_QUESTION_PATTERN = re.compile(
+    r"무슨사이|어떤사이|관계|어떻게생각|누구(?:야|지|냐|예요|에요)?|친구|동료|적(?:이야|인가|이냐)?"
+)
 
 
 def load_verified_facts(path: str | Path, profile_names: set[str]) -> tuple[dict, list[dict]]:
@@ -84,6 +87,52 @@ def verified_fact_reply(facts: list[dict], character_name: str, user_message: st
             continue
         if all(any(re.sub(r"\s+", "", term).casefold() in normalized for term in group) for group in groups):
             return str(fact["response"]).strip()
+    return None
+
+
+def load_verified_relations(path: str | Path, profile_names: set[str]) -> tuple[dict, list[dict]]:
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    relations = payload.get("relations") or []
+    required = {
+        "character_name", "related_character", "relation_type", "summary", "response",
+        "source_work", "source_title", "source_publisher", "source_url",
+    }
+    seen: set[tuple[str, str]] = set()
+    for index, relation in enumerate(relations):
+        missing = sorted(required - relation.keys())
+        if missing:
+            raise RuntimeError(f"relation {index} missing fields: {missing}")
+        character_name = str(relation["character_name"]).strip()
+        related_character = str(relation["related_character"]).strip()
+        key = (character_name, related_character)
+        if not character_name or not related_character or key in seen:
+            raise RuntimeError(f"invalid or duplicate relation: {key}")
+        seen.add(key)
+        if character_name not in profile_names:
+            raise RuntimeError(f"unknown relation character: {character_name}")
+        parsed = urlparse(str(relation["source_url"]))
+        if parsed.scheme != "https" or parsed.hostname not in ALLOWED_SOURCE_HOSTS:
+            raise RuntimeError(f"unapproved relation source: {relation['source_url']}")
+        if not str(relation["summary"]).strip() or len(relation["summary"]) > 500:
+            raise RuntimeError(f"invalid relation summary: {key}")
+        if not str(relation["response"]).strip() or len(relation["response"]) > 300:
+            raise RuntimeError(f"invalid relation response: {key}")
+    return payload, relations
+
+
+def verified_relation_reply(
+    relations: list[dict], character_name: str, user_message: str
+) -> str | None:
+    """Return a curated relation answer only for an explicit relation question."""
+    normalized = re.sub(r"\s+", "", str(user_message or "")).casefold()
+    if not RELATION_QUESTION_PATTERN.search(normalized):
+        return None
+    for relation in relations:
+        if relation.get("character_name") != character_name:
+            continue
+        related = re.sub(r"\s+", "", str(relation["related_character"])).casefold()
+        if related and related in normalized:
+            return str(relation["response"]).strip()
     return None
 
 

@@ -42,6 +42,12 @@ class GroupOrchestrationTests(unittest.TestCase):
             character_lore_fact_reply("마석도", "내 신발 밑에 적힌 이름이 뭐야?")
         )
 
+    def test_woody_buzz_relation_uses_curated_relation(self):
+        self.assertEqual(
+            character_lore_fact_reply("우디", "버즈 라이트이어랑 무슨 사이야?"),
+            "버즈와는 처음엔 앤디의 관심을 두고 경쟁했지만, 함께 위기를 겪으며 서로 돕는 동료가 됐어.",
+        )
+
     def test_character_preflight_blocks_fabricated_current_activity_for_all_routes(self):
         result = character_preflight_reply(
             "브루스 웨인",

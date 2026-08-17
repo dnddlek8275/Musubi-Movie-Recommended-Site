@@ -9,7 +9,12 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from cineverse_prompt import build_system_prompt, clean_and_truncate, load_profiles
 from rag.character_retriever import retrieve, format_context
-from rag.character_knowledge import load_verified_facts, verified_fact_reply
+from rag.character_knowledge import (
+    load_verified_facts,
+    load_verified_relations,
+    verified_fact_reply,
+    verified_relation_reply,
+)
 from pipeline.tone_presets import (
     build_group_movie_reaction_fallback,
     build_group_reaction_fallback,
@@ -87,10 +92,23 @@ def _verified_lore_facts() -> list[dict]:
     return facts
 
 
+@lru_cache(maxsize=1)
+def _verified_character_relations() -> list[dict]:
+    profiles = get_profiles()
+    path = Path(_BASE_DIR) / "data" / "character_relations_verified_v1.json"
+    _, relations = load_verified_relations(path, set(profiles["characters"]))
+    return relations
+
+
 # 검증된 핵심 원작 사실은 LLM 생성 전에 데이터 기반으로 정확히 답한다.
 # 모든 match group이 일치해야 하므로 일반 대화를 사실 질문으로 오인하지 않는다.
 def character_lore_fact_reply(character_name: str, user_message: str) -> str | None:
     try:
+        relation = verified_relation_reply(
+            _verified_character_relations(), character_name, user_message
+        )
+        if relation:
+            return relation
         return verified_fact_reply(_verified_lore_facts(), character_name, user_message)
     except (OSError, RuntimeError, json.JSONDecodeError) as exc:
         print(f"  [CharacterPipeline] 검증 지식 로드 실패 (무시): {exc}")

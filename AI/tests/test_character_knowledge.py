@@ -3,13 +3,20 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from rag.character_knowledge import load_verified_facts, lore_fact_text, verified_fact_reply
+from rag.character_knowledge import (
+    load_verified_facts,
+    load_verified_relations,
+    lore_fact_text,
+    verified_fact_reply,
+    verified_relation_reply,
+)
 
 
 class CharacterKnowledgeTests(unittest.TestCase):
     def setUp(self):
         self.root = Path(__file__).resolve().parents[1]
         self.path = self.root / "data" / "character_facts_verified_v1.json"
+        self.relations_path = self.root / "data" / "character_relations_verified_v1.json"
 
     def test_verified_fact_file_is_valid_for_current_profiles(self):
         profiles = json.loads(
@@ -58,6 +65,21 @@ class CharacterKnowledgeTests(unittest.TestCase):
             "내 보물은 절대반지야. 내가 오랫동안 집착해 온 반지지.",
         )
         self.assertIsNone(verified_fact_reply(facts, "토르", "망치가 무거워?"))
+
+    def test_verified_relation_reply_handles_explicit_relation_question(self):
+        profiles = json.loads(
+            (self.root / "character_profiles_ALL_50.json").read_text(encoding="utf-8")
+        )
+        _, relations = load_verified_relations(
+            self.relations_path, set(profiles["characters"])
+        )
+        self.assertEqual(
+            verified_relation_reply(relations, "우디", "버즈 라이트이어랑 무슨 사이야?"),
+            "버즈와는 처음엔 앤디의 관심을 두고 경쟁했지만, 함께 위기를 겪으며 서로 돕는 동료가 됐어.",
+        )
+        self.assertIsNone(
+            verified_relation_reply(relations, "우디", "버즈 라이트이어가 멋있어")
+        )
 
 
 if __name__ == "__main__":
