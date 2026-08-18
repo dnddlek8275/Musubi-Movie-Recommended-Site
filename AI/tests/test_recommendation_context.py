@@ -112,6 +112,10 @@ class RecommendationContextTests(unittest.TestCase):
             with self.subTest(message=message):
                 self.assertEqual(classify(message, history=self.history), Intent.MOVIE_RECOMMEND)
 
+    def test_movie_recommendation_now_done_routes_to_chat(self):
+        message = "코미디 영화 추천은 이제 됐어. 대신 오늘 있었던 웃긴 얘기 들어줄래?"
+        self.assertEqual(classify(message, history=self.history), Intent.CHARACTER_CHAT)
+
     def test_structured_movie_cards_are_sufficient_followup_evidence(self):
         history = [
             {"role": "user", "content": "오늘 볼 거 골라줘"},
@@ -202,6 +206,52 @@ class RecommendationContextTests(unittest.TestCase):
         )
         self.assertNotIn("2023", context.search_message)
         self.assertIn("일본 애니메이션", context.search_message)
+
+    def test_double_negative_does_not_exclude_horror(self):
+        context = build_recommendation_context(
+            "공포를 싫어하는 건 아니야. 공포 영화 한 편 추천해줘.",
+            [],
+        )
+        self.assertNotIn("공포", context.excluded_genres)
+
+    def test_compound_genre_negation_excludes_modifier_not_requested_head(self):
+        context = build_recommendation_context(
+            "범죄 드라마 말고 그냥 드라마 두 편. 액션도 제외.",
+            [],
+        )
+        self.assertEqual(set(context.excluded_genres), {"범죄", "액션"})
+
+    def test_coordinated_absence_excludes_both_genres(self):
+        context = build_recommendation_context(
+            "로맨스도 코미디도 없는 SF 영화 추천해줘.",
+            [],
+        )
+        self.assertEqual(set(context.excluded_genres), {"로맨스", "코미디"})
+
+    def test_language_override_removes_old_language_only(self):
+        history = [
+            {"role": "user", "content": "2020년 이후 한국 코미디 추천해줘."},
+            {"role": "assistant", "content": "추천", "movies": [{"title": "A"}]},
+        ]
+        context = build_recommendation_context(
+            "장르와 연도는 그대로 두고 언어만 일본어로 바꿔서 두 편 추천해줘.",
+            history,
+        )
+        self.assertNotIn("한국", context.search_message)
+        self.assertIn("2020년 이후", context.search_message)
+        self.assertIn("일본어", context.search_message)
+
+    def test_year_override_removes_old_bound_only(self):
+        history = [
+            {"role": "user", "content": "2023년 이후 일본 애니메이션 추천해줘."},
+            {"role": "assistant", "content": "추천", "movies": [{"title": "A"}]},
+        ]
+        context = build_recommendation_context(
+            "장르와 언어는 유지하고 연도만 2010년 이후로 완화해. 두 편만 다시 추천해줘.",
+            history,
+        )
+        self.assertNotIn("2023", context.search_message)
+        self.assertIn("2010년 이후", context.search_message)
 
 
 if __name__ == "__main__":

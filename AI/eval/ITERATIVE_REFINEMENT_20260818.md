@@ -390,3 +390,28 @@ Finalization rejects missing dimensions, non-numeric values, and scores outside
   instead of allowing a character reaction to select a referent.
 - Complete local suite after this round: 351/351 passed. Production replay is
   pending deployment; no operating configuration was changed.
+
+## Recommendation negation-scope round
+
+- A 12-case production suite tested Korean exception scope, double negatives,
+  coordinated exclusions, partial genre release, language-only and year-only
+  replacement, strict no-result handling, all-required genres, and topic close
+  even when the new message still contains movie/genre words.
+- The deployed baseline passed 2/12. It handled a horror-comedy soft constraint
+  and the impossible 2099 strict combination, but failed every tested count or
+  negation/override variant outside those two cases.
+- Deterministic reproduction identified concrete parser errors rather than an
+  unexplained model-quality issue. `범죄 드라마 말고 그냥 드라마` excluded
+  drama instead of crime; `공포를 싫어하는 건 아니야` excluded horror; and
+  `로맨스도 코미디도 없는 SF` treated romance and comedy as required genres.
+- Language-only replacement retained the old Korean constraint, year-only
+  replacement retained the old 2023 bound, and `추천은 이제 됐어` was still
+  routed to movie recommendation. The deployed card-count and language-field
+  failures also reconfirmed earlier undeployed fixes.
+- Local context parsing now recognizes explicitly allowed genres after a
+  negative phrase, compound-head negation, coordinated `A도 B도 없는`,
+  `A만 아니면`, and `A 장르 조건만 빼` forms. Follow-up construction removes
+  only the prior language or year expression when that field alone is replaced,
+  while preserving other constraints. Movie-topic negation accepts `이제 됐어`.
+- Complete local suite after this round: 357/357 passed. Production replay is
+  pending deployment; no operating configuration or database was changed.
