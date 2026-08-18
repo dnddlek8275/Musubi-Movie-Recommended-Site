@@ -191,3 +191,21 @@ Migration은 자동으로 downgrade하지 않는다. downgrade에는 테이블·
 삭제하도록 설정할 수 있다. 월간 1년 보존이 필요해지면 일일 백업과 같은
 Prefix에 예외를 섞지 않고 `backups/postgresql-monthly/`처럼 분리한 뒤 별도
 정책을 추가한다.
+
+## 멀티 AZ 확장 후 복구 정책 (최종 목표)
+
+이 절은 2026-08-18 확정한 10 VM 목표 구조에 적용한다. 구축 완료 전에는 현재
+단일 PostgreSQL 운영 상태와 혼동하지 않는다.
+
+- `kr-central-2-a`: PostgreSQL Primary + PgBouncer
+- `kr-central-2-b`: PostgreSQL Standby
+- Primary 변경 사항은 Standby로 streaming replication
+- Backend는 정상 운영 시 Primary에 연결
+- 장애 시 자동 승격이 아니라 운영자가 Standby를 수동 승격
+- 승격 전 복제 상태와 마지막 재생 위치를 확인하고, 승격 후 Backend 연결 정보를
+  새 Primary로 전환
+- Object Storage 백업은 복제와 별도로 유지하며, 복제 장애와 논리적 데이터 손상에
+  대비한 복구 수단으로 사용
+
+수동 승격 훈련에서는 기존 Primary 격리, Standby 승격, PgBouncer/Backend 연결
+전환, 쓰기 검증, 기존 Primary 재합류 또는 재구축 순서를 기록한다.

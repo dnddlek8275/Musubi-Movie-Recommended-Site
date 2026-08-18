@@ -128,7 +128,7 @@ CSV에는 배우 TMDB ID와 프로필 이미지, 캐릭터 정보가 없으므�
 `movie_actors`, `characters` 테이블은 이 작업으로 채우지 않습니다.
 
 러닝타임·제작 국가·연령등급 보강 방법과 현재 로컬 DB의 확보율은
-[`docs/current/backend/MOVIE_METADATA.md`](../docs/current/backend/MOVIE_METADATA.md)에
+[`MOVIE_METADATA.md`](../Infra/project-docs/current/backend/MOVIE_METADATA.md)에
 정리되어 있습니다.
 
 ### TMDB 한국·일본 영화 보강

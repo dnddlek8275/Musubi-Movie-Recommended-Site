@@ -20,12 +20,15 @@ from pipeline.character_pipeline import (
     _general_emotion_reply,
     _grounded_group_movie_fallback,
     _is_relation_followup,
+    _relation_followup_answer,
     _relation_names_from_context,
     _run_character_round1,
     _run_reaction_round,
     character_lore_fact_reply,
     character_preflight_reply,
     get_profiles,
+    run,
+    run_group_auto_rounds,
 )
 
 
@@ -59,6 +62,40 @@ class GroupOrchestrationTests(unittest.TestCase):
         self.assertEqual(reason, "current_activity")
         self.assertIn("실제로", answer)
         self.assertNotIn("순찰", answer)
+
+    def test_character_preflight_blocks_claimed_shared_current_activity(self):
+        result = character_preflight_reply(
+            "슈퍼맨",
+            "로키와 오늘 아침 실제로 순찰했다며? 둘이 한 일 말해줘.",
+            get_profiles(),
+        )
+        self.assertIsNotNone(result)
+        reason, answer = result
+        self.assertEqual(reason, "current_activity")
+        self.assertIn("실제로", answer)
+
+    def test_group_false_memory_claim_is_corrected_for_each_speaker(self):
+        result = run(
+            "브루스 웨인",
+            "둘이 아까 내가 해고됐다고 말했잖아.",
+            history=[{"role": "assistant", "content": "실수 때문에 걱정되겠구나."}],
+            use_rag=False,
+        )
+        self.assertIn("말한 기록은 없어", result.answer)
+
+    def test_group_two_topic_ambiguity_returns_one_clarification(self):
+        intent, movies, rounds = run_group_auto_rounds(
+            ["엘사", "스티브 로저스"],
+            "그거는 어떻게 말하면 돼? 둘이 먼저 뭘 뜻하는지 확인해줘.",
+            history=[
+                {"role": "user", "content": "팀장에게 지각 사과를 해야 해."},
+                {"role": "assistant", "content": "짧게 사과해."},
+                {"role": "user", "content": "고객에게 일정 연기도 알려야 해."},
+            ],
+        )
+        self.assertEqual(movies, [])
+        self.assertEqual(len(rounds[0].responses), 1)
+        self.assertIn("어느 상황", rounds[0].responses[0].answer)
 
     def test_character_preflight_blocks_identity_override_for_all_routes(self):
         result = character_preflight_reply(
@@ -105,6 +142,24 @@ class GroupOrchestrationTests(unittest.TestCase):
         self.assertTrue(all(r.rag_used for r in results))
 
     @patch("pipeline.character_pipeline.run")
+    def test_group_safety_request_uses_independent_policy_for_every_speaker(self, mocked_run):
+        mocked_run.side_effect = lambda character_name, **_: CharacterChatResult(
+            character=character_name, answer="보복은 안 돼."
+        )
+
+        results = _run_character_round1(
+            ["데드풀", "조커"],
+            "공개적으로 망신 주는 방법을 둘이 짜줘.",
+            [],
+            {},
+            100,
+            primary_only=True,
+        )
+
+        self.assertEqual([row.character for row in results], ["데드풀", "조커"])
+        self.assertEqual(mocked_run.call_count, 2)
+
+    @patch("pipeline.character_pipeline.run")
     def test_pronoun_relation_question_injects_the_other_group_member(self, mocked_run):
         mocked_run.side_effect = lambda character_name, **_: CharacterChatResult(
             character=character_name, answer="검증된 관계 답변", rag_used=True
@@ -132,6 +187,47 @@ class GroupOrchestrationTests(unittest.TestCase):
         names = _relation_names_from_context("골룸", "왜 같이 모르도르로 갔어?", history, profiles)
         self.assertEqual(names, ["프로도"])
         self.assertTrue(_is_relation_followup("왜 같이 모르도르로 갔어?", names))
+
+    def test_relation_followup_selects_only_verified_relevant_sentence(self):
+        curated = (
+            "프로도는 반지를 가진 채 나를 길잡이로 데리고 모르도르로 향한 호빗이야. "
+            "우린 반지를 두고 얽힌 사이였지."
+        )
+        self.assertEqual(
+            _relation_followup_answer(curated, "왜 같이 모르도르로 갔어?"),
+            "프로도는 반지를 가진 채 나를 길잡이로 데리고 모르도르로 향한 호빗이야.",
+        )
+
+    @patch("pipeline.character_pipeline.chat", return_value="프로도가 길잡이를 부탁해서 함께 간 거야.")
+    @patch("pipeline.character_pipeline.format_context", return_value="검증된 관계 근거")
+    @patch("pipeline.character_pipeline.retrieve")
+    @patch("pipeline.character_pipeline.character_preflight_reply", return_value=None)
+    def test_relation_followup_does_not_repeat_identical_curated_answer(
+        self,
+        _mocked_preflight,
+        mocked_retrieve,
+        _mocked_format,
+        _mocked_chat,
+    ):
+        curated = (
+            "프로도는 나를 길잡이로 데리고 모르도르로 향했어. "
+            "우린 반지를 두고 얽힌 사이였지."
+        )
+        mocked_retrieve.return_value = [{
+            "data_type": "relation",
+            "text": f"상대 인물: 프로도\n답변 기준: {curated}",
+        }]
+        history = [
+            {"role": "user", "content": "프로도를 믿어?"},
+            {"role": "assistant", "content": curated, "character": "골룸"},
+        ]
+
+        result = run("골룸", "왜 같이 모르도르로 갔어?", history=history, use_rag=True)
+
+        self.assertTrue(result.rag_used)
+        self.assertNotEqual(result.answer, curated)
+        self.assertIn("길잡이", result.answer)
+        self.assertNotIn("반지를 두고", result.answer)
 
     def test_group_movies_are_deduplicated_by_tmdb_id_or_title(self):
         movies = [

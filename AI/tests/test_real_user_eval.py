@@ -14,6 +14,15 @@ SPEC.loader.exec_module(MODULE)
 
 
 class RealUserEvalTests(unittest.TestCase):
+    def test_group_answers_are_combined_for_content_checks(self):
+        response = {
+            "rounds": [
+                {"responses": [{"character": "A", "answer": "첫 답변"}]},
+                {"responses": [{"character": "B", "answer": "두 번째 답변"}]},
+            ]
+        }
+        self.assertEqual(MODULE.answer_text(response), "첫 답변\n두 번째 답변")
+
     def test_internal_channel_label_is_rejected(self):
         case = {"checks": {}}
         self.assertIn(
@@ -61,6 +70,46 @@ class RealUserEvalTests(unittest.TestCase):
         self.assertTrue(any(value.startswith("blocked_genre") for value in failures))
         self.assertTrue(any(value.startswith("year_before_minimum") for value in failures))
         self.assertTrue(any(value.startswith("rating_below_minimum") for value in failures))
+
+    def test_maximum_movie_count_is_enforced(self):
+        case = {"checks": {"max_movies": 1}}
+        response = {"answer": "추천입니다.", "movies": [{"title": "A"}, {"title": "B"}]}
+        self.assertIn(
+            "too_many_movies:expected<=1:actual=2",
+            MODULE.evaluate_response(case, response),
+        )
+
+    def test_all_genres_language_year_ceiling_and_blocked_title_are_enforced(self):
+        case = {
+            "checks": {
+                "required_genres_all": ["음악", "코미디"],
+                "language": "ja",
+                "year_to": 2010,
+                "blocked_titles": ["제외작"],
+            }
+        }
+        response = {
+            "answer": "추천입니다.",
+            "movies": [{
+                "title": "제외작",
+                "genres": "코미디",
+                "language": "ko",
+                "year": 2020,
+            }],
+        }
+        failures = MODULE.evaluate_response(case, response)
+        self.assertIn("blocked_title:제외작", failures)
+        self.assertIn("missing_required_genres:제외작:음악", failures)
+        self.assertIn("year_after_maximum:제외작:2020", failures)
+        self.assertIn("unexpected_language:제외작:ko", failures)
+
+    def test_quoted_title_alias_inside_returned_title_is_grounded(self):
+        case = {"checks": {"answer_titles_must_be_returned": True}}
+        response = {
+            "answer": "‘핀치’를 추천해요.",
+            "movies": [{"title": "'핀치' - Finch", "genres": "SF"}],
+        }
+        self.assertEqual(MODULE.evaluate_response(case, response), [])
 
     def test_grounded_title_check_rejects_unreturned_quoted_title(self):
         case = {"checks": {"answer_titles_must_be_returned": True}}

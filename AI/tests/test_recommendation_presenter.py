@@ -12,6 +12,33 @@ from pipeline.recommendation_presenter import (
 
 
 class RecommendationPresenterTests(unittest.TestCase):
+    def test_character_fallback_uses_correct_korean_conjunction_particle(self):
+        movies = [
+            {"title": "첫 영화", "recommendation_reason": "이유야."},
+            {"title": "야! 러그래츠: 파리 대모험"},
+            {"title": "엘리멘탈"},
+        ]
+
+        answer = build_character_grounded_answer(movies, "슈렉")
+
+        self.assertIn("‘야! 러그래츠: 파리 대모험’과 ‘엘리멘탈’", answer)
+
+    def test_fun_request_reasons_use_comedy_evidence_for_every_card(self):
+        movies = prepare_recommendations(
+            [
+                {"title": "A", "genres": "가족, 로맨스, 코미디"},
+                {"title": "B", "genres": "가족, 모험, 애니메이션, 코미디"},
+                {"title": "C", "genres": "모험, 애니메이션, 코미디"},
+            ],
+            "주말 밤에 볼 유쾌한 영화 세 편 골라줘",
+            {},
+            limit=3,
+        )
+
+        self.assertEqual(len(movies), 3)
+        self.assertTrue(all("코미디" in movie["recommendation_reason"] for movie in movies))
+        self.assertTrue(all("가볍게 보기" in movie["recommendation_reason"] for movie in movies))
+
     def test_korean_object_particle_matches_genre_final_consonant(self):
         self.assertEqual(_korean_object_particle("공포"), "를")
         self.assertEqual(_korean_object_particle("액션"), "을")

@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="980" viewBox="0 0 1600 980" role="img" aria-labelledby="title desc">
+  <title id="title">CineVerse 최종 멀티 AZ 인프라 구성</title>
+  <desc id="desc">kr-central-2-a와 kr-central-2-b에 KKE Worker, GPU AI, PostgreSQL, NAT와 Bastion을 분산한 총 10 VM 목표 구조</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#64748b"/></marker>
+    <style>
+      text{font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",Arial,sans-serif;fill:#172b4d}
+      .title{font-size:34px;font-weight:700}.sub{font-size:17px;fill:#52606d}.az{font-size:24px;font-weight:700}.label{font-size:17px;font-weight:700}.small{font-size:14px}.box{stroke-width:2}.line{stroke:#64748b;stroke-width:2.5;fill:none;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect width="1600" height="980" fill="#f8fafc"/>
+  <text x="60" y="56" class="title">CineVerse 최종 멀티 AZ 인프라 구성</text>
+  <text x="60" y="88" class="sub">VPC cineverse-vpc-03 · 10.30.0.0/16 · 목표 VM 10대</text>
+  <rect x="50" y="120" width="1500" height="800" rx="24" fill="#fff" stroke="#94a3b8" class="box"/>
+  <rect x="90" y="155" width="680" height="700" rx="20" fill="#f8fafc" stroke="#5b8def" class="box"/>
+  <rect x="830" y="155" width="680" height="700" rx="20" fill="#f8fafc" stroke="#7c5cff" class="box"/>
+  <text x="120" y="195" class="az">kr-central-2-a</text>
+  <text x="860" y="195" class="az">kr-central-2-b</text>
+  <rect x="120" y="225" width="620" height="150" rx="16" fill="#fff4e5" stroke="#f59e0b" class="box"/>
+  <rect x="860" y="225" width="620" height="150" rx="16" fill="#fff4e5" stroke="#f59e0b" class="box"/>
+  <text x="145" y="260" class="label">Public-A · 10.30.1.0/24</text>
+  <text x="885" y="260" class="label">Public-B · 10.30.4.0/24</text>
+  <rect x="280" y="285" width="300" height="60" rx="12" fill="#fff" stroke="#e59622" class="box"/>
+  <rect x="1020" y="285" width="300" height="60" rx="12" fill="#fff" stroke="#e59622" class="box"/>
+  <text x="430" y="321" text-anchor="middle" class="label">NAT + Bastion-A</text>
+  <text x="1170" y="321" text-anchor="middle" class="label">NAT + Bastion-B</text>
+  <rect x="120" y="410" width="620" height="405" rx="16" fill="#eaf7ef" stroke="#22c55e" class="box"/>
+  <rect x="860" y="410" width="620" height="405" rx="16" fill="#eaf7ef" stroke="#22c55e" class="box"/>
+  <text x="145" y="445" class="label">Private-A · 10.30.2.0/24</text>
+  <text x="885" y="445" class="label">Private-B · 10.30.3.0/24</text>
+  <g fill="#fff" stroke="#78a98b" class="box">
+    <rect x="155" y="480" width="255" height="80" rx="12"/><rect x="450" y="480" width="255" height="80" rx="12"/>
+    <rect x="155" y="595" width="255" height="80" rx="12"/><rect x="450" y="595" width="255" height="80" rx="12"/>
+    <rect x="895" y="480" width="255" height="80" rx="12"/><rect x="1190" y="480" width="255" height="80" rx="12"/>
+    <rect x="895" y="595" width="255" height="80" rx="12"/><rect x="1190" y="595" width="255" height="80" rx="12"/>
+  </g>
+  <g text-anchor="middle" class="label">
+    <text x="282" y="527">KKE Worker-A1</text><text x="577" y="527">KKE Worker-A2</text>
+    <text x="282" y="642">GPU AI-A</text><text x="577" y="630">PostgreSQL Primary</text><text x="577" y="652" class="small">+ PgBouncer</text>
+    <text x="1022" y="527">KKE Worker-B1</text><text x="1317" y="527">KKE Worker-B2</text>
+    <text x="1022" y="642">GPU AI-B</text><text x="1317" y="630">PostgreSQL Standby</text><text x="1317" y="652" class="small">Streaming replication</text>
+  </g>
+  <rect x="240" y="735" width="1080" height="52" rx="12" fill="#eef2f6" stroke="#94a3b8" class="box"/>
+  <text x="780" y="767" text-anchor="middle" class="small">관리형 자원: Public LB HA · Internal AI LB HA · KKE control plane · Container Registry · Object Storage</text>
+  <path class="line" d="M580 315 C690 315,700 520,705 520"/><path class="line" d="M1020 315 C910 315,900 520,895 520"/>
+  <path class="line" d="M705 520 C790 520,810 520,895 520"/>
+  <path class="line" d="M705 635 C790 635,810 635,895 635"/>
+  <path class="line" d="M705 635 C910 710,1100 710,1190 635"/>
+  <text x="800" y="890" text-anchor="middle" class="small">인터넷 공개: Public Load Balancer 80/443만 · SSH: AZ별 NAT+Bastion 경유 · DB/GPU/Worker: Private subnet</text>
+  <text x="800" y="944" text-anchor="middle" class="sub">현재 5 VM과 최종 목표 10 VM을 문서에서 구분해 관리</text>
+</svg>

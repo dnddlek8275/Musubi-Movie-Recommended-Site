@@ -1,0 +1,155 @@
+{
+  "suite_version": "recommendation-iterative-v3-20260818",
+  "description": "추천 수량, 조건 누적·수정, 카드 후속 질문, 제외 조건과 설명 근거를 검증하는 비학습용 평가셋",
+  "thresholds": {
+    "hard_check_pass_rate": 0.95,
+    "critical_failure_count": 0,
+    "exact_duplicate_rate_max": 0.05,
+    "pair_similarity_max": 0.9,
+    "manual_average_min": 4.0,
+    "manual_dimension_min": 3.5
+  },
+  "manual_dimensions": ["relevance", "naturalness", "specificity", "groundedness"],
+  "cases": [
+    {
+      "id": "rec_exact_one_korean",
+      "category": "count",
+      "endpoint": "/recommend",
+      "payload": {"message": "평점 7점 이상인 한국 범죄 영화 딱 한 편만 추천해줘."},
+      "checks": {"min_movies": 1, "max_movies": 1, "unique_titles": true, "required_genres_any": ["범죄"], "language": "ko", "min_rating": 7.0, "answer_titles_must_be_returned": true}
+    },
+    {
+      "id": "rec_exact_two_typo",
+      "category": "count_typo",
+      "endpoint": "/recommend",
+      "payload": {"message": "2020년이후 한국 코메디 2개만. 공포 ㄴㄴ"},
+      "checks": {"min_movies": 2, "max_movies": 2, "unique_titles": true, "required_genres_any": ["코미디"], "blocked_genres": ["공포"], "year_from": 2020, "language": "ko", "answer_titles_must_be_returned": true}
+    },
+    {
+      "id": "rec_exact_four",
+      "category": "count",
+      "endpoint": "/recommend",
+      "payload": {"message": "가족과 볼 애니메이션 네 편 골라줘. 공포와 전쟁은 빼줘."},
+      "checks": {"min_movies": 4, "max_movies": 4, "unique_titles": true, "required_genres_any": ["애니메이션"], "blocked_genres": ["공포", "전쟁"], "answer_titles_must_be_returned": true}
+    },
+    {
+      "id": "rec_negation_suffix",
+      "category": "negation",
+      "endpoint": "/recommend",
+      "payload": {"message": "잔잔한 드라마 추천해줘. 범죄물만 빼고 액션도 싫어."},
+      "checks": {"min_movies": 3, "unique_titles": true, "required_genres_any": ["드라마"], "blocked_genres": ["범죄", "액션"], "answer_titles_must_be_returned": true}
+    },
+    {
+      "id": "rec_all_required_genres",
+      "category": "compound_genre",
+      "endpoint": "/recommend",
+      "payload": {"message": "2015년 이후 음악과 코미디가 둘 다 들어간 영화 세 편 추천해줘."},
+      "checks": {"min_movies": 3, "max_movies": 3, "unique_titles": true, "required_genres_all": ["음악", "코미디"], "year_from": 2015, "answer_titles_must_be_returned": true}
+    },
+    {
+      "id": "rec_language_year_rating",
+      "category": "compound_filter",
+      "endpoint": "/recommend",
+      "payload": {"message": "2018년 이후 일본 애니메이션 중 평점 7.5 이상인 작품 세 개."},
+      "checks": {"min_movies": 3, "max_movies": 3, "unique_titles": true, "required_genres_any": ["애니메이션"], "language": "ja", "year_from": 2018, "min_rating": 7.5, "answer_titles_must_be_returned": true}
+    },
+    {
+      "id": "rec_before_year",
+      "category": "year_filter",
+      "endpoint": "/recommend",
+      "payload": {"message": "2000년 이전 SF 명작 세 편 추천해줘. 평점 7점 이상으로."},
+      "checks": {"min_movies": 3, "max_movies": 3, "unique_titles": true, "required_genres_any": ["SF", "과학소설"], "year_to": 2000, "min_rating": 7.0, "answer_titles_must_be_returned": true}
+    },
+    {
+      "id": "rec_child_safe_strict",
+      "category": "audience_safety",
+      "endpoint": "/recommend",
+      "payload": {"message": "초등학생과 볼 수 있는 전체 관람가 가족 영화 세 편. 무섭거나 잔인한 건 빼줘."},
+      "checks": {"min_movies": 3, "max_movies": 3, "unique_titles": true, "required_genres_any": ["가족"], "blocked_genres": ["공포"], "child_safe_certification": true, "answer_titles_must_be_returned": true}
+    },
+    {
+      "id": "rec_title_grounding_alias",
+      "category": "answer_grounding",
+      "endpoint": "/recommend",
+      "payload": {"message": "성인이 보기 좋은 철학적인 애니메이션 세 편 추천해줘."},
+      "checks": {"min_movies": 3, "max_movies": 3, "unique_titles": true, "required_genres_any": ["애니메이션"], "answer_titles_must_be_returned": true}
+    },
+    {
+      "id": "rec_no_horror_colloquial",
+      "category": "colloquial_constraint",
+      "endpoint": "/recommend",
+      "payload": {"message": "긴장감은 있는데 귀신 나오거나 무서운 건 절대 ㄴㄴ. 가족이랑 볼 거 세 개."},
+      "checks": {"min_movies": 3, "max_movies": 3, "unique_titles": true, "blocked_genres": ["공포"], "answer_titles_must_be_returned": true}
+    },
+    {
+      "id": "followup_newer_two",
+      "category": "followup_refinement",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "마음에 안 들어. 같은 장르로 2020년 이후 작품 두 편만 다시 골라줘.", "history": [{"role": "user", "content": "SF 영화 추천해줘."}, {"role": "assistant", "content": "세 편을 추천했어.", "movies": [{"title": "인터스텔라", "genres": "SF, 드라마", "year": 2014}, {"title": "컨택트", "genres": "SF, 드라마", "year": 2016}, {"title": "매트릭스", "genres": "SF, 액션", "year": 1999}]}]},
+      "checks": {"expected_intent": "movie_recommend", "min_movies": 2, "max_movies": 2, "unique_titles": true, "required_genres_any": ["SF", "과학소설"], "year_from": 2020, "answer_titles_must_be_returned": true}
+    },
+    {
+      "id": "followup_exclude_previous",
+      "category": "followup_exclusion",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "셋 다 빼고 다른 코미디 두 편만 보여줘.", "history": [{"role": "user", "content": "코미디 영화 추천해줘."}, {"role": "assistant", "content": "‘극한직업’, ‘스파이’, ‘럭키’를 추천해.", "movies": [{"title": "극한직업", "genres": "코미디"}, {"title": "스파이", "genres": "코미디"}, {"title": "럭키", "genres": "코미디"}]}]},
+      "checks": {"expected_intent": "movie_recommend", "min_movies": 2, "max_movies": 2, "unique_titles": true, "required_genres_any": ["코미디"], "blocked_titles": ["극한직업", "스파이", "럭키"], "answer_titles_must_be_returned": true}
+    },
+    {
+      "id": "followup_add_rating",
+      "category": "followup_refinement",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "그중에서 말고 평점 7.5 이상인 걸로 두 편 다시 추천해줘.", "history": [{"role": "user", "content": "2015년 이후 일본 애니메이션 추천해줘."}, {"role": "assistant", "content": "세 편을 골랐어.", "movies": [{"title": "A", "genres": "애니메이션", "language": "ja", "year": 2018}, {"title": "B", "genres": "애니메이션", "language": "ja", "year": 2020}, {"title": "C", "genres": "애니메이션", "language": "ja", "year": 2022}]}]},
+      "checks": {"expected_intent": "movie_recommend", "min_movies": 2, "max_movies": 2, "unique_titles": true, "required_genres_any": ["애니메이션"], "language": "ja", "year_from": 2015, "min_rating": 7.5, "blocked_titles": ["A", "B", "C"], "answer_titles_must_be_returned": true}
+    },
+    {
+      "id": "followup_change_genre",
+      "category": "followup_override",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "아니, SF 말고 완전히 밝은 로맨틱 코미디 두 편으로 바꿔줘.", "history": [{"role": "user", "content": "SF 영화 추천해줘."}, {"role": "assistant", "content": "SF 세 편을 추천했어.", "movies": [{"title": "A", "genres": "SF"}, {"title": "B", "genres": "SF"}, {"title": "C", "genres": "SF"}]}]},
+      "checks": {"expected_intent": "movie_recommend", "min_movies": 2, "max_movies": 2, "unique_titles": true, "required_genres_all": ["로맨스", "코미디"], "blocked_genres": ["SF"], "blocked_titles": ["A", "B", "C"], "answer_titles_must_be_returned": true}
+    },
+    {
+      "id": "followup_card_first_title",
+      "category": "card_followup",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "첫 번째 영화 제목이 뭐였지?", "history": [{"role": "user", "content": "가족 영화 추천해줘."}, {"role": "assistant", "content": "세 편을 추천했어.", "movies": [{"title": "패딩턴", "genres": "가족", "overview": "런던에 온 곰의 이야기"}, {"title": "코코", "genres": "가족, 애니메이션"}, {"title": "업", "genres": "가족, 애니메이션"}]}]},
+      "checks": {"expected_intent_not": "movie_recommend", "max_chars": 100, "required_patterns_any": ["패딩턴"]}
+    },
+    {
+      "id": "followup_card_overview",
+      "category": "card_followup",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "첫 번째 건 무슨 내용이야?", "history": [{"role": "user", "content": "가족 영화 추천해줘."}, {"role": "assistant", "content": "세 편을 추천했어.", "movies": [{"title": "패딩턴", "genres": "가족", "overview": "페루에서 런던으로 온 곰 패딩턴이 새로운 가족을 만나는 이야기"}, {"title": "코코", "genres": "가족, 애니메이션"}, {"title": "업", "genres": "가족, 애니메이션"}]}]},
+      "checks": {"expected_intent_not": "movie_recommend", "max_chars": 220, "required_patterns_any": ["패딩턴", "페루", "런던", "가족"]}
+    },
+    {
+      "id": "followup_card_out_of_range",
+      "category": "card_followup",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "네 번째 영화 줄거리 알려줘.", "history": [{"role": "user", "content": "영화 세 편 추천해줘."}, {"role": "assistant", "content": "세 편을 추천했어.", "movies": [{"title": "A"}, {"title": "B"}, {"title": "C"}]}]},
+      "checks": {"expected_intent_not": "movie_recommend", "max_chars": 220, "required_patterns_any": ["세 편", "없", "네 번째", "확인"]}
+    },
+    {
+      "id": "followup_topic_switch_chat",
+      "category": "topic_switch",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "영화는 나중에 볼게. 오늘 회사에서 속상했던 얘기 좀 들어줘.", "history": [{"role": "user", "content": "코미디 영화 추천해줘."}, {"role": "assistant", "content": "세 편을 추천했어.", "movies": [{"title": "A"}, {"title": "B"}, {"title": "C"}]}]},
+      "checks": {"expected_intent_not": "movie_recommend", "max_chars": 240, "required_patterns_any": ["회사", "속상", "들어", "얘기"]}
+    },
+    {
+      "id": "rec_impossible_future_range",
+      "category": "no_result_safety",
+      "endpoint": "/recommend",
+      "payload": {"message": "2099년 이후 개봉한 한국 SF 영화 세 편 추천해줘."},
+      "checks": {"max_movies": 0, "max_chars": 260, "required_patterns_any": ["찾지", "없", "조건", "확인"]}
+    },
+    {
+      "id": "rec_conflicting_year_range",
+      "category": "conflicting_constraint",
+      "endpoint": "/recommend",
+      "payload": {"message": "2020년 이후이면서 2010년 이전인 영화 세 편 추천해줘."},
+      "checks": {"max_movies": 0, "max_chars": 260, "required_patterns_any": ["조건", "동시에", "범위", "확인", "없"]}
+    }
+  ]
+}

@@ -29,11 +29,15 @@ _FOLLOWUP = re.compile(
     re.IGNORECASE,
 )
 _NEGATED_GENRE = re.compile(
-    rf"({_GENRE_ALT})(?:는|은|이|가|를|을)?\s*(?:싫|말고|빼|제외)",
+    rf"({_GENRE_ALT})(?:물)?(?:는|은|이|가|를|을|만)?\s*(?:싫|말고|빼|제외)",
     re.IGNORECASE,
 )
 _COORDINATED_NEGATED_GENRES = re.compile(
-    rf"({_GENRE_ALT})(?:와|과|,)\s*({_GENRE_ALT})(?:는|은|이|가|를|을)?\s*(?:싫|말고|빼|제외)",
+    rf"({_GENRE_ALT})(?:와|과|,)\s*({_GENRE_ALT})(?:물)?(?:는|은|이|가|를|을|만)?\s*(?:싫|말고|빼|제외)",
+    re.IGNORECASE,
+)
+_COLLOQUIAL_HORROR_NEGATION = re.compile(
+    r"(?:무서운|무서운\s*거|무서운\s*건|귀신(?:물)?|호러|공포).{0,12}(?:ㄴㄴ|싫|말고|빼|제외|절대\s*안)",
     re.IGNORECASE,
 )
 _QUOTED_TITLE = re.compile(r"['‘’\"“”]([^'‘’\"“”]{1,80})['‘’\"“”]")
@@ -46,6 +50,19 @@ _ORDINALS = (
     (re.compile(r"두\s*번째|2\s*번째|둘째"), 1),
     (re.compile(r"세\s*번째|3\s*번째|셋째"), 2),
 )
+_REQUESTED_COUNT = re.compile(
+    r"(?:딱\s*)?(한|두|세|네|다섯|[1-5])\s*(?:편|개)(?:만|만\s*추천)?",
+    re.IGNORECASE,
+)
+_COUNT_VALUES = {"한": 1, "두": 2, "세": 3, "네": 4, "다섯": 5}
+_FULL_PREFERENCE_RESET = re.compile(
+    r"(?:조건은?\s*(?:전부\s*)?취소|그\s*추천은?\s*(?:됐|그만)|이번엔|새로\s*(?:골라|추천))",
+    re.IGNORECASE,
+)
+_YEAR_RELEASE = re.compile(r"연도\s*(?:제한|조건)(?:만)?\s*(?:없애|빼|취소)", re.IGNORECASE)
+_YEAR_EXPRESSION = re.compile(
+    r"\d{4}\s*년?\s*(?:이후|이전|부터|까지|이상|이하)?|\d{4}\s*[-~]\s*\d{4}"
+)
 
 
 @dataclass
@@ -54,6 +71,14 @@ class RecommendationContext:
     is_followup: bool = False
     excluded_genres: list[str] = field(default_factory=list)
     excluded_titles: list[str] = field(default_factory=list)
+
+
+def requested_movie_count(message: str) -> int | None:
+    match = _REQUESTED_COUNT.search(message or "")
+    if not match:
+        return None
+    token = match.group(1)
+    return _COUNT_VALUES.get(token, int(token) if token.isdigit() else None)
 
 
 def _latest_structured_movies(history: list[dict] | None) -> list[dict]:
@@ -248,6 +273,8 @@ def build_recommendation_context(
         genre = match.group(1)
         if genre not in excluded_genres:
             excluded_genres.append(genre)
+    if _COLLOQUIAL_HORROR_NEGATION.search(user_message) and "공포" not in excluded_genres:
+        excluded_genres.append("공포")
 
     previous_request = _recommendation_thread_request(history)
     followup = bool(previous_request and _FOLLOWUP.search(user_message))
@@ -257,8 +284,15 @@ def build_recommendation_context(
             excluded_genres=excluded_genres,
         )
 
+    if _FULL_PREFERENCE_RESET.search(user_message):
+        search_message = user_message
+    else:
+        if _YEAR_RELEASE.search(user_message):
+            previous_request = _YEAR_EXPRESSION.sub("", previous_request)
+        search_message = f"{previous_request} {user_message}"
+
     return RecommendationContext(
-        search_message=f"{previous_request} {user_message}",
+        search_message=search_message,
         is_followup=True,
         excluded_genres=excluded_genres,
         excluded_titles=_previous_titles(history),

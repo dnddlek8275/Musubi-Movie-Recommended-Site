@@ -51,3 +51,14 @@ root 전용 파일 `/etc/cineverse/gpu-watchdog.env`에 권한 `0600`으로 보�
 
 GitHub Actions 실패 알림과 DB VM의 `cineverse-db-backup.service` 실패 알림은
 아직 같은 Slack 채널에 연결하지 않았다. 장기 운영 전 이 두 경로를 추가한다.
+
+## 멀티 AZ 확장 후 추가 감시 항목 (최종 목표)
+
+- KKE Worker 4대의 AZ별 Ready 상태와 Pod 분산 여부
+- Public LB A/B 및 Internal AI LB A/B 대상의 Healthy 상태
+- GPU-A/B의 모델 체크섬, AI API health, GPU 메모리와 응답 지연
+- PostgreSQL Primary/Standby replication 상태와 replication lag
+- NAT+Bastion-A/B의 IP forwarding, NAT 규칙, 외부 연결 상태
+- 단일 AZ 장애 모의 시 공개 서비스, AI 요청, DB 쓰기 경로의 생존 여부
+
+별도 Ops VM은 추가하지 않고 모니터링 워크로드는 Kubernetes에서 운영한다.

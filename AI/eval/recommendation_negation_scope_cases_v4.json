@@ -1,0 +1,99 @@
+{
+  "suite_version": "recommendation-negation-scope-v4-20260818",
+  "description": "한국어 부정 범위, 예외, 조건 교체 및 복합 장르 해석을 검증",
+  "thresholds": {
+    "hard_check_pass_rate": 0.9,
+    "critical_failure_count": 0,
+    "exact_duplicate_rate_max": 0.1,
+    "pair_similarity_max": 0.9,
+    "manual_average_min": 4.0,
+    "manual_dimension_min": 3.5
+  },
+  "manual_dimensions": ["relevance", "naturalness", "specificity", "groundedness"],
+  "cases": [
+    {
+      "id": "neg_except_action_comedy",
+      "category": "exception_scope",
+      "endpoint": "/recommend",
+      "payload": {"message": "액션은 싫지만 액션 코미디는 괜찮아. 범죄와 공포는 빼고 세 편 추천해줘."},
+      "checks": {"min_movies": 3, "max_movies": 3, "required_genres_all": ["액션", "코미디"], "blocked_genres": ["범죄", "공포"], "unique_titles": true}
+    },
+    {
+      "id": "neg_horror_not_too_scary",
+      "category": "soft_constraint",
+      "endpoint": "/recommend",
+      "payload": {"message": "공포 영화는 맞는데 너무 무섭거나 잔인한 건 말고, 코미디 섞인 걸 세 편 추천해줘."},
+      "checks": {"min_movies": 3, "max_movies": 3, "required_genres_all": ["공포", "코미디"], "unique_titles": true}
+    },
+    {
+      "id": "neg_drama_only_not_crime",
+      "category": "suffix_scope",
+      "endpoint": "/recommend",
+      "payload": {"message": "범죄 드라마 말고 그냥 드라마 영화 두 편만 추천해줘. 액션도 제외."},
+      "checks": {"min_movies": 2, "max_movies": 2, "required_genres_any": ["드라마"], "blocked_genres": ["범죄", "액션"], "unique_titles": true}
+    },
+    {
+      "id": "neg_double_negative_horror_ok",
+      "category": "double_negative",
+      "endpoint": "/recommend",
+      "payload": {"message": "공포를 싫어하는 건 아니야. 평점 7점 이상 공포 영화 한 편만 추천해줘."},
+      "checks": {"min_movies": 1, "max_movies": 1, "required_genres_any": ["공포"], "min_rating": 7.0, "unique_titles": true}
+    },
+    {
+      "id": "neg_without_romance_or_comedy",
+      "category": "coordinated_exclusion",
+      "endpoint": "/recommend",
+      "payload": {"message": "로맨스도 코미디도 없는 진지한 SF 영화 세 편 추천해줘."},
+      "checks": {"min_movies": 3, "max_movies": 3, "required_genres_any": ["SF", "과학소설"], "blocked_genres": ["로맨스", "코미디"], "unique_titles": true}
+    },
+    {
+      "id": "neg_keep_animation_drop_family",
+      "category": "partial_genre_release",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "가족 장르 조건만 빼고 애니메이션은 유지해. 일본 작품 두 편으로 다시 골라줘.", "history": [{"role": "user", "content": "가족 애니메이션 추천해줘."}, {"role": "assistant", "content": "세 편을 추천했어.", "movies": [{"title": "A", "genres": "가족, 애니메이션"}, {"title": "B", "genres": "가족, 애니메이션"}, {"title": "C", "genres": "가족, 애니메이션"}]}]},
+      "checks": {"expected_intent": "movie_recommend", "min_movies": 2, "max_movies": 2, "required_genres_any": ["애니메이션"], "blocked_genres": ["가족"], "blocked_titles": ["A", "B", "C"], "language": "ja", "unique_titles": true}
+    },
+    {
+      "id": "neg_replace_language_only",
+      "category": "language_override",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "장르와 연도는 그대로 두고 언어만 일본어로 바꿔서 두 편 추천해줘.", "history": [{"role": "user", "content": "2020년 이후 한국 코미디 추천해줘."}, {"role": "assistant", "content": "세 편을 추천했어.", "movies": [{"title": "A", "genres": "코미디", "language": "ko", "year": 2021}]}]},
+      "checks": {"expected_intent": "movie_recommend", "min_movies": 2, "max_movies": 2, "required_genres_any": ["코미디"], "language": "ja", "year_from": 2020, "blocked_titles": ["A"], "unique_titles": true}
+    },
+    {
+      "id": "neg_replace_min_year",
+      "category": "year_override",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "장르와 언어는 유지하고 연도만 2010년 이후로 완화해. 두 편만 다시 추천해줘.", "history": [{"role": "user", "content": "2023년 이후 일본 애니메이션 추천해줘."}, {"role": "assistant", "content": "한 편을 추천했어.", "movies": [{"title": "A", "genres": "애니메이션", "language": "ja", "year": 2023}]}]},
+      "checks": {"expected_intent": "movie_recommend", "min_movies": 2, "max_movies": 2, "required_genres_any": ["애니메이션"], "language": "ja", "year_from": 2010, "blocked_titles": ["A"], "unique_titles": true}
+    },
+    {
+      "id": "neg_no_result_strict_combination",
+      "category": "strict_no_result",
+      "endpoint": "/recommend",
+      "payload": {"message": "2099년 이후 일본어로 된 서부 공포 뮤지컬 영화 두 편만 추천해줘."},
+      "checks": {"max_movies": 0, "max_chars": 280, "required_patterns_any": ["찾지", "없", "조건", "확인"]}
+    },
+    {
+      "id": "neg_all_except_horror",
+      "category": "exception_wording",
+      "endpoint": "/recommend",
+      "payload": {"message": "장르는 상관없는데 공포만 아니면 돼. 평점 7점 이상 두 편 추천해줘."},
+      "checks": {"min_movies": 2, "max_movies": 2, "blocked_genres": ["공포"], "min_rating": 7.0, "unique_titles": true}
+    },
+    {
+      "id": "neg_both_genres_not_either",
+      "category": "compound_required",
+      "endpoint": "/recommend",
+      "payload": {"message": "음악이나 코미디 중 하나가 아니라 둘 다 들어간 영화 두 편 추천해줘."},
+      "checks": {"min_movies": 2, "max_movies": 2, "required_genres_all": ["음악", "코미디"], "unique_titles": true}
+    },
+    {
+      "id": "neg_topic_close_with_genre_word",
+      "category": "routing_negation",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "코미디 영화 추천은 이제 됐어. 대신 오늘 있었던 웃긴 얘기 들어줄래?", "history": [{"role": "user", "content": "코미디 영화 추천해줘."}, {"role": "assistant", "content": "세 편을 추천했어.", "movies": [{"title": "A"}, {"title": "B"}, {"title": "C"}]}]},
+      "checks": {"expected_intent_not": "movie_recommend", "max_chars": 260, "required_patterns_any": ["얘기", "들어", "말해", "웃긴"], "blocked_patterns": ["영화를 추천", "세 편"]}
+    }
+  ]
+}

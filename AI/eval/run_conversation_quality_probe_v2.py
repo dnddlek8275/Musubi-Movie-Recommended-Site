@@ -10,10 +10,9 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import urllib.request
 from collections import Counter
 from pathlib import Path
-
-import requests
 
 
 ROLE_LEAK = re.compile(r"<start_of_turn>|<end_of_turn>|<\|assistant\|>|assistant:", re.I)
@@ -28,10 +27,15 @@ HUMAN_EXPERIENCE = re.compile(
 )
 
 
-def post(session: requests.Session, url: str, payload: dict) -> dict:
-    response = session.post(url, json=payload, timeout=120)
-    response.raise_for_status()
-    return response.json()
+def post(url: str, payload: dict) -> dict:
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=120) as response:
+        return json.load(response)
 
 
 def answer_flags(answer: str) -> list[str]:
@@ -47,6 +51,10 @@ def answer_flags(answer: str) -> list[str]:
     if answer.count("'") % 2 or answer.count("“") != answer.count("”"):
         flags.append("unbalanced_quote")
     return flags
+
+
+def normalized_answer(answer: str) -> str:
+    return re.sub(r"[^0-9A-Za-z가-힣]+", "", answer).casefold()
 
 
 def add_history(history: list[dict], message: str, payload: dict) -> None:
@@ -67,7 +75,7 @@ def add_history(history: list[dict], message: str, payload: dict) -> None:
     )
 
 
-def probe_general(session: requests.Session, base: str) -> list[dict]:
+def probe_general(base: str, selected: set[str] | None = None) -> list[dict]:
     dialogues = [
         ("work_failure", ["오늘 발표를 완전히 망쳤어", "내일 다시 발표해야 해", "지금 뭘 먼저 준비할까?"]),
         ("truth_boundary", ["너는 실제로 영화를 보고 감동한 적 있어?", "그럼 어떻게 내 취향을 알아?"]),
@@ -75,9 +83,11 @@ def probe_general(session: requests.Session, base: str) -> list[dict]:
     ]
     rows: list[dict] = []
     for dialogue, messages in dialogues:
+        if selected and dialogue not in selected:
+            continue
         history: list[dict] = []
         for turn, message in enumerate(messages, 1):
-            payload = post(session, f"{base}/chat/auto", {"message": message, "history": history})
+            payload = post(f"{base}/chat/auto", {"message": message, "history": history})
             answer = str(payload.get("answer") or "")
             flags = answer_flags(answer)
             if payload.get("intent") == "movie_recommend":
@@ -99,7 +109,7 @@ def probe_general(session: requests.Session, base: str) -> list[dict]:
     return rows
 
 
-def probe_single(session: requests.Session, base: str) -> list[dict]:
+def probe_single(base: str, selected: set[str] | None = None) -> list[dict]:
     dialogues = [
         ("maseokdo_opinion", "마석도", ["장첸이 너무 잘생겨 보여. 어떡해?", "그래도 네 생각은 어때?"]),
         ("tony_practical", "토니 스타크", ["오늘 발표를 망쳤어.", "상사한테 뭐라고 말하면 좋을까?"]),
@@ -108,10 +118,12 @@ def probe_single(session: requests.Session, base: str) -> list[dict]:
     ]
     rows: list[dict] = []
     for dialogue, character, messages in dialogues:
+        if selected and dialogue not in selected:
+            continue
         history: list[dict] = []
+        previous_answer = ""
         for turn, message in enumerate(messages, 1):
             payload = post(
-                session,
                 f"{base}/chat",
                 {"character": character, "message": message, "history": history, "use_rag": True},
             )
@@ -123,6 +135,8 @@ def probe_single(session: requests.Session, base: str) -> list[dict]:
                 flags.append("missing_relation_grounding")
             if dialogue == "tony_practical" and turn == 2 and re.search(r"슈트|아이언맨", answer):
                 flags.append("irrelevant_roleplay_metaphor")
+            if previous_answer and normalized_answer(answer) == normalized_answer(previous_answer):
+                flags.append("repeated_previous_answer")
             row = {
                 "stage": "single_v2",
                 "dialogue": dialogue,
@@ -141,10 +155,11 @@ def probe_single(session: requests.Session, base: str) -> list[dict]:
                     {"role": "assistant", "content": answer, "character": character},
                 ]
             )
+            previous_answer = answer
     return rows
 
 
-def probe_group(session: requests.Session, base: str) -> list[dict]:
+def probe_group(base: str, selected: set[str] | None = None) -> list[dict]:
     cases = [
         ("crime_user_opinion", ["마석도", "장첸"], "장첸이 잘생겼다는 말에 둘은 어떻게 생각해?", "character_chat"),
         ("marvel_interview", ["토니 스타크", "피터 파커", "스티브 로저스"], "내일 면접이라 긴장돼. 각자 짧게 한마디만 해줘.", "character_chat"),
@@ -153,8 +168,9 @@ def probe_group(session: requests.Session, base: str) -> list[dict]:
     ]
     rows: list[dict] = []
     for dialogue, characters, message, expected_intent in cases:
+        if selected and dialogue not in selected:
+            continue
         payload = post(
-            session,
             f"{base}/chat/group/auto",
             {"characters": characters, "message": message, "history": []},
         )
@@ -176,6 +192,11 @@ def probe_group(session: requests.Session, base: str) -> list[dict]:
             flags.append(f"wrong_intent:{payload.get('intent')}")
         if dialogue == "group_movie" and len(titles) < 3:
             flags.append("missing_group_movies")
+        if dialogue == "group_movie" and any(
+            not any(title and title in answer for title in titles)
+            for answer in answers[1:]
+        ):
+            flags.append("generic_group_movie_reaction")
         if dialogue == "crossworld_disagreement" and any(
             "확인된 관계" in answer for answer in answers
         ):
@@ -207,12 +228,18 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--api-base", default="http://127.0.0.1")
     parser.add_argument("--output", default="eval/conversation_quality_probe_v2.json")
+    parser.add_argument(
+        "--dialogue",
+        action="append",
+        default=[],
+        help="Run only the named dialogue; repeat this option to select multiple dialogues.",
+    )
     args = parser.parse_args()
     base = args.api_base.rstrip("/")
-    session = requests.Session()
+    selected = set(args.dialogue) or None
     rows: list[dict] = []
     for probe in (probe_general, probe_single, probe_group):
-        rows.extend(probe(session, base))
+        rows.extend(probe(base, selected))
     report = {
         "case_count": len(rows),
         "stage_counts": Counter(row["stage"] for row in rows),

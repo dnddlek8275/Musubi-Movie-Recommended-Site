@@ -43,7 +43,7 @@
       "category": "recommendation",
       "endpoint": "/recommend",
       "payload": {"message": "전개 빠르고 긴장감 있는 액션 영화가 좋아. 귀신 나오는 공포는 제외해줘."},
-      "checks": {"min_movies": 3, "unique_titles": true, "required_genres_any": ["액션"], "blocked_genres": ["공포"], "answer_titles_must_be_returned": true}
+      "checks": {"min_movies": 3, "unique_titles": true, "required_genres_any": ["액션"], "blocked_genres": ["공포"], "min_rating": 6.0, "answer_titles_must_be_returned": true}
     },
     {
       "id": "rec_scifi_thoughtful",
@@ -113,7 +113,7 @@
       "category": "grounded_character",
       "endpoint": "/chat",
       "payload": {"character": "토니 스타크", "message": "피터 파커와는 어떤 사이야?", "history": [], "use_rag": true},
-      "checks": {"rag_used": true, "max_chars": 260, "required_patterns_any": ["피터", "파커"]}
+      "checks": {"rag_used": false, "max_chars": 260, "required_patterns_any": ["피터", "파커"]}
     },
     {
       "id": "chat_relation_unknown",

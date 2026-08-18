@@ -5,10 +5,43 @@ from pipeline.recommendation_context import (
     build_card_followup_reply,
     build_recommendation_context,
     is_movie_recommendation_followup,
+    requested_movie_count,
 )
 
 
 class RecommendationContextTests(unittest.TestCase):
+    def test_explicit_requested_movie_count(self):
+        self.assertEqual(requested_movie_count("SF 영화 딱 한 편만 추천해줘"), 1)
+        self.assertEqual(requested_movie_count("코미디 2편만 골라줘"), 2)
+        self.assertEqual(requested_movie_count("가족 영화 세 편 추천해줘"), 3)
+        self.assertIsNone(requested_movie_count("영화 추천해줘"))
+
+    def test_explicit_movie_recommendation_negation_stays_in_chat(self):
+        self.assertEqual(
+            classify("친구가 나보고 조커 같다고 놀렸어. 영화 추천은 필요 없어."),
+            Intent.CHARACTER_CHAT,
+        )
+
+    def test_common_comedy_typo_routes_to_movie_recommendation(self):
+        self.assertEqual(
+            classify("2020년 이후 한국 코메디 세 개 골라줘"),
+            Intent.MOVIE_RECOMMEND,
+        )
+
+    def test_explicit_movie_topic_close_routes_back_to_chat(self):
+        self.assertEqual(
+            classify("영화는 나중에 볼게. 오늘 회사에서 속상했던 얘기 좀 들어줘."),
+            Intent.CHARACTER_CHAT,
+        )
+
+    def test_colloquial_horror_negation_is_excluded(self):
+        context = build_recommendation_context("한국 코메디 추천. 무서운 건 절대 ㄴㄴ", [])
+        self.assertIn("공포", context.excluded_genres)
+
+    def test_genre_word_suffix_is_supported_in_negation(self):
+        context = build_recommendation_context("잔인한 범죄물만 빼고 추천해줘", [])
+        self.assertEqual(context.excluded_genres, ["범죄"])
+
     def setUp(self):
         self.history = [
             {"role": "user", "content": "긴장감 있는 액션 영화 추천해줘"},
@@ -145,6 +178,30 @@ class RecommendationContextTests(unittest.TestCase):
         )
         self.assertIn("해피 데스데이", answer)
         self.assertEqual([movie["title"] for movie in movies], ["해피 데스데이"])
+
+    def test_explicit_preference_reset_drops_old_genre(self):
+        history = [
+            {"role": "user", "content": "공포 영화 추천해줘."},
+            {"role": "assistant", "content": "추천 결과", "movies": [{"title": "A"}]},
+        ]
+        context = build_recommendation_context(
+            "공포 조건은 전부 취소하고 2020년 이후 한국 코미디 두 편만 새로 골라줘.",
+            history,
+        )
+        self.assertNotIn("공포 영화 추천", context.search_message)
+        self.assertIn("한국 코미디", context.search_message)
+
+    def test_year_release_removes_prior_year_but_keeps_other_filters(self):
+        history = [
+            {"role": "user", "content": "2023년 이후 일본 애니메이션 추천해줘."},
+            {"role": "assistant", "content": "추천 결과", "movies": [{"title": "A"}]},
+        ]
+        context = build_recommendation_context(
+            "연도 제한만 없애고 일본 애니메이션 두 편으로 다시 추천해줘.",
+            history,
+        )
+        self.assertNotIn("2023", context.search_message)
+        self.assertIn("일본 애니메이션", context.search_message)
 
 
 if __name__ == "__main__":

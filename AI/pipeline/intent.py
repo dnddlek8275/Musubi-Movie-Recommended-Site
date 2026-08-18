@@ -13,7 +13,7 @@ _MOVIE_PATTERNS = re.compile(
     r"영화\s*추천|영화.{0,30}(?:골라|뽑아)\s*줘|뭐\s*볼까|볼만한|"
     r"추천해\s*(?:줘|주세요|줄래|줄\s*수\s*있|주실\s*수\s*있)|추천\s*좀|"
     r"비슷한\s*영화|장르|감독|배우|개봉|평점|"
-    r"액션|로맨스|공포|코미디|스릴러|SF|판타지|애니|다큐|"
+    r"액션|로맨스|공포|코미디|코메디|스릴러|SF|판타지|애니|다큐|"
     r"넷플|왓챠|티빙|OTT|스트리밍|"
     r"나오는\s*(?:영화|거|것)|뭐\s*있어|뭐\s*봐|영화\s*있어|"
     r"시리즈|작품|감상|봤어|볼\s*게|흥행",
@@ -43,6 +43,12 @@ _NON_MOVIE_RECOMMENDATION_PATTERNS = re.compile(
 )
 
 _EXPLICIT_MOVIE_TARGET = re.compile(r"영화|필름|무비", re.IGNORECASE)
+_MOVIE_RECOMMENDATION_NEGATION = re.compile(
+    r"(?:영화\s*)?추천(?:은|이|도)?\s*(?:말고|필요\s*없|하지\s*마)|"
+    r"영화.{0,12}(?:추천\s*)?(?:필요\s*없|말고)|"
+    r"영화.{0,12}(?:나중에|여기까지|그만|됐어|됐고)",
+    re.IGNORECASE,
+)
 
 class Intent:
     INPUT_RECOVERY  = "input_recovery"
@@ -65,6 +71,9 @@ def classify(user_message: str, history: list[dict] | None = None) -> str:
         return Intent.WEB_SEARCH
 
     if is_mumu_personal_chat(user_message):
+        return Intent.CHARACTER_CHAT
+
+    if _MOVIE_RECOMMENDATION_NEGATION.search(user_message):
         return Intent.CHARACTER_CHAT
 
     if (

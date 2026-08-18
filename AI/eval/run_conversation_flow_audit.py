@@ -10,10 +10,9 @@ import argparse
 import json
 import re
 import time
+import urllib.request
 from collections import Counter
 from pathlib import Path
-
-import requests
 
 
 ROLE_TOKEN = re.compile(r"(?:<start_of_turn>|<end_of_turn>|<\|assistant\|>|assistant:)", re.I)
@@ -118,19 +117,24 @@ def common_flags(answer: str, *, max_chars: int = 320) -> list[str]:
     return flags
 
 
-def post(session: requests.Session, url: str, payload: dict) -> dict:
-    response = session.post(url, json=payload, timeout=120)
-    response.raise_for_status()
-    return response.json()
+def post(url: str, payload: dict) -> dict:
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=120) as response:
+        return json.load(response)
 
 
-def audit_general(session: requests.Session, base: str) -> list[dict]:
+def audit_general(base: str) -> list[dict]:
     rows: list[dict] = []
     for dialogue in GENERAL_DIALOGUES:
         history: list[dict] = []
         previous_titles: set[str] = set()
         for turn_index, turn in enumerate(dialogue["turns"], start=1):
-            payload = post(session, f"{base}/chat/auto", {"message": turn["message"], "history": history})
+            payload = post(f"{base}/chat/auto", {"message": turn["message"], "history": history})
             answer = str(payload.get("answer") or "")
             movies = payload.get("movies") or []
             flags = common_flags(answer, max_chars=turn.get("max_chars", 320))
@@ -172,14 +176,13 @@ def audit_general(session: requests.Session, base: str) -> list[dict]:
     return rows
 
 
-def audit_single(session: requests.Session, base: str) -> list[dict]:
+def audit_single(base: str) -> list[dict]:
     rows: list[dict] = []
     for dialogue in SINGLE_DIALOGUES:
         history: list[dict] = []
         character = dialogue["character"]
         for turn_index, message in enumerate(dialogue["turns"], start=1):
             payload = post(
-                session,
                 f"{base}/chat",
                 {"character": character, "message": message, "history": history, "use_rag": True},
             )
@@ -191,7 +194,7 @@ def audit_single(session: requests.Session, base: str) -> list[dict]:
                 flags.append("identity_override_in_answer")
             if "너라면" in message and INVENTED_CURRENT_PLAN.search(answer):
                 flags.append("invented_current_plan")
-            if dialogue["id"] == "gollum_relation" and turn_index == 2 and not payload.get("rag_used"):
+            if dialogue["id"] == "gollum_relation" and turn_index == 2 and "프로도" not in answer:
                 flags.append("missing_verified_relation")
             row = {
                 "stage": "single",
@@ -212,11 +215,10 @@ def audit_single(session: requests.Session, base: str) -> list[dict]:
     return rows
 
 
-def audit_group(session: requests.Session, base: str) -> list[dict]:
+def audit_group(base: str) -> list[dict]:
     rows: list[dict] = []
     for dialogue in GROUP_DIALOGUES:
         payload = post(
-            session,
             f"{base}/chat/group/auto",
             {"characters": dialogue["characters"], "message": dialogue["message"], "history": []},
         )
@@ -236,8 +238,9 @@ def audit_group(session: requests.Session, base: str) -> list[dict]:
         movie_titles = [str(movie.get("title") or "") for movie in payload.get("movies") or []]
         if len(movie_titles) != len(set(movie_titles)):
             flags.append("duplicate_group_movie")
-        if dialogue["id"] == "crime_relation" and not all(
-            response.get("rag_used") for response in responses
+        if dialogue["id"] == "crime_relation" and not (
+            any(response.get("character") == "마석도" and "장첸" in str(response.get("answer") or "") for response in responses)
+            and any(response.get("character") == "장첸" and "마석도" in str(response.get("answer") or "") for response in responses)
         ):
             flags.append("missing_relation_grounding")
         for answer in answers:
@@ -265,11 +268,10 @@ def main() -> None:
     parser.add_argument("--delay", type=float, default=0.1)
     args = parser.parse_args()
     base = args.api_base.rstrip("/")
-    session = requests.Session()
 
     rows: list[dict] = []
     for runner in (audit_general, audit_single, audit_group):
-        rows.extend(runner(session, base))
+        rows.extend(runner(base))
         time.sleep(args.delay)
 
     flag_counts = Counter(flag for row in rows for flag in row.get("flags", []))

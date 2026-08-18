@@ -1,0 +1,46 @@
+CineVerse 멀티 AZ 인프라 자원 요청서
+기준일: 2026-08-18
+
+[VPC]
+- cineverse-vpc-03: 10.30.0.0/16
+
+[서브넷]
+- kr-central-2-a Public-A: 10.30.1.0/24 (기존)
+- kr-central-2-a Private-A: 10.30.2.0/24 (기존)
+- kr-central-2-b Private-B: 10.30.3.0/24 (기존)
+- kr-central-2-b Public-B: 10.30.4.0/24 (신규)
+
+[VM 총 10대]
+- KKE Worker 4대: 2-a 2대, 2-b 2대
+- GPU AI 2대: 2-a 1대, 2-b 1대
+- PostgreSQL 2대: 2-a Primary, 2-b Standby
+- NAT+Bastion 2대: 각 AZ Public subnet에 1대
+
+[관리형 자원 - VM 제외]
+- Public Load Balancer A/B + Public HA Group
+- Internal AI Load Balancer A/B + Internal HA Group
+- KKE control plane
+- Container Registry
+- Object Storage
+
+[라우팅]
+- Public-A/B: 0.0.0.0/0 -> IGW
+- Private-A: 0.0.0.0/0 -> NAT+Bastion-A
+- Private-B: 0.0.0.0/0 -> NAT+Bastion-B
+
+[서비스 연결]
+- Public LB -> ingress-nginx NodePort HTTP 31664 / HTTPS 31364
+- Backend -> Internal AI LB -> GPU-A/B
+- Backend -> PgBouncer -> PostgreSQL Primary
+- PostgreSQL Primary -> Standby streaming replication
+
+[공개 제한]
+- 인터넷 공개: Public LB 80/443만 허용
+- 내부 전용: 5432, 6432, 8081, 19530, 9000, 9001
+- SSH: AZ별 NAT+Bastion 경유
+
+[비고]
+- NAT와 Bastion은 AZ별 동일 VM에서 함께 운영
+- 별도 Ops VM 없음, 모니터링은 Kubernetes에 배치
+- GPU-A/B에는 동일 운영 모델과 동일 런타임 적용, 테스트 모델 제외
+- DB 장애 조치는 자동 승격이 아닌 수동 승격 절차 사용

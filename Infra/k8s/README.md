@@ -75,7 +75,7 @@ bash Infra/k8s/scripts/cluster-preflight.sh cineverse
 
 같은 이름의 완료된 Job을 다시 실행할 때는 기존 Job을 지운 뒤 재적용해야
 합니다. DB migration과 backup 절차는
-`docs/current/infra/database-migration-runbook.md`를 따릅니다.
+`Infra/project-docs/current/infra/database-migration-runbook.md`를 따릅니다.
 
 `cluster-preflight.sh`는 다음 항목을 읽기 전용으로 검사합니다.
 

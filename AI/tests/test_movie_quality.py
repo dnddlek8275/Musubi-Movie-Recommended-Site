@@ -17,6 +17,23 @@ from rag.movie_quality import (
 
 
 class MovieQualityTests(unittest.TestCase):
+    def test_movie_liking_wording_applies_well_received_preference(self):
+        candidates = [
+            {"title": "낮은1", "vote_average": 5.3},
+            {"title": "낮은2", "vote_average": 5.7},
+            {"title": "적정1", "vote_average": 6.2},
+            {"title": "적정2", "vote_average": 6.4},
+            {"title": "적정3", "vote_average": 6.7},
+        ]
+
+        result = prefer_well_received_candidates(
+            "전개 빠른 액션 영화가 좋아",
+            candidates,
+            required=3,
+        )
+
+        self.assertEqual([movie["title"] for movie in result], ["적정1", "적정2", "적정3"])
+
     def test_ambiguous_light_mood_is_expanded_to_retrieval_concepts(self):
         expanded = expand_mood_query("가볍게 볼 영화")
         self.assertIn("코미디", expanded)

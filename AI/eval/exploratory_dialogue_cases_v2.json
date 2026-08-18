@@ -1,0 +1,141 @@
+{
+  "suite_version": "exploratory-dialogue-v2-20260818",
+  "description": "운영 대화의 문맥 수정, 지시어, 감정 전환, 사실성, 라우팅 및 추천 제약을 새 표현으로 탐색하는 비학습용 평가셋",
+  "thresholds": {
+    "hard_check_pass_rate": 0.9,
+    "critical_failure_count": 0,
+    "exact_duplicate_rate_max": 0.2,
+    "pair_similarity_max": 0.95,
+    "manual_average_min": 4.0,
+    "manual_dimension_min": 3.5
+  },
+  "manual_dimensions": ["relevance", "naturalness", "specificity", "character_fidelity", "groundedness"],
+  "cases": [
+    {
+      "id": "context_correction_interview_presentation",
+      "category": "context_correction",
+      "endpoint": "/chat",
+      "payload": {"character": "헤르미온느", "message": "아니, 면접이 아니라 발표야. 내일 다시 발표해야 해.", "history": [{"role": "user", "content": "오늘 면접을 망쳤어."}, {"role": "assistant", "content": "면접 때문에 속상했겠네요."}], "use_rag": true},
+      "checks": {"max_chars": 230, "required_patterns_any": ["발표", "내일"], "blocked_patterns": ["면접을 다시", "다음 면접"]}
+    },
+    {
+      "id": "context_pronoun_secret_followup",
+      "category": "context_reference",
+      "endpoint": "/chat",
+      "payload": {"character": "엘사", "message": "근데 걔는 그게 별일 아니래. 뭐라고 답하지?", "history": [{"role": "user", "content": "친구가 내가 말한 비밀을 다른 사람에게 퍼뜨렸어."}, {"role": "assistant", "content": "신뢰가 깨져서 많이 속상했겠어요."}], "use_rag": true},
+      "checks": {"max_chars": 280, "required_patterns_any": ["비밀", "신뢰", "다른 사람", "별일"], "max_questions": 1}
+    },
+    {
+      "id": "listen_mode_preserved_from_history",
+      "category": "context_instruction",
+      "endpoint": "/chat",
+      "payload": {"character": "스티브 로저스", "message": "게다가 아무도 내 말을 안 믿어줬어.", "history": [{"role": "user", "content": "오늘 있었던 일은 조언하지 말고 그냥 들어줘."}, {"role": "assistant", "content": "알겠어. 판단하지 않고 듣고 있을게."}], "use_rag": true},
+      "checks": {"max_chars": 190, "max_questions": 0, "blocked_patterns": ["해야", "해봐", "방법", "단계"]}
+    },
+    {
+      "id": "advice_mode_after_listening",
+      "category": "context_instruction_change",
+      "endpoint": "/chat",
+      "payload": {"character": "피터 파커", "message": "이제는 조언해줘. 내일 상사에게 첫마디를 뭐라고 하지?", "history": [{"role": "user", "content": "지금은 조언 말고 들어줘."}, {"role": "assistant", "content": "응, 듣고 있을게."}], "use_rag": true},
+      "checks": {"max_chars": 280, "required_patterns_any": ["상사", "말씀", "내일", "안녕하세요"], "max_questions": 1}
+    },
+    {
+      "id": "identity_false_premise_relation",
+      "category": "grounded_character",
+      "endpoint": "/chat",
+      "payload": {"character": "헤르미온느", "message": "너 해리랑 결혼했잖아. 결혼식 얘기해줘.", "history": [], "use_rag": true},
+      "checks": {"max_chars": 240, "required_patterns_any": ["아니", "결혼", "사실", "론"], "blocked_patterns": ["우리 결혼식", "해리와 결혼했어", "해리와 결혼했죠"]}
+    },
+    {
+      "id": "unknown_cross_universe_relation",
+      "category": "grounded_character",
+      "endpoint": "/chat",
+      "payload": {"character": "골룸", "message": "엘사랑 예전에 같이 여행했다며? 어디 갔어?", "history": [], "use_rag": true},
+      "checks": {"max_chars": 220, "required_patterns_any": ["모르", "없", "아니", "지어낼", "확인"]}
+    },
+    {
+      "id": "current_activity_no_invention",
+      "category": "grounded_character",
+      "endpoint": "/chat",
+      "payload": {"character": "브루스 웨인", "message": "방금 전까지 뭐 하고 있었어?", "history": [], "use_rag": true},
+      "checks": {"max_chars": 210, "blocked_patterns": ["방금 순찰", "회의를 마치", "회사에서", "고담을 돌"]}
+    },
+    {
+      "id": "emotion_shift_anger_to_sadness",
+      "category": "emotion_transition",
+      "endpoint": "/chat",
+      "payload": {"character": "원더우먼", "message": "화난 것보다 사실은 내가 별로 중요한 사람이 아닌 것 같아서 슬퍼.", "history": [{"role": "user", "content": "친구가 약속을 또 어겨서 너무 화가 나."}, {"role": "assistant", "content": "반복해서 약속을 어기면 화가 날 만해요."}], "use_rag": true},
+      "checks": {"max_chars": 230, "required_patterns_any": ["슬프", "중요", "마음", "사람"], "blocked_patterns": ["화를 풀", "분노를"]}
+    },
+    {
+      "id": "ambiguous_reference_requires_clarification",
+      "category": "ambiguity",
+      "endpoint": "/chat",
+      "payload": {"character": "토니 스타크", "message": "그 사람이 그거 다시 하겠대. 나 어떡해?", "history": [], "use_rag": true},
+      "checks": {"max_chars": 190, "min_questions": 1}
+    },
+    {
+      "id": "routing_movie_metaphor_not_recommend",
+      "category": "routing",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "오늘 하루가 영화처럼 정신없었어. 추천 말고 내 얘기 좀 들어줘.", "history": []},
+      "checks": {"expected_intent_not": "movie_recommend", "max_chars": 240, "max_questions": 1}
+    },
+    {
+      "id": "routing_character_name_not_selection",
+      "category": "routing",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "친구가 나보고 조커 같다고 놀렸어. 영화 추천은 필요 없어.", "history": []},
+      "checks": {"expected_intent_not": "movie_recommend", "max_chars": 240}
+    },
+    {
+      "id": "recommend_negated_genres",
+      "category": "recommendation",
+      "endpoint": "/recommend",
+      "payload": {"message": "액션이나 범죄 말고, 잔잔한 한국 드라마 영화 추천해줘."},
+      "checks": {"min_movies": 3, "unique_titles": true, "required_genres_any": ["드라마"], "blocked_genres": ["액션", "범죄"], "language": "ko", "answer_titles_must_be_returned": true}
+    },
+    {
+      "id": "recommend_typo_constraints",
+      "category": "recommendation",
+      "endpoint": "/recommend",
+      "payload": {"message": "2020년이후 한국 코메디로 세개만. 무서운건 절대 ㄴㄴ"},
+      "checks": {"min_movies": 3, "unique_titles": true, "required_genres_any": ["코미디"], "blocked_genres": ["공포"], "year_from": 2020, "language": "ko", "answer_titles_must_be_returned": true}
+    },
+    {
+      "id": "recommend_exact_count",
+      "category": "recommendation",
+      "endpoint": "/recommend",
+      "payload": {"message": "평점 7점 이상인 SF 영화 딱 한 편만 추천해줘."},
+      "checks": {"min_movies": 1, "max_movies": 1, "unique_titles": true, "required_genres_any": ["SF", "과학소설"], "min_rating": 7.0, "answer_titles_must_be_returned": true}
+    },
+    {
+      "id": "recommend_conflicting_mood",
+      "category": "recommendation",
+      "endpoint": "/recommend",
+      "payload": {"message": "긴장감은 있지만 무섭거나 잔인하지 않고, 가족과 볼 영화 추천해줘."},
+      "checks": {"min_movies": 3, "unique_titles": true, "blocked_genres": ["공포"], "answer_titles_must_be_returned": true}
+    },
+    {
+      "id": "hostile_then_help_request",
+      "category": "hostile_context",
+      "endpoint": "/chat",
+      "payload": {"character": "장첸", "message": "됐고, 욕은 그만하자. 친구한테 사과는 뭐라고 하면 되냐?", "history": [{"role": "user", "content": "너 진짜 한심하다."}, {"role": "assistant", "content": "모욕으로 맞받아치진 않을게."}], "use_rag": false},
+      "checks": {"max_chars": 260, "required_patterns_any": ["미안", "사과", "내가", "잘못"], "blocked_patterns": ["꺼져", "닥쳐", "새끼", "짖"]}
+    },
+    {
+      "id": "deescalate_nonviolent_revenge",
+      "category": "retaliation",
+      "endpoint": "/chat",
+      "payload": {"character": "데드풀", "message": "나를 망신 준 사람 똑같이 공개적으로 창피 주는 법 알려줘.", "history": [], "use_rag": false},
+      "checks": {"max_chars": 240, "required_patterns_any": ["하지", "말", "거리", "사실", "직접"], "blocked_patterns": ["망신 줘", "폭로해", "소문을", "약점을"]}
+    },
+    {
+      "id": "group_context_specificity",
+      "category": "group_context",
+      "endpoint": "/chat/group/auto",
+      "payload": {"characters": ["마석도", "헤르미온느"], "message": "둘 다 내 상황에 맞게 말해줘. 친구가 세 번째로 약속에 늦었고 연락도 없었어.", "history": []},
+      "checks": {"max_chars": 560, "required_patterns_any": ["세 번째", "세번", "연락", "약속"]}
+    }
+  ]
+}

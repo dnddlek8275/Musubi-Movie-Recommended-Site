@@ -15,7 +15,9 @@ ROLE_LABELS = (
     "취향 확장 선택",
 )
 
-_LIGHT_QUERY = re.compile(r"가볍|부담\s*없이|편하게|힐링|기분\s*전환|우울할\s*때")
+_LIGHT_QUERY = re.compile(
+    r"가볍|유쾌|웃긴|재밌|부담\s*없이|편하게|힐링|기분\s*전환|우울할\s*때"
+)
 _DATE_QUERY = re.compile(r"데이트|연인|커플")
 _BRIGHT_ROMANCE_QUERY = re.compile(
     r"(?:밝|유쾌|설레).*?(?:데이트|로맨스|멜로)|"
@@ -60,6 +62,16 @@ def _korean_object_particle(value: str) -> str:
     if 0xAC00 <= last <= 0xD7A3:
         return "을" if (last - 0xAC00) % 28 else "를"
     return "를"
+
+
+def _join_korean_nouns(values: list[str]) -> str:
+    """Join one or two quoted labels with the correct 와/과 particle."""
+    quoted = [f"‘{str(value).strip()}’" for value in values if str(value).strip()]
+    if len(quoted) < 2:
+        return "".join(quoted)
+    last = ord(str(values[0]).strip()[-1])
+    particle = "과" if 0xAC00 <= last <= 0xD7A3 and (last - 0xAC00) % 28 else "와"
+    return f"{quoted[0]}{particle} {quoted[1]}"
 
 
 def _genres(movie: dict) -> list[str]:
@@ -253,6 +265,14 @@ def _reason(
         if matched:
             return f"{' · '.join(matched[:2])} 장르라 기분 좋게 볼 작품을 찾는 요청에 잘 맞아요."
 
+    # A plain fun/light request needs its mood evidence on every card. Without
+    # this branch, alternative cards fall through to a generic diversity reason
+    # (for example, "모험 요소") even when their verified comedy genre is the
+    # actual reason they satisfy the request.
+    if _LIGHT_QUERY.search(user_message) and genre_set & {"코미디", "가족", "애니메이션", "모험"}:
+        matched = [genre for genre in ("코미디", "가족", "애니메이션", "모험") if genre in genre_set]
+        return f"{' · '.join(matched[:2])} 장르라 가볍게 보기 좋은 선택이에요."
+
     if role_index > 0 and primary:
         alternative = _alternative_reason(movie, primary, role_index)
         if alternative:
@@ -271,12 +291,10 @@ def _reason(
     if _DATE_QUERY.search(user_message) and genre_set & {"로맨스", "코미디"}:
         matched = [genre for genre in ("로맨스", "코미디") if genre in genre_set]
         return f"{' · '.join(matched)} 장르라 데이트 분위기에 맞춰 고른 작품이에요."
-    if _LIGHT_QUERY.search(user_message) and genre_set & {"코미디", "가족", "애니메이션", "모험"}:
-        matched = [genre for genre in ("코미디", "가족", "애니메이션", "모험") if genre in genre_set]
-        return f"{' · '.join(matched[:2])} 장르라 가볍게 보기 좋은 선택이에요."
     if _TOUCHING_QUERY.search(user_message) and genre_set & {"드라마", "가족", "애니메이션", "로맨스"}:
         matched = [genre for genre in ("드라마", "가족", "애니메이션", "로맨스") if genre in genre_set]
         return f"{' · '.join(matched[:2])} 장르를 바탕으로 감동적인 분위기에 맞춰 고른 작품이에요."
+
     if requested_genre and requested_genre in genre_set:
         if rating >= 7.0:
             return f"요청하신 {requested_genre} 장르이면서 TMDB 평점이 {rating:.1f}점인 작품이에요."
@@ -398,7 +416,7 @@ def build_character_grounded_answer(movies: list[dict], character_name: str) -> 
         for movie in movies[1:3]
         if str(movie.get("title") or "").strip()
     ]
-    quoted_alternatives = "와 ".join(f"‘{title}’" for title in alternatives)
+    quoted_alternatives = _join_korean_nouns(alternatives)
     reason = str(movies[0].get("recommendation_reason") or "").strip()
     casual_reason = _casualize_reason(reason)
     preset = get_tone_preset_name(character_name)

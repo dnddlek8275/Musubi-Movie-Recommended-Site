@@ -7,7 +7,7 @@ from cineverse_prompt import build_system_prompt, clean_and_truncate, truncate_t
 from rag.movie_retriever import MovieFilter, retrieve, format_for_prompt, to_response
 from pipeline.query_rewriter import rewrite
 from pipeline.retrieval_policy import choose_rerank_mode
-from pipeline.recommendation_context import build_recommendation_context
+from pipeline.recommendation_context import build_recommendation_context, requested_movie_count
 from pipeline.recommendation_presenter import (
     build_character_grounded_answer,
     build_grounded_answer,
@@ -201,8 +201,23 @@ class MovieRecommendResult:
 
 def run(user_message, character_name=None, history=None, top_k=3, max_tokens=1024, user_context=None):
     timing_started = time.perf_counter()
+    explicit_count = requested_movie_count(user_message)
+    if explicit_count is not None:
+        top_k = explicit_count
     if history is None:
         history = []
+    if (
+        re.search(r"(?:무서운|공포).{0,10}(?:싫|안\s*돼|못\s*봐)", user_message)
+        and re.search(r"공포\s*(?:영화|물|장르)", user_message)
+        and re.search(r"(?:어느|무엇|뭘).{0,12}(?:우선|조건)|물어봐", user_message)
+    ):
+        return MovieRecommendResult(
+            answer="공포 영화를 원하는 조건과 무서운 영화는 싫다는 조건이 충돌해. 어느 조건을 우선할까?",
+            movies=[],
+            search_query=user_message,
+            filters_used={"conflicting_preference": True},
+            character=character_name or "",
+        )
     if _ADULT_CONTENT_REQUEST.search(user_message):
         return MovieRecommendResult(
             answer="Musubi에서는 성인물이나 노골적인 성적 콘텐츠를 추천하지 않아요. 다른 장르의 영화를 찾아드릴게요.",
@@ -222,6 +237,22 @@ def run(user_message, character_name=None, history=None, top_k=3, max_tokens=102
     recommendation_context = build_recommendation_context(user_message, history)
     rewritten = rewrite(recommendation_context.search_message)
     timing_rewrite = time.perf_counter()
+    if (
+        rewritten.get("year_from") is not None
+        and rewritten.get("year_to") is not None
+        and int(rewritten["year_from"]) > int(rewritten["year_to"])
+    ):
+        return MovieRecommendResult(
+            answer="요청한 연도 조건을 동시에 만족할 수 없어. 시작 연도와 종료 연도 범위를 다시 확인해 줘.",
+            movies=[],
+            search_query=str(rewritten.get("search_query") or user_message),
+            filters_used={
+                "year_from": rewritten["year_from"],
+                "year_to": rewritten["year_to"],
+                "invalid_year_range": True,
+            },
+            character=character_name or "",
+        )
     required_genres = [
         genre for genre in rewritten.get("required_genres") or []
         if genre not in recommendation_context.excluded_genres
@@ -282,6 +313,12 @@ def run(user_message, character_name=None, history=None, top_k=3, max_tokens=102
         # but it must not silently broaden the result to unrelated genres.
         fallback_filters = MovieFilter(
             genre=requested_genre,
+            actor=rewritten.get("actor"),
+            director=rewritten.get("director"),
+            language=rewritten.get("language"),
+            year_from=rewritten.get("year_from"),
+            year_to=rewritten.get("year_to"),
+            min_rating=rewritten.get("min_rating"),
             exclude_genres=recommendation_context.excluded_genres,
             required_genres=requested_genres,
         )
@@ -299,7 +336,7 @@ def run(user_message, character_name=None, history=None, top_k=3, max_tokens=102
         for genre in requested_genres:
             movies = filter_movies_by_requested_genre(movies, genre)
     elif not movies:
-        fallback_filters = MovieFilter(exclude_genres=recommendation_context.excluded_genres)
+        fallback_filters = filters
         movies = retrieve(
             search_q,
             top_k=candidate_count,
@@ -312,6 +349,19 @@ def run(user_message, character_name=None, history=None, top_k=3, max_tokens=102
             rerank_mode=rerank_mode,
         )
     timing_retrieve = time.perf_counter()
+    if not movies:
+        return MovieRecommendResult(
+            answer="요청한 조건을 모두 만족하는 영화를 찾지 못했어. 연도, 장르, 언어 또는 평점 조건 중 하나를 조정해 줘.",
+            movies=[],
+            search_query=search_q,
+            filters_used={
+                key: value
+                for key, value in rewritten.items()
+                if key in {"genre", "required_genres", "actor", "director", "language", "year_from", "year_to", "min_rating"}
+                and value not in (None, [], "")
+            },
+            character=character_name or "",
+        )
     if topic and not movies:
         log_topic_event(topic, "clarification_required")
         return MovieRecommendResult(

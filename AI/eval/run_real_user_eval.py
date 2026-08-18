@@ -51,7 +51,16 @@ def is_child_safe(movie: dict) -> bool:
 
 
 def answer_text(response: dict) -> str:
-    return str(response.get("answer") or "").strip()
+    answer = str(response.get("answer") or "").strip()
+    if answer:
+        return answer
+    group_answers = [
+        str(item.get("answer") or "").strip()
+        for round_item in response.get("rounds") or []
+        for item in round_item.get("responses") or []
+        if str(item.get("answer") or "").strip()
+    ]
+    return "\n".join(group_answers)
 
 
 def movie_list(response: dict) -> list[dict]:
@@ -71,18 +80,27 @@ def evaluate_response(case: dict, response: dict) -> list[str]:
         failures.append("internal_token")
     if checks.get("min_movies") is not None and len(movies) < int(checks["min_movies"]):
         failures.append(f"empty_movies:expected>={checks['min_movies']}:actual={len(movies)}")
+    if checks.get("max_movies") is not None and len(movies) > int(checks["max_movies"]):
+        failures.append(f"too_many_movies:expected<={checks['max_movies']}:actual={len(movies)}")
     if checks.get("unique_titles"):
         titles = [str(movie.get("title") or "").strip() for movie in movies]
         if len(titles) != len(set(titles)):
             failures.append("duplicate_titles")
 
     required_genres = set(checks.get("required_genres_any") or [])
+    required_genres_all = set(checks.get("required_genres_all") or [])
     blocked_genres = set(checks.get("blocked_genres") or [])
+    blocked_titles = {str(title).strip() for title in checks.get("blocked_titles") or []}
     for movie in movies:
         title = str(movie.get("title") or "<untitled>")
         movie_genres = genres(movie)
+        if title in blocked_titles:
+            failures.append(f"blocked_title:{title}")
         if required_genres and not movie_genres.intersection(required_genres):
             failures.append(f"missing_required_genre:{title}")
+        missing_all = required_genres_all.difference(movie_genres)
+        if missing_all:
+            failures.append(f"missing_required_genres:{title}:{','.join(sorted(missing_all))}")
         overlap = movie_genres.intersection(blocked_genres)
         if overlap:
             failures.append(f"blocked_genre:{title}:{','.join(sorted(overlap))}")
@@ -92,6 +110,14 @@ def evaluate_response(case: dict, response: dict) -> list[str]:
             year = int(movie.get("year") or 0)
             if year < int(checks["year_from"]):
                 failures.append(f"year_before_minimum:{title}:{year}")
+        if checks.get("year_to") is not None:
+            year = int(movie.get("year") or 0)
+            if year > int(checks["year_to"]):
+                failures.append(f"year_after_maximum:{title}:{year}")
+        if checks.get("language") is not None:
+            language = str(movie.get("language") or movie.get("original_language") or "").lower()
+            if language != str(checks["language"]).lower():
+                failures.append(f"unexpected_language:{title}:{language or '<missing>'}")
         if checks.get("min_rating") is not None:
             rating = float(movie.get("vote_average") or 0.0)
             if rating < float(checks["min_rating"]):
@@ -101,7 +127,13 @@ def evaluate_response(case: dict, response: dict) -> list[str]:
         returned_titles = {str(movie.get("title") or "").strip() for movie in movies}
         quoted = set(re.findall(r"[『《<\"']([^『』《》<>\"']{1,80})[』》>\"']", answer))
         for title in quoted:
-            if title not in returned_titles:
+            normalized = normalize_answer(title)
+            grounded = any(
+                normalized == normalize_answer(returned)
+                or (len(normalized) >= 2 and normalized in normalize_answer(returned))
+                for returned in returned_titles
+            )
+            if not grounded:
                 failures.append(f"hallucinated_answer_title:{title}")
 
     if checks.get("rag_used") is not None and bool(response.get("rag_used")) != bool(checks["rag_used"]):

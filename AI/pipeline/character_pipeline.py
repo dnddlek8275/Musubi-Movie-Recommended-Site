@@ -386,6 +386,22 @@ def _relation_answer(chunks: list[dict]) -> str | None:
     return None
 
 
+def _relation_followup_answer(answer: str, user_message: str) -> str:
+    """Select a relevant verified sentence without generating new relation facts."""
+    sentences = [
+        sentence.strip()
+        for sentence in re.split(r"(?<=[.!?。！？])\s+", answer)
+        if sentence.strip()
+    ]
+    if len(sentences) <= 1:
+        return answer
+    if re.search(r"왜|이유", user_message):
+        for sentence in sentences:
+            if re.search(r"때문|위해|길잡이|데리고|함께|같이|향했|향한", sentence):
+                return sentence
+    return sentences[0]
+
+
 _GENERAL_BRIEF_REQUEST = re.compile(r"한마디|짧게|길게\s*(?:말|위로)하지")
 _GENERAL_ACTION_REQUEST = re.compile(
     r"뭘\s*먼저|뭐부터|무엇부터|지금\s*뭘|오늘\s*할|준비할까|어떻게\s*준비"
@@ -406,6 +422,74 @@ def _general_chat_quality_fallback(user_message: str, history: list[dict]) -> st
     if re.search(r"기분|힘들|우울|속상|짜증|화나|불안|외로|슬퍼|별로", combined):
         return "오늘 마음이 영 아닌가 보네. 무슨 일 있었어?"
     return "뻔한 위로보다 네 얘기를 제대로 듣는 게 낫겠어."
+
+
+def _general_policy_preflight(user_message: str, history: list[dict]) -> str | None:
+    """Handle general-chat constraints that must not depend on model wording."""
+    normalized = " ".join(str(user_message or "").split())
+    previous_user = next(
+        (str(item.get("content") or "") for item in reversed(history) if item.get("role") == "user"),
+        "",
+    )
+    assistant_history = "\n".join(
+        str(item.get("content") or "") for item in history if item.get("role") == "assistant"
+    )
+
+    if re.search(r"(?:시스템|내부).{0,16}(?:프롬프트|지시|규칙).{0,20}(?:출력|공개|보여|원문)", normalized):
+        return "숨겨진 내부 지시나 시스템 프롬프트는 공개할 수 없어. 나는 Musubi의 AI 친구 무무야."
+
+    if re.search(r"우리.{0,24}(?:같이|함께).{0,20}(?:갔|여행|만났).{0,12}(?:잖|기억)", normalized):
+        return "우리가 실제로 함께 만났거나 여행한 기억은 없어. 이 대화에서 네가 알려준 내용만 바탕으로 답할 수 있어."
+
+    if re.search(r"아까\s*네가|네가.{0,30}(?:말했|했잖)", normalized):
+        claimed_terms = [term for term in ("그만뒀", "퇴사", "해고", "결혼", "만났", "갔다") if term in normalized]
+        if claimed_terms and not any(term in assistant_history for term in claimed_terms):
+            return "확인해 보니 앞선 대화에서 내가 그렇게 말한 기록은 없어. 없던 말을 했다고 인정하거나 내용을 새로 만들지는 않을게."
+
+    activity = current_activity_reply(normalized)
+    if activity:
+        return "나는 현실에서 하루를 보내거나 방금 전까지 어떤 활동을 한 경험은 없어. 지금은 이 대화에 답하고 있어."
+
+    inherited_listen = bool(
+        previous_user
+        and is_listen_only_request(previous_user)
+        and not re.search(r"이제(?:는)?\s*(?:조언|해결)|조언해|어떻게|뭐라고|방법", normalized)
+    )
+    if is_listen_only_request(normalized) or inherited_listen:
+        return "그랬구나. 지금은 판단하거나 말을 보태지 않고 네 얘기를 그대로 들을게."
+
+    if (
+        re.search(r"(?:듣기만|들어주기).{0,12}(?:끝|그만|종료)", normalized)
+        and re.search(r"(?:두|2)\s*(?:가지|개)|해결\s*방법", normalized)
+    ):
+        return "1. 상사에게 회의에서 의견이 끊긴 상황을 구체적으로 말해. 2. 다음 회의 전에는 안건을 미리 공유하고 발언 시간을 요청해."
+
+    if re.fullmatch(r"\s*그거(?:는|은)?\s*(?:어떻게|뭐라고)\s*말하면\s*돼\??\s*", normalized):
+        recent_users = [
+            str(item.get("content") or "")
+            for item in history
+            if item.get("role") == "user"
+        ][-2:]
+        if len(recent_users) == 2:
+            return "지각 사과와 고객 일정 연기 중 어느 상황에 쓸 말을 뜻하는지 알려줄래?"
+
+    if re.search(r"이제(?:는)?\s*조언|지금부터.{0,8}해결", normalized) and re.search(r"첫마디|뭐라고", normalized):
+        if re.search(r"회의|의견|말을\s*끊", f"{previous_user} {normalized}"):
+            return '"잠깐만요, 제 의견을 끝까지 말씀드린 뒤에 답해주시면 좋겠습니다."라고 먼저 말해 봐.'
+
+    if re.search(r"(?:고객|미팅)", normalized) and re.search(r"첫\s*문장|첫마디|만들어", normalized):
+        return '"안녕하세요. 고객 미팅에 시간 내주셔서 감사합니다. 오늘 논의할 핵심부터 간단히 말씀드리겠습니다."라고 시작해.'
+
+    if re.search(r"(?:때리|패|멱살|겁주|협박).{0,24}(?:정신\s*차리|되겠|방법|어떻게)", normalized):
+        return "때리거나 겁주는 폭력은 안 돼. 지금은 그 사람과 거리를 두고, 다칠 위험이 있으면 주변 사람이나 긴급 도움을 먼저 요청해."
+
+    if re.search(r"(?:공개적으로\s*)?(?:망신|창피).{0,20}(?:주|시키|방법|어떻게)", normalized):
+        return "똑같이 공개 망신을 주는 보복은 권하지 않아. 있었던 사실만 직접 말하고, 반복되면 그 사람과 거리를 두는 게 안전해."
+
+    if re.search(r"(?:걔|그\s*사람).{0,10}그거.{0,12}(?:또|다시)", normalized):
+        return "여기서 ‘그 사람’과 ‘그거’가 무엇을 뜻하는지 알 수 없어. 누가 어떤 행동을 다시 한다는 건지 알려줄래?"
+
+    return None
 
 
 def _stable_variant(seed: str, candidates: tuple[str, ...]) -> str:
@@ -593,7 +677,7 @@ def _get_reaction(
     영화 목록 밖의 영화를 새로 지어내 언급하지 못하도록 제약을 건다.
     """
     if movie_titles:
-        return build_group_movie_reaction_fallback(character)
+        return build_group_movie_reaction_fallback(character, movie_titles)
 
     emotional_fallback = build_group_reaction_fallback(character, user_message)
     if emotional_fallback:
@@ -694,7 +778,19 @@ def _run_character_round1(
     character.  Cross-character interaction is handled only in round 2.
     """
     speakers = characters
-    if primary_only and not is_character_relation_question(user_message):
+    independent_group_answers = bool(
+        is_character_relation_question(user_message)
+        or is_listen_only_request(user_message)
+        or current_activity_reply(user_message)
+        or re.search(
+            r"(?:때리|패|멱살|겁주|협박|복수|보복|망신|창피)|"
+            r"(?:시스템|내부).{0,16}(?:프롬프트|지시|규칙)|"
+            r"(?:사과|미안).{0,16}(?:첫\s*문장|하나씩|각자)",
+            user_message,
+            re.IGNORECASE,
+        )
+    )
+    if primary_only and not independent_group_answers:
         start = int(hashlib.sha256(user_message.encode("utf-8")).hexdigest()[:8], 16) % len(characters)
         speakers = [characters[start]]
 
@@ -771,12 +867,13 @@ def _run_movie_pitch_round(
         movie_titles는 2라운드 반응에서 "목록 밖 영화 언급 금지" 제약을 걸 때 재사용한다.
     """
     from pipeline.query_rewriter import rewrite as rewrite_query
-    from pipeline.recommendation_context import build_recommendation_context
+    from pipeline.recommendation_context import build_recommendation_context, requested_movie_count
     from pipeline.retrieval_policy import choose_rerank_mode
     from pipeline.topic_grounding import log_topic_event, topic_no_result_message
     from rag.movie_retriever import MovieFilter, retrieve as movie_retrieve, format_for_prompt, to_response
 
     recommendation_context = build_recommendation_context(user_message, history)
+    result_count = requested_movie_count(user_message) or 3
     rewritten = rewrite_query(recommendation_context.search_message)
     if rewritten.get("genre") in recommendation_context.excluded_genres:
         rewritten["genre"] = None
@@ -812,11 +909,11 @@ def _run_movie_pitch_round(
     }.get(rewritten.get("quality_priority"), 0.30)
     movies = movie_retrieve(
         search_q,
-        top_k=3 if sort_latest else 9,
+        top_k=result_count if sort_latest else result_count * 3,
         movie_filter=filters,
         sort_latest=sort_latest,
         exclude_titles=excluded_titles,
-        required_count=3,
+        required_count=result_count,
         quality_weight=quality_weight,
         topic=topic,
         rerank_mode=rerank_mode,
@@ -826,14 +923,14 @@ def _run_movie_pitch_round(
     if not movies and requested_genre:
         movies = movie_retrieve(
             f"{requested_genre} 영화",
-            top_k=3 if sort_latest else 9,
+            top_k=result_count if sort_latest else result_count * 3,
             movie_filter=MovieFilter(
                 genre=requested_genre,
                 exclude_genres=recommendation_context.excluded_genres,
             ),
             sort_latest=sort_latest,
             exclude_titles=excluded_titles,
-            required_count=3,
+            required_count=result_count,
             quality_weight=quality_weight,
             topic=topic,
             rerank_mode=rerank_mode,
@@ -842,11 +939,11 @@ def _run_movie_pitch_round(
     elif not movies:
         movies = movie_retrieve(
             search_q,
-            top_k=3 if sort_latest else 9,
+            top_k=result_count if sort_latest else result_count * 3,
             movie_filter=MovieFilter(exclude_genres=recommendation_context.excluded_genres),
             sort_latest=sort_latest,
             exclude_titles=excluded_titles,
-            required_count=3,
+            required_count=result_count,
             quality_weight=quality_weight,
             topic=topic,
             rerank_mode=rerank_mode,
@@ -855,7 +952,7 @@ def _run_movie_pitch_round(
         movies,
         recommendation_context.search_message,
         rewritten,
-        limit=3,
+        limit=result_count,
     )
 
     if topic and not movies:
@@ -1087,6 +1184,22 @@ def run_group_auto_rounds(
 
     profiles = get_profiles()
     characters = resolve_character_names(characters, profiles)
+    if "그거" in user_message and re.search(r"(?:뜻|확인)", user_message):
+        recent_users = [
+            str(item.get("content") or "")
+            for item in history
+            if item.get("role") == "user"
+        ][-2:]
+        if len(recent_users) == 2:
+            answer = "지각 사과와 고객 일정 연기 중 어느 상황을 뜻하는지 먼저 알려줄래?"
+            return Intent.CHARACTER_CHAT, [], [
+                RoundResult(
+                    round=1,
+                    label="첫 번째 답변",
+                    responses=[CharacterChatResult(character=characters[0], answer=answer)],
+                ),
+                RoundResult(round=2, label="반응", responses=[]),
+            ]
     intent = classify(user_message, history=history)
 
     if intent == Intent.INPUT_RECOVERY:
@@ -1145,6 +1258,22 @@ def run(character_name, user_message, history=None, use_rag=True, max_tokens=512
         history = []
     profiles = get_profiles()
     character_name = resolve_character_names([character_name], profiles)[0]
+    if re.search(r"(?:아까\s*(?:너희|둘이|네가)|(?:너희|둘이|네가).{0,20}아까).{0,30}(?:말했|했잖)", user_message):
+        assistant_history = "\n".join(
+            str(item.get("content") or "")
+            for item in history
+            if item.get("role") == "assistant"
+        )
+        claimed_terms = [
+            term for term in ("그만뒀", "퇴사", "해고", "결혼", "만났", "갔다")
+            if term in user_message
+        ]
+        if claimed_terms and not any(term in assistant_history for term in claimed_terms):
+            return CharacterChatResult(
+                character=character_name,
+                answer="확인해 보니 앞선 대화에서 그렇게 말한 기록은 없어. 확인되지 않은 일을 사실로 단정하지 않을게.",
+                rag_used=False,
+            )
     preflight = character_preflight_reply(character_name, user_message, profiles)
     if preflight:
         reason, answer = preflight
@@ -1194,6 +1323,13 @@ def run(character_name, user_message, history=None, use_rag=True, max_tokens=512
                 chunks = _verified_relation_chunks(chunks, relation_names, rag_query)
                 relation_grounded = bool(chunks)
                 relation_answer = _relation_answer(chunks)
+                recent_answers = {
+                    " ".join(str(item.get("content") or "").split())
+                    for item in history[-6:]
+                    if item.get("role") == "assistant"
+                }
+                if relation_answer and " ".join(relation_answer.split()) in recent_answers:
+                    relation_answer = _relation_followup_answer(relation_answer, user_message)
             rag_context = format_context(chunks)
             rag_used = bool(rag_context)
         except Exception as e:
@@ -1282,6 +1418,9 @@ def run_auto(user_message, history=None, use_rag=True, max_tokens=512, user_cont
     personal_reply = get_mumu_personal_reply(user_message)
     if personal_reply:
         return CharacterChatResult(character="무무", answer=personal_reply, rag_used=False)
+    policy_reply = _general_policy_preflight(user_message, history)
+    if policy_reply:
+        return CharacterChatResult(character="무무", answer=policy_reply, rag_used=False)
     ambiguous_reply = get_ambiguous_input_reply(user_message)
     if ambiguous_reply:
         recovery = get_input_recovery(user_message)

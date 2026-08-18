@@ -25,7 +25,7 @@ Bastion 관리 접속에만 사용합니다. 실제 토큰과 API 키는
 동기화 대상이 아닙니다.
 
 파일별 비교 근거와 이후 동기화 원칙은
-[`../docs/current/infra/ai-server-source-sync.md`](../docs/current/infra/ai-server-source-sync.md)에
+[`ai-server-source-sync.md`](../Infra/project-docs/current/infra/ai-server-source-sync.md)에
 기록합니다.
 
 ## 구성
@@ -71,7 +71,7 @@ Tavily 결과를 로컬 LLM에 전달합니다. 기본 설정은 월 950회 하�
 실제 키는 `.env` 또는 서비스 비밀 환경에만 두고 저장소에는 올리지 마세요.
 
 운영 정책과 확인 방법은
-[`../docs/current/product/WEB_SEARCH_POLICY.md`](../docs/current/product/WEB_SEARCH_POLICY.md)를
+[`WEB_SEARCH_POLICY.md`](../Infra/project-docs/current/product/WEB_SEARCH_POLICY.md)를
 참고하세요.
 
 ## 학습

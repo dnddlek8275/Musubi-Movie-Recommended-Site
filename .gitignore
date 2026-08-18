@@ -12,6 +12,12 @@
 
 # Local Codex/repository recovery artifacts
 .repo-backups/
+.tools/
+/tools/
+/presentation/
+/outputs/
+/AI/logs/
+*.pub
 
 # Secrets and local environment
 .env

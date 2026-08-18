@@ -1,0 +1,131 @@
+{
+  "suite_version": "exploratory-context-v3-20260818",
+  "description": "긴 이력의 주제 전환, 오래된 지시 해제, 추천 후속 문맥, 수량·부정 변형 및 캐릭터 말투 구분 탐색",
+  "thresholds": {
+    "hard_check_pass_rate": 0.9,
+    "critical_failure_count": 0,
+    "exact_duplicate_rate_max": 0.15,
+    "pair_similarity_max": 0.75,
+    "manual_average_min": 4.0,
+    "manual_dimension_min": 3.5
+  },
+  "manual_dimensions": ["relevance", "naturalness", "specificity", "character_fidelity", "groundedness"],
+  "cases": [
+    {
+      "id": "listen_instruction_explicitly_released",
+      "category": "instruction_lifecycle",
+      "endpoint": "/chat",
+      "payload": {"character": "스티브 로저스", "message": "이제 다 말했어. 지금부터는 해결 방법을 두 가지만 알려줘.", "history": [{"role": "user", "content": "회사에서 실수했어. 지금은 조언 말고 들어줘."}, {"role": "assistant", "content": "알겠어. 판단하지 않고 듣고 있을게."}, {"role": "user", "content": "상사가 사람들 앞에서 지적해서 창피했어."}, {"role": "assistant", "content": "사람들 앞에서 지적받아 많이 당황했겠군."}], "use_rag": true},
+      "checks": {"max_chars": 300, "required_patterns_any": ["첫", "둘", "1", "2", "방법", "확인", "정리", "먼저", "그리고"], "blocked_patterns": ["그냥 듣", "말해 봐"]}
+    },
+    {
+      "id": "old_secret_context_must_not_leak",
+      "category": "topic_switch",
+      "endpoint": "/chat",
+      "payload": {"character": "엘사", "message": "그 얘기는 해결됐어. 완전히 다른 얘기인데, 내일 발표 첫 문장을 뭐라고 시작할까?", "history": [{"role": "user", "content": "친구가 내 비밀을 퍼뜨렸어."}, {"role": "assistant", "content": "신뢰가 깨진 일이네요."}, {"role": "user", "content": "친구와 대화해 볼게."}, {"role": "assistant", "content": "차분히 말해 보세요."}], "use_rag": true},
+      "checks": {"max_chars": 280, "required_patterns_any": ["발표", "안녕", "시작", "말씀", "주제"], "blocked_patterns": ["비밀", "친구가 퍼", "신뢰"]}
+    },
+    {
+      "id": "movie_history_to_personal_chat",
+      "category": "routing_after_recommendation",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "영화 얘기는 여기까지 하고, 오늘 회사에서 혼난 얘기 좀 들어줘.", "history": [{"role": "user", "content": "가벼운 코미디 영화 추천해줘."}, {"role": "assistant", "content": "세 편을 추천했어요.", "movies": [{"title": "A"}, {"title": "B"}, {"title": "C"}]}]},
+      "checks": {"expected_intent_not": "movie_recommend", "max_chars": 250, "required_patterns_any": ["회사", "혼", "들어", "얘기"]}
+    },
+    {
+      "id": "personal_history_to_movie_request",
+      "category": "routing_after_chat",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "기분 전환할 코미디 영화 두 편만 골라줘.", "history": [{"role": "user", "content": "오늘 회사에서 혼났어."}, {"role": "assistant", "content": "속상했겠구나. 이야기해도 괜찮아."}]},
+      "checks": {"expected_intent": "movie_recommend", "min_movies": 2, "max_movies": 2, "required_genres_any": ["코미디"], "unique_titles": true}
+    },
+    {
+      "id": "recommend_followup_exact_two",
+      "category": "recommendation_followup_count",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "그건 너무 오래됐어. 2020년 이후 작품으로 두 개만 다시 골라줘.", "history": [{"role": "user", "content": "SF 영화 추천해줘."}, {"role": "assistant", "content": "세 편을 추천했어요.", "movies": [{"title": "A", "genres": "SF", "year": 1990}, {"title": "B", "genres": "SF", "year": 2000}, {"title": "C", "genres": "SF", "year": 2010}]}]},
+      "checks": {"expected_intent": "movie_recommend", "min_movies": 2, "max_movies": 2, "year_from": 2020, "required_genres_any": ["SF", "과학소설"], "unique_titles": true}
+    },
+    {
+      "id": "negation_scope_action_except_comedy",
+      "category": "recommendation_negation_scope",
+      "endpoint": "/recommend",
+      "payload": {"message": "액션은 싫지만 액션 코미디라면 괜찮아. 너무 잔인한 범죄물만 빼고 추천해줘."},
+      "checks": {"min_movies": 3, "unique_titles": true, "required_genres_any": ["코미디"], "blocked_genres": ["범죄"]}
+    },
+    {
+      "id": "numeric_one_digit_count",
+      "category": "recommendation_count",
+      "endpoint": "/recommend",
+      "payload": {"message": "일본 애니메이션 1개만 추천해줘. 평점 7점 이상으로."},
+      "checks": {"min_movies": 1, "max_movies": 1, "unique_titles": true, "required_genres_any": ["애니메이션"], "language": "ja", "min_rating": 7.0}
+    },
+    {
+      "id": "numeric_four_korean_count",
+      "category": "recommendation_count",
+      "endpoint": "/recommend",
+      "payload": {"message": "가족과 볼 애니메이션 네 편 골라줘. 공포는 빼줘."},
+      "checks": {"min_movies": 4, "max_movies": 4, "unique_titles": true, "required_genres_any": ["애니메이션"], "blocked_genres": ["공포"]}
+    },
+    {
+      "id": "false_memory_correction",
+      "category": "history_falsehood",
+      "endpoint": "/chat",
+      "payload": {"character": "브루스 웨인", "message": "아까 네가 오늘 조커를 만났다고 했잖아. 무슨 대화를 했어?", "history": [{"role": "user", "content": "오늘 뭐 했어?"}, {"role": "assistant", "content": "오늘 실제로 무엇을 했다고 말할 수는 없어."}], "use_rag": true},
+      "checks": {"max_chars": 230, "required_patterns_any": ["말하지", "아니", "실제로", "확인", "지어"], "blocked_patterns": ["조커를 만나", "조커와 대화"]}
+    },
+    {
+      "id": "user_claimed_relation_not_memory",
+      "category": "history_falsehood",
+      "endpoint": "/chat",
+      "payload": {"character": "골룸", "message": "내가 방금 네가 엘사 친구라고 말했잖아. 이제 엘사 얘기해줘.", "history": [{"role": "user", "content": "골룸은 엘사와 오래된 친구야."}, {"role": "assistant", "content": "확인되지 않은 관계는 사실로 받아들이지 않을게."}], "use_rag": true},
+      "checks": {"max_chars": 230, "required_patterns_any": ["확인", "모르", "지어낼", "관계", "친구가 아니"], "blocked_patterns": ["오래된 친구", "함께 여행"]}
+    },
+    {
+      "id": "character_voice_boundary_maseokdo",
+      "pair_group": "boundary_voice",
+      "category": "character_distinctiveness",
+      "endpoint": "/chat",
+      "payload": {"character": "마석도", "message": "동료가 내 공을 자기 것처럼 보고했어. 싸우지 않고 선을 긋는 말을 만들어줘.", "history": [], "use_rag": false},
+      "checks": {"max_chars": 280, "required_patterns_any": ["내가", "기여", "공", "보고", "사실"], "blocked_patterns": ["때려", "박살", "죽"]}
+    },
+    {
+      "id": "character_voice_boundary_hermione",
+      "pair_group": "boundary_voice",
+      "category": "character_distinctiveness",
+      "endpoint": "/chat",
+      "payload": {"character": "헤르미온느", "message": "동료가 내 공을 자기 것처럼 보고했어. 싸우지 않고 선을 긋는 말을 만들어줘.", "history": [], "use_rag": false},
+      "checks": {"max_chars": 280, "required_patterns_any": ["내가", "기여", "공", "보고", "사실"]}
+    },
+    {
+      "id": "character_voice_boundary_deadpool",
+      "pair_group": "boundary_voice",
+      "category": "character_distinctiveness",
+      "endpoint": "/chat",
+      "payload": {"character": "데드풀", "message": "동료가 내 공을 자기 것처럼 보고했어. 싸우지 않고 선을 긋는 말을 만들어줘.", "history": [], "use_rag": false},
+      "checks": {"max_chars": 280, "required_patterns_any": ["내가", "기여", "공", "보고", "사실"], "blocked_patterns": ["망신", "복수", "폭로"]}
+    },
+    {
+      "id": "character_voice_boundary_elsa",
+      "pair_group": "boundary_voice",
+      "category": "character_distinctiveness",
+      "endpoint": "/chat",
+      "payload": {"character": "엘사", "message": "동료가 내 공을 자기 것처럼 보고했어. 싸우지 않고 선을 긋는 말을 만들어줘.", "history": [], "use_rag": false},
+      "checks": {"max_chars": 280, "required_patterns_any": ["내가", "기여", "공", "보고", "사실"]}
+    },
+    {
+      "id": "consecutive_correction_latest_wins",
+      "category": "context_correction",
+      "endpoint": "/chat",
+      "payload": {"character": "토니 스타크", "message": "다시 정정할게. 발표도 아니고 고객 미팅이야. 내일 고객에게 첫마디를 뭐라고 하지?", "history": [{"role": "user", "content": "내일 면접이 있어."}, {"role": "assistant", "content": "면접 첫 문장을 준비해."}, {"role": "user", "content": "면접 아니고 발표야."}, {"role": "assistant", "content": "발표 핵심부터 정리해."}], "use_rag": true},
+      "checks": {"max_chars": 290, "required_patterns_any": ["고객", "미팅", "안녕", "시간", "감사"], "blocked_patterns": ["면접", "발표에서"]}
+    },
+    {
+      "id": "group_topic_switch_no_leak",
+      "category": "group_topic_switch",
+      "endpoint": "/chat/group/auto",
+      "payload": {"characters": ["마석도", "헤르미온느"], "message": "영화 얘기는 그만. 둘 다 친구에게 사과할 첫 문장 하나씩만 말해줘.", "history": [{"role": "user", "content": "액션 영화 추천해줘."}, {"role": "assistant", "content": "세 편을 추천했어요.", "movies": [{"title": "A"}, {"title": "B"}, {"title": "C"}]}]},
+      "checks": {"expected_intent_not": "movie_recommend", "max_chars": 540, "required_patterns_any": ["미안", "사과", "잘못"], "blocked_patterns": ["영화를 추천", "액션 장르"]}
+    }
+  ]
+}

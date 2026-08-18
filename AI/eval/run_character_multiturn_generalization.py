@@ -8,9 +8,8 @@ from difflib import SequenceMatcher
 import json
 import re
 import time
+import urllib.request
 from pathlib import Path
-
-import requests
 
 from run_character_multiturn_eval import MARKUP, ROLE_TOKEN, WORDING, normalize
 
@@ -36,6 +35,17 @@ def analyze(answer: str, turn: dict) -> list[str]:
     if turn.get("required_wording") and not WORDING.search(answer):
         flags.append("missing_usable_wording")
     return sorted(set(flags))
+
+
+def post_json(url: str, payload: dict, timeout: int) -> dict:
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return json.load(response)
 
 
 def voice_pairs(results: list[dict], threshold: float) -> dict:
@@ -97,7 +107,6 @@ def main() -> None:
         dialogue_characters[dialogue["id"]] = [character for character in characters if not args.character or character in args.character]
     expected_case_count = sum(len(dialogue_characters[dialogue["id"]]) * len(dialogue["turns"]) for dialogue in selected_dialogues)
 
-    session = requests.Session()
     results: list[dict] = []
     if args.resume and output.exists():
         previous = json.loads(output.read_text(encoding="utf-8"))
@@ -113,9 +122,11 @@ def main() -> None:
                     saved = completed[key]
                     history.extend([{"role": "user", "content": saved["message"]}, {"role": "assistant", "content": saved["answer"], "character": character}])
                     continue
-                response = session.post(f"{args.api_base.rstrip('/')}/chat", json={"character": character, "message": turn["message"], "history": history, "use_rag": False}, timeout=args.timeout)
-                response.raise_for_status()
-                payload = response.json()
+                payload = post_json(
+                    f"{args.api_base.rstrip('/')}/chat",
+                    {"character": character, "message": turn["message"], "history": history, "use_rag": False},
+                    args.timeout,
+                )
                 answer = str(payload.get("answer") or "")
                 row = {"dialogue": dialogue["id"], "character": character, "turn": turn_number, "message": turn["message"], "answer": answer, "flags": analyze(answer, turn)}
                 results.append(row)

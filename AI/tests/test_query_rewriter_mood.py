@@ -106,6 +106,15 @@ class QueryRewriterMoodTests(unittest.TestCase):
         result = rewrite("가족 애니메이션 영화")
         self.assertEqual(result["required_genres"], ["가족", "애니메이션"])
 
+    def test_common_comedy_typo_is_normalized(self):
+        result = rewrite("2020년 이후 한국 코메디 영화")
+        self.assertEqual(result["genre"], "코미디")
+
+    def test_both_open_year_bounds_are_preserved(self):
+        result = rewrite("2020년 이후이면서 2010년 이전인 영화")
+        self.assertEqual(result["year_from"], 2020)
+        self.assertEqual(result["year_to"], 2010)
+
 
 if __name__ == "__main__":
     unittest.main()

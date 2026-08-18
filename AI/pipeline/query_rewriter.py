@@ -30,7 +30,7 @@ _GENRE_MAP = {
     "액션": "액션", "action": "액션",
     "로맨스": "로맨스", "로맨틱": "로맨스", "romance": "로맨스", "멜로": "로맨스",
     "공포": "공포", "horror": "공포", "호러": "공포",
-    "코미디": "코미디", "comedy": "코미디", "웃긴": "코미디",
+    "코미디": "코미디", "코메디": "코미디", "comedy": "코미디", "웃긴": "코미디",
     "스릴러": "스릴러", "thriller": "스릴러",
     "SF": "SF", "sci-fi": "SF", "공상과학": "SF",
     "판타지": "판타지", "fantasy": "판타지",
@@ -154,10 +154,11 @@ def _regex_extract(text: str) -> dict:
     else:
         m_after  = _YEAR_AFTER.search(text)
         m_before = _YEAR_BEFORE.search(text)
-        if m_after:
-            result["year_from"] = int(m_after.group(1))  # year_to는 상한 없이 null 유지
-        elif m_before:
-            result["year_to"] = int(m_before.group(1))   # year_from은 하한 없이 null 유지
+        if m_after or m_before:
+            if m_after:
+                result["year_from"] = int(m_after.group(1))
+            if m_before:
+                result["year_to"] = int(m_before.group(1))
         else:
             m = _YEAR_DECADE.search(text)
             if m:

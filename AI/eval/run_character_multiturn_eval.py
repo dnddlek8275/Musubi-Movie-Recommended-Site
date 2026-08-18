@@ -8,9 +8,8 @@ from difflib import SequenceMatcher
 import json
 import re
 import time
+import urllib.request
 from pathlib import Path
-
-import requests
 
 
 MARKUP = re.compile(r"<[^>]+>|style\s*=", re.I)
@@ -59,6 +58,17 @@ def analyze(answer: str, turn: dict) -> list[str]:
     return sorted(set(flags))
 
 
+def post_json(url: str, payload: dict, timeout: int) -> dict:
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return json.load(response)
+
+
 def distinctiveness(results: list[dict], threshold: float) -> dict:
     grouped: dict[int, list[dict]] = defaultdict(list)
     for row in results:
@@ -104,7 +114,6 @@ def main() -> None:
             {"name": name, "tone_group": "profile_all"}
             for name in profiles["characters"]
         ]
-    session = requests.Session()
     results: list[dict] = []
     for character in suite["characters"]:
         if args.character and character["name"] not in args.character:
@@ -113,18 +122,16 @@ def main() -> None:
         for turn_number, turn in enumerate(suite["turns"], 1):
             if args.turn and turn_number not in args.turn:
                 continue
-            response = session.post(
+            payload = post_json(
                 f"{args.api_base.rstrip('/')}/chat",
-                json={
+                {
                     "character": character["name"],
                     "message": turn["message"],
                     "history": history,
                     "use_rag": False,
                 },
-                timeout=args.timeout,
+                args.timeout,
             )
-            response.raise_for_status()
-            payload = response.json()
             answer = str(payload.get("answer") or "")
             flags = analyze(answer, turn)
             row = {

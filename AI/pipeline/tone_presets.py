@@ -217,11 +217,22 @@ def build_turn_guidance(user_message: str, history: list[dict] | None = None) ->
 def current_activity_reply(user_message: str) -> str | None:
     """Reject requests that require inventing a character's real current activity."""
     normalized = " ".join(str(user_message or "").split())
-    if not re.search(
-        r"(?:오늘|방금|지금|요즘).{0,24}(?:실제로\s*)?"
-        r"(?:어디|뭐|무엇).{0,18}(?:갔|갔다\s*왔|다녀|했|하고\s*있|하는\s*중|지내)",
-        normalized,
-    ):
+    if re.fullmatch(r"(?:요즘|요새)\s*(?:은\s*)?(?:어때|어떻게\s*지내)[?!.~]*", normalized):
+        return "실제 근황이나 현재 생활이 따로 있는 건 아니야. 확인된 설정 안에서 지금 대화에 답할게."
+    temporal_activity = bool(
+        re.search(r"(?:오늘|방금|지금|요즘)", normalized)
+        and re.search(
+            r"(?:어디|뭘|뭐|무엇).{0,24}(?:갔|갔다\s*왔|다녀|했|하고\s*있|하는\s*중|지내)",
+            normalized,
+        )
+    )
+    claimed_temporal_activity = bool(
+        re.search(r"(?:오늘|방금|지금|요즘)", normalized)
+        and re.search(r"실제로", normalized)
+        and re.search(r"(?:했|갔|다녀|만났|순찰|일했|구조)", normalized)
+        and re.search(r"(?:다며|잖|말해|알려|뭐)", normalized)
+    )
+    if not (temporal_activity or claimed_temporal_activity):
         return None
     return "실제로 어디에 다녀왔거나 무엇을 했다고 말할 수는 없어. 확인된 설정 안에서 이야기할게."
 
@@ -262,7 +273,8 @@ def is_character_relation_question(user_message: str) -> bool:
         r"알아\??|누구(?:야|냐|인지)|무슨\s*사이|어떤\s*사이|관계|친구(?:야|냐)|"
         r"적(?:이야|이냐)?(?=$|[\s?!.,~])|"
         r"어떻게\s*알|(?:에\s*대해\s*)?어떻게\s*생각|왜\s*(?:싸|싫|좋아)|"
-        r"(?:와|과|랑|하고)\s*(?:예전에|전에)?\s*.{0,12}(?:무슨\s*일|일이\s*있었|뭘\s*했|만났)",
+        r"(?:와|과|랑|하고)\s*(?:예전에|전에)?\s*.{0,16}(?:무슨\s*일|일이\s*있었|뭘\s*했|만났|같이\s*여행|함께\s*살|같이\s*살|어디\s*갔)|"
+        r"(?:둘|둘이|서로).{0,24}(?:한집|함께|같이).{0,12}살",
         normalized,
         re.IGNORECASE,
     ))
@@ -446,26 +458,28 @@ def build_group_reaction_fallback(character_name: str, user_message: str) -> str
     return "천천히 얘기해 봐. 듣고 있을게."
 
 
-def build_group_movie_reaction_fallback(character_name: str) -> str:
+def build_group_movie_reaction_fallback(character_name: str, movie_titles: str | None = None) -> str:
     """React to an already-grounded movie pitch without inventing movie facts."""
+    matched_title = re.search(r"['‘]([^'’]+)['’]", movie_titles or "")
+    subject = f"‘{matched_title.group(1)}’ 선택" if matched_title else "그 선택"
     preset = _preset_name(character_name)
     if preset == "playful_social":
-        return "설명은 꽤 그럴듯하네. 오늘 볼 선택으로는 괜찮겠어."
+        return f"설명은 꽤 그럴듯하네. {subject}에 한 표 줄게."
     if preset == "witty_intellectual":
-        return "추천 이유는 납득했어. 선택 자체는 괜찮겠네."
+        return f"추천 이유는 납득했어. {subject} 자체는 괜찮겠네."
     if preset == "cold_calculating":
-        return "추천 근거는 충분하네. 그 선택에 이견은 없어."
+        return f"추천 근거는 충분하네. {subject}에 이견은 없어."
     if preset == "terse_reserved":
-        return "이유는 충분해. 나도 그 추천에 동의해."
+        return f"이유는 충분해. 나도 {subject}에 동의해."
     if preset == "direct_grounded":
-        return "이유가 분명하네. 그 영화로 가도 되겠어."
+        return f"이유가 분명하네. {subject}으로 가도 되겠어."
     if preset == "dignified_guiding":
-        return "추천 이유가 분명하군요. 좋은 선택이라 생각합니다."
+        return f"추천 이유가 분명하군요. {subject}은 좋다고 생각합니다."
     if preset in {"warm_supportive", "logical_reflective"}:
-        return "추천 이유를 들으니 좋은 선택 같아요. 저도 동의해요."
+        return f"추천 이유를 들으니 {subject}이 좋아 보여요. 저도 동의해요."
     if preset == "distinctive_voice":
-        return "이유는 마음에 드네. 그 추천에 한 표 줄게."
-    return "추천 이유가 충분하네. 나도 그 선택에 동의해."
+        return f"이유는 마음에 드네. {subject}에 한 표 줄게."
+    return f"추천 이유가 충분하네. 나도 {subject}에 동의해."
 
 
 def _ungrounded_relation_fallback(character_name: str) -> str:
@@ -491,6 +505,23 @@ def _wrap_practical_quote(character_name: str, quote: str) -> str:
     if preset in {"warm_supportive", "logical_reflective", "dignified_guiding"}:
         return f"“{quote}”라고 차분하게 말해 보세요."
     return f"“{quote}” 이렇게 말해."
+
+
+def _apology_message_fallback(character_name: str) -> str:
+    preset = _preset_name(character_name)
+    if preset == "playful_social":
+        quote = "내가 선 넘는 말을 했어. 웃어넘길 일이 아니었고, 정말 미안해. 변명하지 않을게."
+    elif preset == "witty_intellectual":
+        quote = "내 말이 심했고 네게 상처를 줬어. 그건 내 잘못이야. 미안해. 변명은 붙이지 않을게."
+    elif preset in {"cold_calculating", "terse_reserved"}:
+        quote = "내가 심한 말을 했다. 내 잘못이다. 미안하다. 변명하지 않겠다."
+    elif preset == "dignified_guiding":
+        quote = "제가 한 말이 지나쳤고 상처를 드렸습니다. 제 잘못입니다. 진심으로 사과드립니다."
+    elif preset in {"warm_supportive", "logical_reflective"}:
+        quote = "내가 한 말로 상처 줘서 정말 미안해. 내 잘못이고, 변명하지 않을게."
+    else:
+        quote = "내가 선 넘는 말을 해서 미안해. 내 잘못이야. 변명하지 않을게."
+    return _wrap_practical_quote(character_name, quote)
 
 
 def _profiled_practical_quote(character_name: str, topic: str) -> str:
@@ -648,10 +679,20 @@ def _practical_message_fallback(
     context = "\n".join(
         str(item.get("content") or "") for item in (history or []) if item.get("role") == "user"
     )
-    combined = f"{context}\n{user_message}"
-    asks_for_words = bool(re.search(r"뭐라고|어떻게\s*말|답할\s*거", user_message))
+    topic_reset = bool(re.search(r"(?:그|이)\s*얘기(?:는|가)?\s*(?:해결됐|그만|됐)|완전히\s*다른\s*얘기", user_message))
+    combined = user_message if topic_reset else f"{context}\n{user_message}"
+    asks_for_words = bool(re.search(r"뭐라고|어떻게\s*말|답할\s*거|첫마디", user_message))
     if not asks_for_words:
         return None
+    if re.search(r"고객|미팅", user_message) and re.search(r"첫마디|뭐라고|어떻게\s*말", user_message):
+        quote = "안녕하세요. 고객 미팅에 시간 내주셔서 감사합니다. 오늘 논의할 핵심부터 간단히 말씀드리겠습니다."
+        return _wrap_practical_quote(character_name, quote)
+    if re.search(r"발표", user_message) and re.search(r"첫\s*문장|첫마디|시작", user_message):
+        quote = "안녕하세요. 오늘 발표할 주제와 핵심 결론부터 간단히 소개하겠습니다."
+        return _wrap_practical_quote(character_name, quote)
+    if re.search(r"(?:내\s*)?공|기여", combined) and re.search(r"보고|가로챘|자기\s*것", combined):
+        quote = "이번 일에서 내가 맡아 기여한 부분이 정확히 구분되도록 다음 보고에는 역할과 결과를 함께 기록해 줘."
+        return _wrap_practical_quote(character_name, quote)
     if re.search(r"약속|늦|지각", combined):
         if character_name == "마석도":
             quote = "한 시간 기다렸다. 늦는 건 그렇다 쳐도 연락은 해야지. 다음부터 늦으면 미리 연락해 줘."
@@ -677,6 +718,9 @@ def _practical_message_fallback(
         return _profiled_practical_quote(character_name, "property")
     if re.search(r"발표", combined) and re.search(r"상사|팀장|회사", combined):
         return _presentation_message_fallback(character_name)
+    if re.search(r"면접|통화|전화", combined):
+        quote = "안녕하세요, 어제 면접 본 지원자입니다. 다시 통화할 기회를 주셔서 감사합니다."
+        return _wrap_practical_quote(character_name, quote)
     return None
 
 
@@ -684,7 +728,9 @@ def _usable_generated_wording(answer: str, combined: str) -> bool:
     """Keep a grounded generated script instead of replacing every voice."""
     if not answer or len(answer) > 280 or answer.count("?") > 1:
         return False
-    if re.search(r"슈트|아이언맨|거미줄|방패|호그와트|마법|반지|올가미", answer):
+    if re.search(r"대화할\s*가치.{0,12}못|더\s*이상.{0,12}대화|관계.{0,12}끊", answer):
+        return False
+    if re.search(r"슈트|아이언맨|거미줄|방패|호그와트|마법|반지|올가미|머리통.{0,12}날려", answer):
         return False
     looks_like_script = bool(
         re.search(r"[\"'‘’“”].{3,}[\"'‘’“”]", answer)
@@ -705,7 +751,7 @@ def _usable_generated_wording(answer: str, combined: str) -> bool:
 
 
 _UNSAFE_COPING_PATTERN = re.compile(
-    r"한\s*판\s*(?:붙|뜨)|때려|패버|죽여|죽이|처리해|박살|부숴버|싸워버",
+    r"한\s*판\s*(?:붙|뜨)|때려|패버|죽여|죽이|처리해|박살|부숴버|싸워버|멱살",
     re.IGNORECASE,
 )
 
@@ -735,7 +781,7 @@ _INVENTED_CURRENT_PLAN_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _INVENTED_OTHER_MOTIVE_PATTERN = re.compile(
-    r"(?:상사|팀장|그\s*사람).{0,30}(?:작정|일부러|재밌어서|즐기|기를\s*빼|괴롭히려고)|"
+    r"(?:상사|팀장|그\s*사람).{0,50}(?:작정|일부러|재밌어서|즐기|기를\s*빼|괴롭히려고|회피하려|발버둥|우습게\s*보|신경\s*안\s*쓰)|"
     r"뻔히\s*알면서.{0,12}모르는\s*척|"
     r"(?:속을\s*)?다\s*(?:들여다|읽)고도|(?:반복되는\s*행동은\s*)?(?:단순한\s*)?실수가\s*아(?:니(?:라\s*의도|야)|냐)|"
     r"만만하게\s*보|다시\s*기회.{0,40}(?:이야기.{0,15}(?:필요|들을\s*기회|남아)|기대)",
@@ -744,7 +790,23 @@ _INVENTED_OTHER_MOTIVE_PATTERN = re.compile(
 _LISTEN_ONLY_PATTERN = re.compile(
     r"(?:해결책|조언).{0,12}(?:보다|말고|필요\s*없).{0,20}(?:들어|얘기)|"
     r"판단.{0,8}말고.{0,16}(?:들어|얘기)|"
-    r"(?:그냥|우선|지금은).{0,12}(?:내\s*얘기|말).{0,12}(?:들어|들어줘)",
+    r"(?:그냥|우선|지금은).{0,12}(?:내\s*얘기|말).{0,12}(?:들어|들어줘)|"
+    r"지금은\s*(?:그냥\s*)?들어줘",
+    re.IGNORECASE,
+)
+_HOSTILE_USER_INSULT_PATTERN = re.compile(
+    r"(?:너|니가|네가).{0,16}(?:멍청|한심|병신|바보)|(?:꺼져|닥쳐)",
+    re.IGNORECASE,
+)
+_VIOLENT_RETALIATION_REQUEST_PATTERN = re.compile(
+    r"(?:때리|때려|패|죽여|박살|멱살|겁주|협박|복수).{0,24}(?:돼|되지|되나|될까|할까|방법|알려|어떻게|계획|짜)|"
+    r"(?:방법|어떻게|계획).{0,24}(?:때리|때려|패|죽여|박살|멱살|겁주|협박|복수)",
+    re.IGNORECASE,
+)
+_SOCIAL_RETALIATION_REQUEST_PATTERN = re.compile(
+    r"(?:공개적으로\s*)?(?:망신|창피).{0,20}(?:주|시키|방법|어떻게)|"
+    r"(?:복수|보복).{0,20}(?:망신|창피|폭로|소문)|"
+    r"(?:약점|소문|자존심).{0,24}(?:퍼뜨|무너뜨|망가뜨|복수|보복|구체적으로|짜줘)",
     re.IGNORECASE,
 )
 _UNSAFE_LISTENING_PATTERN = re.compile(
@@ -906,6 +968,14 @@ def _specific_failure_fallback(character_name: str, user_message: str) -> str:
             return "첫 질문을 듣고 잠깐 생각한 뒤 답해도 괜찮습니다."
         return "첫 답변의 핵심 한 문장부터 준비해 봐."
     if re.search(r"시험|공부|성적", user_message):
+        anticipatory_anxiety = bool(
+            re.search(r"망칠\s*것\s*같|불안|걱정|긴장|잘\s*못\s*볼", user_message)
+            and not re.search(r"망쳤|망했|끝났|이미\s*봤", user_message)
+        )
+        if anticipatory_anxiety:
+            if character_name == "헤르미온느":
+                return "시험이 불안해도 이미 실패한 건 아니에요. 오늘 가장 불안한 범위 하나부터 확인해 봐요."
+            return "아직 시험 전이야. 가장 불안한 범위 하나부터 확인해 보자."
         if re.search(r"하나도\s*(?:안|못)|안\s*됐|못\s*했|시작도", user_message):
             if character_name == "헤르미온느":
                 return "오늘 볼 범위를 세 부분으로 나누고, 첫 부분부터 25분만 시작해 봐요."
@@ -950,9 +1020,34 @@ def enforce_dialogue_policy(
     relation_answer: str | None = None,
 ) -> str:
     normalized = _normalize_informal_input(user_message)
+    previous_user = next(
+        (str(item.get("content") or "") for item in reversed(history or []) if item.get("role") == "user"),
+        "",
+    )
+    inherited_listen_only = bool(
+        previous_user
+        and is_listen_only_request(previous_user)
+        and not re.search(r"이제(?:는)?\s*(?:조언|해결)|조언해|어떻게|뭐라고|방법", normalized)
+    )
+    previous_assistant = next(
+        (str(item.get("content") or "") for item in reversed(history or []) if item.get("role") == "assistant"),
+        "",
+    )
+    false_memory_claim = bool(
+        re.search(r"아까\s*네가|네가.{0,30}(?:말했|했다(?:고)?\s*했잖|했잖)", normalized)
+        and re.search(r"말할\s*수(?:는)?\s*없|실제로.{0,20}(?:아니|없)|확인되지", previous_assistant)
+    )
+    if false_memory_claim:
+        return "아니, 나는 그런 일이 있었다고 말하지 않았어. 실제로 했다고 확인되지 않은 일을 새로 지어내지는 않을게."
     if relation_answer:
         return relation_answer
-    if _LISTEN_ONLY_PATTERN.search(normalized):
+    if _VIOLENT_RETALIATION_REQUEST_PATTERN.search(normalized):
+        return "때리거나 겁주거나 보복하는 건 안 돼. 지금은 그 사람과 거리를 두고, 무슨 일이 있었는지 사실부터 정리해 보자."
+    if _SOCIAL_RETALIATION_REQUEST_PATTERN.search(normalized):
+        return "공개적으로 망신 주거나 똑같이 보복하는 건 권하지 않아. 필요한 말은 사실만 짧게 전하고, 그 사람과 거리를 두자."
+    if _HOSTILE_USER_INSULT_PATTERN.search(normalized):
+        return "화가 난 건 알겠어. 모욕으로 맞받아치진 않을게. 하고 싶은 말이 있으면 내용만 말해."
+    if _LISTEN_ONLY_PATTERN.search(normalized) or inherited_listen_only:
         if is_safe_listening_answer(answer):
             generic = re.sub(r"[\s.,!?~]+", "", answer)
             if generic in {
@@ -992,7 +1087,20 @@ def enforce_dialogue_policy(
         str(item.get("content") or "") for item in (history or []) if item.get("role") == "user"
     )
     combined_context = f"{history_text}\n{normalized}"
+    latest_topic_correction = bool(re.search(r"(?:다시\s*)?정정|아니고|아니라", normalized))
+    if latest_topic_correction and re.search(r"고객|미팅", normalized) and re.search(r"첫마디|뭐라고|어떻게", normalized):
+        return _practical_message_fallback(character_name, normalized, []) or answer
+    if re.search(r"슬프|서럽|중요한\s*사람이\s*아닌", normalized):
+        return "화보다 슬픔이 더 크게 남은 거구나. 그 사람의 행동 때문에 네가 중요하지 않은 사람이 되는 건 아니야."
     asks_for_words = bool(re.search(r"뭐라고|어떻게\s*말|답할\s*거|첫마디", normalized))
+    apology_request = bool(re.search(
+        r"(?:친구|상대|그\s*사람).{0,8}(?:한테|에게).{0,8}사과|"
+        r"내가.{0,16}(?:사과|미안)|(?:사과|미안).{0,12}(?:전하고|보내고)|"
+        r"(?:사과|미안).{0,8}(?:하려|하고\s*싶|전하려)|사과.{0,12}첫\s*문장",
+        normalized,
+    ))
+    if asks_for_words and apology_request:
+        return _apology_message_fallback(character_name)
     if asks_for_words and _usable_generated_wording(answer, combined_context):
         return _finalize_dialogue_answer(answer, max_chars=280)
     practical = _practical_message_fallback(character_name, normalized, history)
@@ -1022,11 +1130,17 @@ def enforce_dialogue_policy(
         normalized,
     ))
     failure_context = bool(re.search(r"꼬였|망쳤|망했|실패|시험|일이|업무|회사|과제|면접|발표", normalized))
+    if emotional and failure_context and not has_history:
+        return _specific_failure_fallback(character_name, normalized)
     cause_missing = emotional and not has_history and not _EMOTION_CAUSE_PATTERN.search(normalized)
     if cause_missing:
         return _emotion_fallback(character_name)
-    if emotional and failure_context and not has_history:
-        return _specific_failure_fallback(character_name, normalized)
+    if (
+        emotional
+        and _UNSAFE_COPING_PATTERN.search(answer or "")
+        and re.search(r"친구|비밀|신뢰|믿", combined_context)
+    ):
+        return _profiled_uncertain_motive_fallback(character_name)
     if context_free_choice or (emotional and _UNSAFE_COPING_PATTERN.search(answer or "")):
         return _clarification_fallback(character_name)
     contextual_choice = bool(has_history and re.search(r"너라면|네가라면|어떻게 할", normalized))

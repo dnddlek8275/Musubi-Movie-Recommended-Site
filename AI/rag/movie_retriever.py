@@ -273,6 +273,7 @@ def to_response(movies: list[dict]) -> list[dict]:
             "title":        m.get("title", ""),
             "year":         m.get("year", ""),
             "release_date": m.get("release_date", ""),
+            "language":     m.get("language", ""),
             "genres":       m.get("genres", ""),
             "director":     m.get("director", ""),
             "cast":         m.get("cast", ""),
