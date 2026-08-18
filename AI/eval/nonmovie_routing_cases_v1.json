@@ -1,0 +1,99 @@
+{
+  "suite_version": "nonmovie-routing-v1-20260818",
+  "description": "영화가 아닌 추천·상담·제목 충돌 문장이 영화 검색으로 잘못 라우팅되지 않는지 검증",
+  "thresholds": {
+    "hard_check_pass_rate": 0.9,
+    "critical_failure_count": 0,
+    "exact_duplicate_rate_max": 0.1,
+    "pair_similarity_max": 0.9,
+    "manual_average_min": 4.0,
+    "manual_dimension_min": 3.5
+  },
+  "manual_dimensions": ["relevance", "naturalness", "specificity", "groundedness"],
+  "cases": [
+    {
+      "id": "route_book_recommendation",
+      "category": "nonmovie_recommendation",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "영화 말고 퇴근 후 가볍게 읽을 책 한 권 추천해줘.", "history": []},
+      "checks": {"expected_intent_not": "movie_recommend", "max_movies": 0, "max_chars": 300, "required_patterns_any": ["책", "읽", "소설", "에세이"], "blocked_patterns": ["영화를 추천", "TMDB"]}
+    },
+    {
+      "id": "route_music_recommendation",
+      "category": "nonmovie_recommendation",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "집중할 때 들을 음악 추천해줘. 영화 OST 말고 가사 없는 걸로.", "history": []},
+      "checks": {"expected_intent_not": "movie_recommend", "max_movies": 0, "max_chars": 300, "required_patterns_any": ["음악", "연주", "가사", "플레이리스트"], "blocked_patterns": ["영화를 추천", "TMDB"]}
+    },
+    {
+      "id": "route_game_recommendation",
+      "category": "nonmovie_recommendation",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "친구 셋이 주말에 할 협동 게임 추천해줘. 영화는 안 볼 거야.", "history": []},
+      "checks": {"expected_intent_not": "movie_recommend", "max_movies": 0, "max_chars": 320, "required_patterns_any": ["게임", "협동", "플레이"], "blocked_patterns": ["영화를 추천", "TMDB"]}
+    },
+    {
+      "id": "route_restaurant_recommendation_needs_location",
+      "category": "missing_context",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "오늘 갈 만한 조용한 식당 추천해줘.", "history": []},
+      "checks": {"expected_intent_not": "movie_recommend", "max_movies": 0, "max_chars": 260, "min_questions": 1, "max_questions": 2, "required_patterns_any": ["지역", "어디", "위치", "동네"]}
+    },
+    {
+      "id": "route_travel_recommendation_needs_constraints",
+      "category": "missing_context",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "이번 주말 여행지 추천해줘.", "history": []},
+      "checks": {"expected_intent_not": "movie_recommend", "max_movies": 0, "max_chars": 280, "min_questions": 1, "max_questions": 2, "required_patterns_any": ["출발", "지역", "거리", "당일", "숙박", "어디"]}
+    },
+    {
+      "id": "route_movie_word_in_personal_story",
+      "category": "movie_word_collision",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "오늘 일이 영화처럼 꼬였어. 추천 말고 그냥 내 얘기 들어줘.", "history": []},
+      "checks": {"expected_intent_not": "movie_recommend", "max_movies": 0, "max_chars": 240, "max_questions": 0, "required_patterns_any": ["듣", "얘기", "꼬였"]}
+    },
+    {
+      "id": "route_action_word_not_genre",
+      "category": "genre_word_collision",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "말보다 액션으로 보여주라는 상사에게 뭐라고 답해야 할까?", "history": []},
+      "checks": {"expected_intent_not": "movie_recommend", "max_movies": 0, "max_chars": 280, "required_patterns_any": ["상사", "말씀", "행동", "결과", "답"]}
+    },
+    {
+      "id": "route_drama_word_not_genre",
+      "category": "genre_word_collision",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "회사에서 괜히 드라마 만들지 말라는 말을 들었어. 기분이 나빠.", "history": []},
+      "checks": {"expected_intent_not": "movie_recommend", "max_movies": 0, "max_chars": 260, "required_patterns_any": ["회사", "기분", "속상", "말"]}
+    },
+    {
+      "id": "route_parasite_title_as_pest",
+      "category": "title_collision",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "화분에 기생충 같은 벌레가 생겼는데 어떻게 해야 해? 영화 얘기 아냐.", "history": []},
+      "checks": {"expected_intent_not": "movie_recommend", "max_movies": 0, "max_chars": 320, "required_patterns_any": ["화분", "벌레", "식물", "제거", "확인"], "blocked_patterns": ["봉준호", "영화를 추천"]}
+    },
+    {
+      "id": "route_music_topic_then_movie_explicit",
+      "category": "topic_switch_to_movie",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "음악 얘기는 됐고, 이번엔 음악 영화 두 편 추천해줘.", "history": [{"role": "user", "content": "집중할 때 들을 음악 추천해줘."}, {"role": "assistant", "content": "가사 없는 연주곡을 들어봐."}]},
+      "checks": {"expected_intent": "movie_recommend", "min_movies": 2, "max_movies": 2, "required_genres_any": ["음악"], "unique_titles": true}
+    },
+    {
+      "id": "route_movie_then_book_switch",
+      "category": "topic_switch_from_movie",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "영화 추천은 그만하고 그 분위기와 비슷한 책을 한 권 알려줘.", "history": [{"role": "user", "content": "철학적인 SF 영화 추천해줘."}, {"role": "assistant", "content": "세 편을 추천했어.", "movies": [{"title": "A"}, {"title": "B"}, {"title": "C"}]}]},
+      "checks": {"expected_intent_not": "movie_recommend", "max_movies": 0, "max_chars": 300, "required_patterns_any": ["책", "소설", "읽"], "blocked_patterns": ["영화를 추천", "세 편"]}
+    },
+    {
+      "id": "route_food_movie_explicit",
+      "category": "explicit_movie_target",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "요리나 식당을 다룬 영화 두 편 추천해줘.", "history": []},
+      "checks": {"expected_intent": "movie_recommend", "min_movies": 2, "max_movies": 2, "unique_titles": true}
+    }
+  ]
+}

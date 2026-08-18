@@ -1,0 +1,79 @@
+{
+  "evaluated_at": "2026-08-17",
+  "environment": "production Milvus data, isolated CPU process",
+  "deployed": true,
+  "notes": [
+    "CPU timings are for relative comparison only and are not production T4 latency.",
+    "No confidence threshold was introduced because it has not been calibrated."
+  ],
+  "production_canary": [
+    {
+      "query_type": "metadata genre",
+      "mode": "skip",
+      "candidates": 12,
+      "retrieve_seconds": 0.273,
+      "total_seconds": 4.873,
+      "http_status": 200,
+      "movie_count": 3
+    },
+    {
+      "query_type": "generic recommendation",
+      "mode": "standard",
+      "candidates": 12,
+      "retrieve_seconds": 1.849,
+      "total_seconds": 6.399,
+      "http_status": 200,
+      "movie_count": 3
+    },
+    {
+      "query_type": "mood recommendation",
+      "mode": "complex",
+      "candidates": 18,
+      "retrieve_seconds": 1.707,
+      "total_seconds": 6.263,
+      "http_status": 200,
+      "movie_count": 3
+    }
+  ],
+  "cases": [
+    {
+      "case": "genre",
+      "query": "액션 영화",
+      "standard": {
+        "seconds": 11.809,
+        "top3": ["남편들", "액션 잭슨", "분노의 질주"]
+      },
+      "skip": {
+        "seconds": 0.2,
+        "top3": ["백 인 액션", "액션 잭슨", "마지막 액션 히어로"]
+      },
+      "top3_overlap": 1
+    },
+    {
+      "case": "actor",
+      "query": "황정민 영화",
+      "standard": {
+        "seconds": 6.606,
+        "top3": ["서울의 봄", "공작", "군함도"]
+      },
+      "skip": {
+        "seconds": 0.345,
+        "top3": ["Mission: Cross", "국제시장", "공작"]
+      },
+      "top3_overlap": 1
+    },
+    {
+      "case": "compound_metadata",
+      "query": "한국 범죄 영화",
+      "standard": {
+        "seconds": 7.706,
+        "top3": ["범죄도시 2", "감시자들", "살인의 추억"]
+      },
+      "skip": {
+        "seconds": 0.168,
+        "top3": ["범죄도시 2", "범죄도시 3", "살인의 추억"]
+      },
+      "top3_overlap": 2
+    }
+  ]
+}
