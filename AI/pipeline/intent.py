@@ -44,7 +44,7 @@ _NON_MOVIE_RECOMMENDATION_PATTERNS = re.compile(
 
 _EXPLICIT_MOVIE_TARGET = re.compile(r"영화|필름|무비", re.IGNORECASE)
 _MOVIE_RECOMMENDATION_NEGATION = re.compile(
-    r"(?:영화\s*)?추천(?:은|이|도)?\s*(?:말고|필요\s*없|하지\s*마)|"
+    r"(?:영화\s*)?추천(?:은|이|도)?\s*(?:이제\s*)?(?:말고|필요\s*없|하지\s*마|됐어|됐고)|"
     r"영화.{0,12}(?:추천\s*)?(?:필요\s*없|말고)|"
     r"영화.{0,12}(?:나중에|여기까지|그만|됐어|됐고)",
     re.IGNORECASE,

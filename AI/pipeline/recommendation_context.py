@@ -23,13 +23,14 @@ _FOLLOWUP = re.compile(
     r"다른\s*(?:거|것|걸|건|게|영화|작품)(?:도|은|는|을|이|가)?|"
     r"또\s*(?:보여|알려|추천|골라)|추가로\s*(?:보여|알려|추천|골라)|"
     r"별로|마음에\s*안|싫어|싫다|말고|빼줘|제외|"
+    r"(?:조건|장르|언어|연도).{0,20}(?:유지|바꿔|변경|완화|없애|취소)|"
     r"\d{4}\s*년?\s*(?:이후|이전|부터|까지|이상|이하)?\s*만|"
     r"평점\s*\d+(?:\.\d+)?\s*(?:점|이상|이하)?\s*만?|"
     r"(?:한국어|영어|일본어|중국어|프랑스어)\s*(?:영화|작품)?\s*만",
     re.IGNORECASE,
 )
 _NEGATED_GENRE = re.compile(
-    rf"({_GENRE_ALT})(?:물)?(?:는|은|이|가|를|을|만)?\s*(?:싫|말고|빼|제외)",
+    rf"({_GENRE_ALT})(?:물)?(?:는|은|이|가|를|을|만|도)?\s*(?:싫|말고|빼|제외)",
     re.IGNORECASE,
 )
 _COORDINATED_NEGATED_GENRES = re.compile(
@@ -60,9 +61,12 @@ _FULL_PREFERENCE_RESET = re.compile(
     re.IGNORECASE,
 )
 _YEAR_RELEASE = re.compile(r"연도\s*(?:제한|조건)(?:만)?\s*(?:없애|빼|취소)", re.IGNORECASE)
+_YEAR_OVERRIDE = re.compile(r"연도(?:만|를)\s*\d{4}", re.IGNORECASE)
 _YEAR_EXPRESSION = re.compile(
     r"\d{4}\s*년?\s*(?:이후|이전|부터|까지|이상|이하)?|\d{4}\s*[-~]\s*\d{4}"
 )
+_LANGUAGE_OVERRIDE = re.compile(r"언어(?:만|를)\s*(?:한국어|영어|일본어|중국어|프랑스어)", re.IGNORECASE)
+_LANGUAGE_EXPRESSION = re.compile(r"(?:한국어|영어|일본어|중국어|프랑스어|한국|일본|중국|프랑스)\s*(?:영화|작품)?")
 
 
 @dataclass
@@ -273,7 +277,42 @@ def build_recommendation_context(
         genre = match.group(1)
         if genre not in excluded_genres:
             excluded_genres.append(genre)
-    if _COLLOQUIAL_HORROR_NEGATION.search(user_message) and "공포" not in excluded_genres:
+    compound_negation = re.search(rf"({_GENRE_ALT})\s+({_GENRE_ALT})\s*말고", user_message)
+    if compound_negation:
+        first, second = compound_negation.groups()
+        if second in excluded_genres:
+            excluded_genres.remove(second)
+        if first not in excluded_genres:
+            excluded_genres.append(first)
+    for match in re.finditer(rf"({_GENRE_ALT})도\s*({_GENRE_ALT})도\s*없", user_message):
+        for genre in match.groups():
+            if genre not in excluded_genres:
+                excluded_genres.append(genre)
+    for match in re.finditer(rf"({_GENRE_ALT})만\s*아니면", user_message):
+        genre = match.group(1)
+        if genre not in excluded_genres:
+            excluded_genres.append(genre)
+    for match in re.finditer(rf"({_GENRE_ALT})\s*장르\s*조건만\s*(?:빼|제외|취소)", user_message):
+        genre = match.group(1)
+        if genre not in excluded_genres:
+            excluded_genres.append(genre)
+    for match in re.finditer(rf"({_GENRE_ALT}).{{0,8}}싫어하는\s*건\s*아니", user_message):
+        genre = match.group(1)
+        if genre in excluded_genres:
+            excluded_genres.remove(genre)
+    if re.search(r"공포\s*영화는?\s*맞", user_message) and "공포" in excluded_genres:
+        excluded_genres.remove("공포")
+    if re.search(r"액션\s*코미디.{0,12}괜찮", user_message) and "액션" in excluded_genres:
+        excluded_genres.remove("액션")
+    horror_is_explicitly_allowed = bool(
+        re.search(r"공포.{0,10}싫어하는\s*건\s*아니", user_message)
+        or re.search(r"공포\s*영화는?\s*맞", user_message)
+    )
+    if (
+        _COLLOQUIAL_HORROR_NEGATION.search(user_message)
+        and not horror_is_explicitly_allowed
+        and "공포" not in excluded_genres
+    ):
         excluded_genres.append("공포")
 
     previous_request = _recommendation_thread_request(history)
@@ -287,8 +326,10 @@ def build_recommendation_context(
     if _FULL_PREFERENCE_RESET.search(user_message):
         search_message = user_message
     else:
-        if _YEAR_RELEASE.search(user_message):
+        if _YEAR_RELEASE.search(user_message) or _YEAR_OVERRIDE.search(user_message):
             previous_request = _YEAR_EXPRESSION.sub("", previous_request)
+        if _LANGUAGE_OVERRIDE.search(user_message):
+            previous_request = _LANGUAGE_EXPRESSION.sub("", previous_request)
         search_message = f"{previous_request} {user_message}"
 
     return RecommendationContext(
