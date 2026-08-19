@@ -1,0 +1,38 @@
+{
+  "suite": "audience_threshold_v1",
+  "cases": [
+    {
+      "id": "five_million_korean_admissions",
+      "endpoint": "/chat/auto",
+      "payload": {
+        "message": "극장에서 관객 500만 명 이상 본 한국 영화 중에서 2015년 이후 작품 두 편만 추천해줘.",
+        "history": []
+      },
+      "checks": {
+        "expected_intent": "movie_recommend",
+        "max_movies": 2,
+        "audience_min": 5000000,
+        "production_country": "KR",
+        "year_from": 2015
+      }
+    },
+    {
+      "id": "lower_only_audience_threshold",
+      "endpoint": "/chat/auto",
+      "payload": {
+        "message": "500만은 너무 빡세네. 관객 기준만 300만 명으로 낮춰줘. 한국 영화랑 2015년 이후 조건은 유지하고 두 편만.",
+        "history": [
+          {"role": "user", "content": "극장에서 관객 500만 명 이상 본 한국 영화 중에서 2015년 이후 작품 두 편만 추천해줘."},
+          {"role": "assistant", "content": "추천 결과", "recommended_movies": [{"title": "A"}]}
+        ]
+      },
+      "checks": {
+        "expected_intent": "movie_recommend",
+        "max_movies": 2,
+        "audience_min": 3000000,
+        "production_country": "KR",
+        "year_from": 2015
+      }
+    }
+  ]
+}

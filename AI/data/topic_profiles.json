@@ -49,6 +49,30 @@
         "machine learning",
         "startup"
       ]
+    },
+    {
+      "id": "dinosaurs",
+      "label": "공룡",
+      "aliases": [
+        "공룡",
+        "dinosaur",
+        "dinosaurs"
+      ],
+      "search_terms": [
+        "공룡",
+        "dinosaur",
+        "티라노사우루스",
+        "쥬라기"
+      ],
+      "evidence_terms": [
+        "공룡",
+        "dinosaur",
+        "dinosaurs",
+        "티라노사우루스",
+        "브라키오사우루스",
+        "트리케라톱스",
+        "쥬라기"
+      ]
     }
   ]
 }

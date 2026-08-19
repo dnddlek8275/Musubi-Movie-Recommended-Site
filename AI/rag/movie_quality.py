@@ -20,7 +20,8 @@ _FEELGOOD_QUERY = re.compile(
     r"보고\s*나면\s*기분(?:이)?\s*(?:좋|나아)|기분\s*좋아지는|"
     r"기분이?\s*(?:좀\s*)?나아|기분이\s*좋아질|행복해지|기분\s*좋게|"
     r"기운을?\s*북돋|우울한?\s*기분을?\s*털어|마음이?\s*환해|"
-    r"긍정적인?\s*에너지|희망적인"
+    r"긍정적인?\s*에너지|희망적인|다시\s*용기|용기\s*나는|"
+    r"자신감(?:을|이)?\s*(?:되찾|생기|높)|힘이?\s*나는"
 )
 _DISCUSSION_QUERY = re.compile(
     r"(?:같이\s*)?얘기할\s*거리|생각할\s*거리|토론할\s*거리|"
@@ -44,6 +45,15 @@ _ADULT_ANIMATION_QUERY = re.compile(
     r"사회적인?\s*주제.*애니|유치하지\s*않고.*애니|성인\s*관객.*애니"
 )
 _DATE_QUERY = re.compile(r"데이트|연인(?:과|이랑)?|커플(?:이|끼리)?")
+_FAMILY_COMFORT_QUERY = re.compile(
+    r"(?:부모님|가족).{0,30}(?:민망|잔인하지|폭력적이지|편하게\s*같이)|"
+    r"(?:민망|잔인하지|폭력적이지).{0,30}(?:부모님|가족)"
+)
+_GENTLE_SUSPENSE_QUERY = re.compile(
+    r"(?:긴장감(?:은|이)?\s*(?:조금|살짝)|살짝\s*(?:쫄깃|긴장)|가볍게\s*쫄깃)|"
+    r"(?:쫄깃|긴장감).{0,24}(?:안\s*무서|무섭지)|"
+    r"(?:안\s*무서|무섭지).{0,24}(?:쫄깃|긴장감)"
+)
 _BRIGHT_ROMANCE_QUERY = re.compile(
     r"(?:밝|유쾌|설레).*?(?:데이트|로맨스|멜로)|"
     r"(?:데이트|로맨스|멜로).*?(?:밝|유쾌|설레)"
@@ -56,10 +66,14 @@ _RECOMMENDATION_QUERY = re.compile(
     r"추천|볼\s*영화|보기\s*좋|보고\s*싶|뭐\s*볼|골라|"
     r"영화(?:가|를|을)?\s*(?:좋아|좋아해)"
 )
+_GROUP_COMPROMISE_QUERY = re.compile(
+    r"(?:한\s*명은|나는|친구).{0,100}(?:다\s*같이|모두|넷\s*다|덜\s*불만|취향.{0,12}(?:맞|절충))"
+)
 _LIGHT_GENRES = {"코미디", "가족", "애니메이션", "로맨스", "모험", "음악"}
 _RESTFUL_GENRES = {"드라마", "로맨스", "가족", "애니메이션", "음악", "코미디"}
 _TOUCHING_GENRES = {"드라마", "가족", "애니메이션", "로맨스"}
 _DATE_GENRES = {"로맨스", "코미디"}
+_GENTLE_SUSPENSE_GENRES = {"미스터리", "코미디", "모험", "범죄", "스릴러"}
 _KIDS_GENRES = {"가족", "애니메이션", "모험", "판타지", "코미디"}
 _HEAVY_GENRES = {"공포", "스릴러", "범죄", "전쟁", "역사", "다큐멘터리"}
 _INTENSE_GENRES = {"액션", "공포", "스릴러", "범죄", "전쟁"}
@@ -123,6 +137,16 @@ def expand_mood_query(query: str) -> str:
             "잠들기 전 편안하고 잔잔하게 볼 수 있는 평온한 일상 위로 드라마 로맨스 가족 애니메이션 음악 영화",
             query,
         )
+    if _FAMILY_COMFORT_QUERY.search(query):
+        return _with_explicit_genres(
+            "부모님과 함께 편하게 보고 이야기 나누기 좋은 가족 코미디 드라마 영화",
+            query,
+        )
+    if _GENTLE_SUSPENSE_QUERY.search(query):
+        return _with_explicit_genres(
+            "무섭지 않으면서 가볍게 긴장감 있는 미스터리 코미디 케이퍼 모험 영화",
+            query,
+        )
     if _DATE_QUERY.search(query):
         if _AVOID_SAD_QUERY.search(query) or _BRIGHT_ROMANCE_QUERY.search(query):
             return _with_explicit_genres(
@@ -165,6 +189,10 @@ def _mood_policy(query: str) -> tuple[set[str], set[str]] | None:
         return _KIDS_GENRES, _HEAVY_GENRES
     if _RESTFUL_QUERY.search(query):
         return _RESTFUL_GENRES, _INTENSE_GENRES
+    if _FAMILY_COMFORT_QUERY.search(query):
+        return {"가족", "코미디", "드라마", "음악"}, {"공포", "전쟁", "범죄", "스릴러"}
+    if _GENTLE_SUSPENSE_QUERY.search(query):
+        return _GENTLE_SUSPENSE_GENRES, {"공포", "전쟁"}
     if _UPLIFT_QUERY.search(query) or _LIGHT_QUERY.search(query):
         return _LIGHT_GENRES, _HEAVY_GENRES
     if _AVOID_SAD_QUERY.search(query) or _BRIGHT_ROMANCE_QUERY.search(query):
@@ -208,7 +236,7 @@ def prefer_well_received_candidates(query: str, candidates: list[dict], required
     purpose_query = any(pattern.search(query) for pattern in (
         _LIGHT_QUERY, _RESTFUL_QUERY, _TOUCHING_QUERY, _UPLIFT_QUERY, _FEELGOOD_QUERY,
         _DISCUSSION_QUERY, _AVOID_SAD_QUERY, _ADULT_ANIMATION_QUERY,
-        _BRIGHT_ROMANCE_QUERY, _DATE_QUERY, _KIDS_QUERY,
+        _BRIGHT_ROMANCE_QUERY, _GENTLE_SUSPENSE_QUERY, _FAMILY_COMFORT_QUERY, _DATE_QUERY, _KIDS_QUERY,
     ))
     if not _RECOMMENDATION_QUERY.search(query) and not purpose_query:
         return candidates
@@ -234,7 +262,7 @@ def prefer_explainable_candidates(query: str, candidates: list[dict], required: 
     purpose_query = any(pattern.search(query) for pattern in (
         _LIGHT_QUERY, _RESTFUL_QUERY, _TOUCHING_QUERY, _UPLIFT_QUERY, _FEELGOOD_QUERY,
         _DISCUSSION_QUERY, _AVOID_SAD_QUERY, _ADULT_ANIMATION_QUERY,
-        _BRIGHT_ROMANCE_QUERY, _DATE_QUERY, _KIDS_QUERY,
+        _BRIGHT_ROMANCE_QUERY, _GENTLE_SUSPENSE_QUERY, _FAMILY_COMFORT_QUERY, _DATE_QUERY, _KIDS_QUERY,
     ))
     if not purpose_query:
         return candidates
@@ -292,6 +320,27 @@ def intent_match_score(query: str, movie: dict) -> float | None:
     text = " ".join(
         str(movie.get(field) or "") for field in ("overview", "text", "keywords")
     )
+
+    if _GROUP_COMPROMISE_QUERY.search(query):
+        requested = {genre for genre in _with_explicit_genres("", query).split() if genre in {
+            "액션", "코미디", "미스터리", "로맨스", "SF", "판타지", "모험", "드라마", "가족", "음악"
+        }}
+        coverage = len(genres & requested) / max(len(requested), 1)
+        country = str(movie.get("certification_country") or "").strip().upper()
+        certification = re.sub(r"\s+", "", str(movie.get("certification") or "")).upper()
+        adult_penalty = 0.35 if certification in {"R", "NC-17", "18", "청소년관람불가"} else 0.0
+        return min(1.0, max(0.0, coverage - adult_penalty))
+
+    if _GENTLE_SUSPENSE_QUERY.search(query):
+        genre_bonus = 0.22 * len(genres & _GENTLE_SUSPENSE_GENRES)
+        intense_penalty = 0.28 * len(genres & {"공포", "전쟁"})
+        return min(1.0, max(0.0, genre_bonus - intense_penalty))
+
+    if _FAMILY_COMFORT_QUERY.search(query):
+        positive = 0.20 * len(genres & {"가족", "코미디", "드라마", "음악"})
+        intense = 0.28 * len(genres & {"공포", "전쟁", "범죄", "스릴러"})
+        intense += 0.14 * len(set(_INTENSE_TERMS.findall(text)))
+        return min(1.0, max(0.0, positive - intense))
 
     if _RESTFUL_QUERY.search(query):
         restful_genres = len(genres & _RESTFUL_GENRES)

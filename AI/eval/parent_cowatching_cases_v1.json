@@ -1,0 +1,22 @@
+{
+  "suite": "parent_cowatching_v1",
+  "description": "부모님과 함께 보는 상황에서 장면 단위 안전을 과장하지 않고 강한 장르를 피하는 회귀 테스트",
+  "cases": [
+    {
+      "id": "parent_cowatching_low_intensity_korean_movies",
+      "endpoint": "/chat/auto",
+      "payload": {
+        "message": "이번 주말에 부모님이랑 같이 볼 건데 민망한 장면 없고 너무 잔인하지 않은 한국 영화 두 편만 골라줘. 보고 나서 가족끼리 얘기할 거리도 있었으면 좋겠어.",
+        "history": []
+      },
+      "checks": {
+        "expected_intent": "movie_recommend",
+        "max_movies": 2,
+        "production_country": "KR",
+        "blocked_genres": ["공포", "전쟁", "범죄", "스릴러"],
+        "unique_titles": true,
+        "answer_titles_must_be_returned": true
+      }
+    }
+  ]
+}

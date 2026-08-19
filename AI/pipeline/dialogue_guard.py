@@ -83,8 +83,51 @@ def general_output_rejection_reason(answer: str, user_message: str) -> str | Non
 
 
 def general_history_recall_reply(user_message: str, history: list[dict]) -> str | None:
-    """Answer explicit recent-movie recall questions only from recorded history."""
+    """Answer narrow recall questions only from explicit recorded user history."""
     compact = re.sub(r"\s+", "", str(user_message or ""))
+    if re.search(r"(?:왜.*자신감.*떨어|자신감.*왜.*떨어)", compact):
+        for item in reversed(history):
+            if item.get("role") != "user":
+                continue
+            content = str(item.get("content") or "").strip()
+            match = re.search(r"([^.!?]{2,100}?)(해서|줘서|여서)\s*자신감(?:이|을)?.{0,16}떨어", content)
+            if match:
+                cause = match.group(1).strip(" ,")
+                return f"네가 말한 이유는 ‘{cause}{match.group(2)}’였어."
+        return "대화 기록에서 자신감이 떨어졌다고 말한 이유를 정확히 확인하지 못했어."
+    if re.search(r"(?:불러달라고한|부르기로한)이름", compact):
+        patterns = (
+            re.compile(r"(?:말고|아니라)\s*([가-힣A-Za-z]{2,20})(?:이?라고)?\s*불러"),
+            re.compile(r"나를\s*([가-힣A-Za-z]{2,20})(?:이?라고)?\s*불러"),
+        )
+        for item in reversed(history):
+            if item.get("role") != "user":
+                continue
+            content = str(item.get("content") or "")
+            for pattern in patterns:
+                match = pattern.search(content)
+                if match:
+                    name = re.sub(r"(?:이?라고)$", "", match.group(1)).strip()
+                    return f"지금 불러달라고 한 이름은 {name}이야."
+        return "대화 기록에서 불러달라고 한 이름을 확인하지 못했어."
+
+    if re.search(r"(?:최종|지금).*(?:미팅|일정).*요일", compact):
+        for item in reversed(history):
+            if item.get("role") != "user":
+                continue
+            match = re.search(r"(월|화|수|목|금|토|일)요일", str(item.get("content") or ""))
+            if match:
+                return f"최종 미팅 요일은 {match.group(0)}이야."
+
+    if re.search(r"지금.*마시고싶.*뭐", compact):
+        for item in reversed(history):
+            if item.get("role") != "user":
+                continue
+            content = str(item.get("content") or "")
+            match = re.search(r"(?:대신\s*)?([^,.!?]{1,20}(?:차|커피|물|주스))를?\s*마시고\s*싶", content)
+            if match:
+                return f"지금 마시고 싶다고 한 건 {match.group(1).strip()}야."
+
     if not (
         re.search(r"(?:방금|아까|전에).*(?:말한|얘기한)", compact)
         and re.search(r"영화.*(?:뭐|무엇|제목)", compact)

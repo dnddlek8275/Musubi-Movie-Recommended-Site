@@ -1,6 +1,6 @@
 # CineVerse 최종 멀티 AZ 클라우드 아키텍처
 
-기준일: 2026-08-18
+기준일: 2026-08-19
 상태: 멀티 AZ 인프라 구성 완료
 
 ## 1. 현재 운영 상태와 최종 목표
@@ -93,6 +93,18 @@ NAT와 Bastion은 AZ별로 한 VM에서 함께 운영한다. 별도 Ops VM은 �
 
 Primary는 Standby로 스트리밍 복제한다. 장애 시 자동 승격이 아닌 수동 승격 절차를 사용하며, Object Storage 백업을 별도로 유지한다.
 
+### PostgreSQL 복제 적용 현황 (2026-08-19)
+
+- Primary: `10.30.2.185`, PostgreSQL 17.10, 애플리케이션 쓰기 대상
+- Standby: `10.30.3.190`, PostgreSQL 17.11, `transaction_read_only=on`
+- 방식: 물리 비동기 스트리밍 복제 (`streaming`, `sync_state=async`)
+- 물리 복제 슬롯: `cineverse_standby_b` (활성 상태 확인)
+- Standby PostgreSQL 서비스: 부팅 자동 시작 `enabled`
+- PostgreSQL 서비스 재시작 후 WAL receiver가 `streaming`으로 자동 재연결됨을 확인
+- 주요 9개 테이블의 행 수와 `cineverse` DB 크기가 Primary/Standby에서 일치함을 확인
+- Standby 실제 루트 볼륨: 50GB. Primary 100GB보다 작으므로 운영 데이터 증가 전에 100GB 이상으로 확장한다.
+- 자동 장애조치와 자동 승격은 구성하지 않았다. 장애 시 수동 승격 및 Backend DB 접속 대상 변경이 필요하다.
+
 ## 6. 보안 원칙
 
 - 인터넷에는 Public Load Balancer의 80/443만 공개한다.
@@ -125,14 +137,18 @@ Primary는 Standby로 스트리밍 복제한다. 장애 시 자동 승격이 아
 - HA Group DNS의 HTTP 리다이렉트와 HTTPS `/api/health` 정상 응답 확인
 - 운영 이미지 태그와 애플리케이션 설정은 변경하지 않음
 
-## 9. 최종 구축 완료 판정
+## 9. 구축 완료 및 후속 검증
 
 - 총 10 VM이 지정 AZ와 subnet에 배치됨
 - Public/Private 라우팅 및 보안 그룹 검증 완료
 - KKE Worker 4대 Ready, Frontend/Backend Pod가 두 AZ에 분산됨
-- 두 GPU의 모델 체크섬·런타임·API 설정 일치
-- Internal AI LB 헬스 체크와 요청 분산 정상
-- PostgreSQL streaming replication 정상, 복제 지연 확인
-- DB 수동 승격 및 애플리케이션 재연결 절차 검증
-- 외부 HTTPS, 로그인, 검색, 추천, 일반/캐릭터 채팅, 리뷰 기능 스모크 테스트 통과
-- Object Storage 백업 생성 및 복원 절차 확인
+- Internal AI LB A/B 대상의 헬스 체크 정상
+- PostgreSQL Standby가 `streaming`, `async`, 읽기 전용으로 연결되고 서비스 재시작 후 자동 재연결됨
+
+다음 항목은 인프라 자원 배치와 별개로 후속 운영 검증이 필요하다.
+
+- 두 GPU의 모델 체크섬·런타임·API 설정 최종 대조
+- GPU-A 장애를 가정한 Internal AI LB 우회 테스트
+- PostgreSQL 수동 승격 및 Backend DB 접속 대상 전환 훈련
+- Object Storage 백업 복원 훈련
+- Standby 루트 볼륨 50GB를 Primary와 같은 100GB 이상으로 확장

@@ -1,0 +1,52 @@
+{
+  "suite": "couple_compromise_v1",
+  "description": "서로 다른 공포 선호를 절충하고 무거운 추천을 자연어로 수정하는 실사용 대화",
+  "cases": [
+    {
+      "id": "gentle_suspense_date_compromise",
+      "endpoint": "/chat/auto",
+      "payload": {
+        "message": "나는 공포영화 좋아하는데 여자친구는 무서운 걸 진짜 싫어해. 둘 다 만족할 만한 긴장감은 조금 있지만 안 무서운 데이트 영화 두 편 골라줘.",
+        "history": []
+      },
+      "checks": {
+        "expected_intent": "movie_recommend",
+        "max_movies": 2,
+        "blocked_genres": ["공포"],
+        "required_genres_any": ["미스터리", "코미디", "모험", "범죄", "스릴러"],
+        "unique_titles": true,
+        "answer_titles_must_be_returned": true
+      }
+    },
+    {
+      "id": "reject_heavy_date_recommendation",
+      "endpoint": "/chat/auto",
+      "payload": {
+        "message": "첫 번째는 말기암 이야기잖아. 데이트하면서 기분 가라앉고 싶다는 게 아닌데? 슬프거나 무거운 건 빼고, 살짝 쫄깃하면서 둘이 재밌게 볼 두 편으로 다시 줘.",
+        "history": [
+          {
+            "role": "user",
+            "content": "나는 공포영화 좋아하는데 여자친구는 무서운 걸 진짜 싫어해. 둘 다 만족할 만한 긴장감은 조금 있지만 안 무서운 데이트 영화 두 편 골라줘."
+          },
+          {
+            "role": "assistant",
+            "content": "추천 결과",
+            "recommended_movies": [
+              {"title": "스포일러 경고", "genres": "로맨스, 코미디, 드라마"},
+              {"title": "러브, 어게인", "genres": "로맨스, 코미디"}
+            ]
+          }
+        ]
+      },
+      "checks": {
+        "expected_intent": "movie_recommend",
+        "max_movies": 2,
+        "blocked_genres": ["공포"],
+        "blocked_titles": ["스포일러 경고", "러브, 어게인"],
+        "required_genres_any": ["미스터리", "코미디", "모험", "범죄", "스릴러"],
+        "unique_titles": true,
+        "answer_titles_must_be_returned": true
+      }
+    }
+  ]
+}

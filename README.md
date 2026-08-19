@@ -9,7 +9,7 @@ GPU 기반 RAG/LLM 서비스, KakaoCloud 배포 구성을 하나의 저장소에
 
 - 서비스: [movieverse.cloud](https://movieverse.cloud)
 - 운영 기준 브랜치: `main`
-- 인프라 기준일: 2026-08-18
+- 인프라 기준일: 2026-08-19
 
 ## 주요 기능
 
@@ -32,7 +32,8 @@ flowchart LR
     PB --> K
     K --> F[Frontend Pods]
     K --> B[Backend Pods]
-    B --> DB[(PostgreSQL + PgBouncer)]
+    B --> DBP[(PostgreSQL Primary + PgBouncer)]
+    DBP -. async streaming replication .-> DBS[(PostgreSQL Standby)]
     B --> AH[Internal AI ALB HA]
     AH --> GA[GPU-A / Tesla T4]
     AH --> GB[GPU-B / Tesla T4]

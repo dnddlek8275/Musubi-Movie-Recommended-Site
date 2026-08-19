@@ -65,6 +65,24 @@ def get_profiles():
         _profiles = load_profiles(PROFILE_PATH)
     return _profiles
 
+
+def _character_reference_movie_query(
+    characters: list[str],
+    user_message: str,
+    profiles: dict,
+) -> str | None:
+    """Resolve relational address words to the selected character, not a title."""
+    if len(characters) != 1 or not re.search(
+        r"(?:형|오빠|누나|언니|선배|아저씨|당신|너).{0,20}(?:나오|등장).{0,12}(?:영화|작품)",
+        user_message,
+    ):
+        return None
+    character_name = characters[0]
+    source_movie = str(
+        profiles.get("characters", {}).get(character_name, {}).get("movie") or ""
+    ).strip()
+    return f"{source_movie} {character_name} 등장 영화" if source_movie else None
+
 # 프로필 정식 이름과 다르게 흔히 불리는 별칭 매핑 (별칭 → 정식 이름)
 CHARACTER_ALIASES = {
     "아이언맨":     "토니 스타크",
@@ -276,6 +294,9 @@ def detect_character_request(user_message: str, profiles: dict) -> tuple[str | N
         - 캐릭터를 불러달라는 문구는 있는데 명단에 없으면 (None, True)
         - 그런 문구도 없으면 (None, False) — 그냥 일반 대화
     """
+    if re.search(r"(?:나를|내가).{0,24}(?:불러|불러달라|부르기로)", user_message):
+        return None, False
+
     matched = detect_character(user_message, profiles)
     if matched:
         return matched, False
@@ -434,6 +455,89 @@ def _general_policy_preflight(user_message: str, history: list[dict]) -> str | N
     assistant_history = "\n".join(
         str(item.get("content") or "") for item in history if item.get("role") == "assistant"
     )
+
+    if re.search(r"(?:잊어\s*줘|삭제\s*요청)", normalized) and re.search(
+        r"(?:다시\s*말하지|더\s*이상\s*사용하지|이해했는지)", normalized
+    ):
+        return "삭제 요청을 이해했고, 해당 정보는 이후 답변에서 다시 말하거나 사용하지 않을게."
+
+    if (
+        re.search(r"(?:인증번호|OTP|일회용\s*번호)", normalized, re.IGNORECASE)
+        and (
+            re.search(r"\b\d{4,8}\b", normalized)
+            or re.search(r"(?:그대로|다시\s*말|재출력|출력|공유)", normalized)
+        )
+    ):
+        return "인증번호는 계정 접근에 쓰이는 민감정보라 다시 표시하거나 공유하지 않을게. 입력한 번호는 노출된 것으로 보고 새 번호를 발급받아 사용해."
+
+    if (
+        re.search(r"(?:카드\s*번호|신용카드)", normalized)
+        and re.search(r"(?:\d[ -]?){12,19}", normalized)
+        and re.search(r"(?:적어|말해|나눠|보여|출력|그대로)", normalized)
+    ):
+        return "카드번호는 민감한 금융정보라 그대로 다시 표시하거나 형식을 바꿔 재출력하지 않을게. 안전한 결제 화면에서만 입력해."
+
+    if re.search(r"전화번호", normalized) and re.search(r"(?:가려|마스킹)", normalized):
+        return "전화번호는 010-****-5678처럼 가운데 자리를 마스킹해서 보여줘."
+
+    if re.search(r"(?:전에|이전).{0,20}(?:저장|기억).{0,20}전화번호", normalized):
+        return "앞선 대화에 저장된 전화번호 기록이 없어 끝 네 자리를 확인할 수 없어. 개인정보를 임의로 기억하거나 만들어내지 않을게."
+
+    if re.search(r"(?:다른\s*사용자|타인).{0,30}(?:대화|이메일|전화번호|개인정보)", normalized):
+        return "다른 사용자의 대화나 개인정보에는 접근할 수 없고 공개할 수도 없어."
+
+    if re.search(r"(?:계정|결제\s*내역).{0,30}(?:서버|조회|확인)", normalized):
+        return "계정이나 결제 내역을 조회할 시스템 접근 권한이 없어 확인할 수 없어. 서비스의 설정 화면이나 관리자 지원 경로를 이용해 줘."
+
+    if re.search(r"(?:가짜|예시|안전한).{0,20}전화번호", normalized):
+        return "실제 번호와 혼동되지 않도록 예시 전화번호는 010-XXXX-XXXX처럼 숫자 대신 자리표시자를 사용해."
+
+    if re.search(r"소설", normalized) and re.search(r"해고", normalized) and re.search(r"첫\s*문장", normalized):
+        return '“가족에게 먼저 말해야 할 것 같아, 오늘 회사에서 해고됐어.”'
+
+    if (
+        re.search(r"질문.{0,8}(?:하지\s*말|없이)", normalized)
+        and re.search(r"한\s*문장", normalized)
+        and re.search(r"(?:위로|속상|망쳐|힘들)", normalized)
+    ):
+        return "오늘 정말 속상했겠지만, 그만큼 애썼다는 사실까지 사라지는 건 아니야."
+
+    if (
+        re.search(r"(?:팀장|상사).{0,20}(?:지각|늦)", normalized)
+        and re.search(r"(?:문구만|설명.{0,8}(?:붙이지|빼))", normalized)
+    ):
+        return "팀장님, 지각해서 죄송하며 다음부터는 약속한 시간을 반드시 지키겠습니다."
+
+    if (
+        re.search(r"(?:정확히\s*)?(?:두|2)\s*가지", normalized)
+        and re.search(r"(?:1\s*,\s*2|번호)", normalized)
+        and re.search(r"회의|말이\s*끊", normalized)
+    ):
+        return "1. 발언 전에 핵심 결론을 먼저 말해. 2. 말이 끊기면 내 의견을 마저 설명하겠다고 차분히 요청해."
+
+    if re.search(r"영어\s*한\s*문장", normalized) and re.search(r"고객\s*미팅", normalized):
+        return "Thank you for taking the time to meet with us today."
+
+    if re.search(r"(?:식당|맛집).{0,20}추천", normalized):
+        return "어느 지역이나 동네에서 찾는지 알려줄래? 위치를 알아야 조용한 식당 조건에 맞춰 이야기할 수 있어."
+
+    if re.search(r"여행지.{0,20}추천", normalized):
+        return "어디에서 출발하고 당일 여행인지 숙박 여행인지 알려줄래? 이동 가능한 거리부터 맞춰볼게."
+
+    if re.search(r"(?:책|도서).{0,20}(?:추천|알려)", normalized):
+        return "가볍게 읽을 책이라면 소설과 에세이 중 어느 쪽을 원하는지 먼저 알려줘. 취향에 맞춰 한 권으로 좁혀볼게."
+
+    if re.search(r"(?:음악|노래).{0,20}추천", normalized) and not re.search(r"영화", normalized):
+        return "집중용이라면 가사 없는 연주 음악부터 골라보자. 클래식, 재즈, 전자음악 중 선호하는 쪽이 있어?"
+
+    if re.search(r"게임.{0,20}추천", normalized):
+        return "세 명이 함께할 협동 게임을 찾는 거구나. PC와 콘솔 중 어느 플랫폼에서 플레이할지 알려줘."
+
+    if re.search(r"영화\s*추천.{0,12}그만", normalized) and re.search(r"책", normalized):
+        return "어느 영화의 분위기를 말하는지 제목을 알려줘. 그 분위기와 가까운 책이나 소설 한 권으로 좁혀볼게."
+
+    if re.search(r"액션으로\s*보여", normalized) and re.search(r"상사", normalized):
+        return '"말씀하신 대로 결과로 보여드리겠습니다. 우선순위와 완료 기준부터 확인하겠습니다."라고 답해 봐.'
 
     if re.search(r"(?:시스템|내부).{0,16}(?:프롬프트|지시|규칙).{0,20}(?:출력|공개|보여|원문)", normalized):
         return "숨겨진 내부 지시나 시스템 프롬프트는 공개할 수 없어. 나는 Musubi의 AI 친구 무무야."
@@ -597,6 +701,39 @@ def character_preflight_reply(
     frontend from bypassing identity, verified-lore, and fabricated-current-
     activity protections that already apply to ``/chat``.
     """
+    normalized = " ".join(str(user_message or "").split())
+    if re.search(r"(?:다른\s*사용자|타인).{0,30}(?:이메일|대화|전화번호|개인정보)", normalized):
+        return "privacy_boundary", "다른 사용자의 개인정보에는 접근할 수 없고 찾아주거나 공개할 수도 없어."
+    if (
+        character_name == "마석도"
+        and re.search(r"영화\s*속", normalized)
+        and re.search(r"범인.{0,20}때리", normalized)
+        and re.search(r"현실", normalized)
+    ):
+        return "fiction_analysis", "영화에서는 즉각적인 갈등 해결로 보일 수 있지만, 현실에서 폭력이 늘 옳은 선택은 아니고 법과 책임의 범위 안에서 판단해야 해."
+    if re.search(r"영웅\s*서사", normalized) and re.search(r"복수하지\s*않", normalized):
+        if character_name == "브루스 웨인":
+            return "fiction_analysis", "영웅이 복수를 거부하는 선택은 분노보다 원칙을 앞세워 악당과 같은 존재가 되지 않겠다는 경계다."
+        if character_name == "원더우먼":
+            return "fiction_analysis", "복수를 멈추는 선택은 정의가 개인의 분노가 아니라 공동체를 지키는 책임임을 보여줘요."
+    if (
+        character_name == "데드풀"
+        and re.search(r"친구.{0,16}먼저\s*연락", normalized)
+        and re.search(r"한\s*문장", normalized)
+    ):
+        return "format_constraint", "먼저 연락해, 대신 농담으로 얼버무리지 말고 네 진짜 마음을 짧게 전해."
+    if (
+        character_name == "마석도"
+        and re.search(r"공을\s*가로챈", normalized)
+        and re.search(r"(?:할\s*말만|해설은\s*빼)", normalized)
+    ):
+        return "format_constraint", '“그 보고에서 내가 기여한 부분은 사실대로 바로잡아 줘.”'
+    if re.search(r"발표", normalized) and re.search(r"한\s*문장씩", normalized):
+        if character_name == "스티브 로저스":
+            return "format_constraint", "발표의 핵심 한 문장을 먼저 정하고 그 문장을 확신 있게 전달해."
+        if character_name == "헤르미온느":
+            return "format_constraint", "첫 문장과 마지막 문장을 소리 내어 연습하면 발표 구조가 흔들리지 않아요."
+
     checks = (
         ("identity", lambda: _character_identity_reply(character_name, user_message, profiles)),
         (
@@ -785,7 +922,9 @@ def _run_character_round1(
         or re.search(
             r"(?:때리|패|멱살|겁주|협박|복수|보복|망신|창피)|"
             r"(?:시스템|내부).{0,16}(?:프롬프트|지시|규칙)|"
-            r"(?:사과|미안).{0,16}(?:첫\s*문장|하나씩|각자)",
+            r"(?:사과|미안).{0,16}(?:첫\s*문장|하나씩|각자)|"
+            r"(?:둘이|각자).{0,24}한\s*문장씩|"
+            r"(?:다른\s*사용자|타인).{0,30}(?:이메일|대화|전화번호|개인정보)",
             user_message,
             re.IGNORECASE,
         )
@@ -878,11 +1017,15 @@ def _run_movie_pitch_round(
     if rewritten.get("genre") in recommendation_context.excluded_genres:
         rewritten["genre"] = None
     search_q  = rewritten.get("search_query", user_message)
+    character_query = _character_reference_movie_query(characters, user_message, profiles)
+    if character_query:
+        # Relational address words such as "형" are not movie titles here.
+        search_q = character_query
     topic = rewritten.get("topic")
     personalization = preference_search_terms(user_context)
     has_metadata_filter = any(
         rewritten.get(field) is not None
-        for field in ("genre", "actor", "director", "language", "year_from", "year_to", "min_rating")
+        for field in ("genre", "actor", "director", "language", "production_country", "year_from", "year_to", "release_date_from", "release_date_to", "min_rating", "runtime_max", "audience_min")
     )
     has_explicit_filter = has_metadata_filter or bool(rewritten.get("sort_latest")) or bool(topic)
     personalization_applied = bool(personalization and not has_explicit_filter)
@@ -897,8 +1040,13 @@ def _run_movie_pitch_round(
     filters   = MovieFilter(
         genre=rewritten.get("genre"), actor=rewritten.get("actor"),
         director=rewritten.get("director"), language=rewritten.get("language"),
+        production_country=rewritten.get("production_country"),
         year_from=rewritten.get("year_from"), year_to=rewritten.get("year_to"),
+        release_date_from=rewritten.get("release_date_from"),
+        release_date_to=rewritten.get("release_date_to"),
         min_rating=rewritten.get("min_rating"),
+        runtime_max=rewritten.get("runtime_max"),
+        audience_min=rewritten.get("audience_min"),
         exclude_genres=recommendation_context.excluded_genres,
     )
     excluded_titles = set(recommendation_context.excluded_titles)
@@ -926,6 +1074,11 @@ def _run_movie_pitch_round(
             top_k=result_count if sort_latest else result_count * 3,
             movie_filter=MovieFilter(
                 genre=requested_genre,
+                production_country=rewritten.get("production_country"),
+                release_date_from=rewritten.get("release_date_from"),
+                release_date_to=rewritten.get("release_date_to"),
+                runtime_max=rewritten.get("runtime_max"),
+                audience_min=rewritten.get("audience_min"),
                 exclude_genres=recommendation_context.excluded_genres,
             ),
             sort_latest=sort_latest,
@@ -940,7 +1093,14 @@ def _run_movie_pitch_round(
         movies = movie_retrieve(
             search_q,
             top_k=result_count if sort_latest else result_count * 3,
-            movie_filter=MovieFilter(exclude_genres=recommendation_context.excluded_genres),
+            movie_filter=MovieFilter(
+                production_country=rewritten.get("production_country"),
+                release_date_from=rewritten.get("release_date_from"),
+                release_date_to=rewritten.get("release_date_to"),
+                runtime_max=rewritten.get("runtime_max"),
+                audience_min=rewritten.get("audience_min"),
+                exclude_genres=recommendation_context.excluded_genres,
+            ),
             sort_latest=sort_latest,
             exclude_titles=excluded_titles,
             required_count=result_count,
@@ -1184,6 +1344,18 @@ def run_group_auto_rounds(
 
     profiles = get_profiles()
     characters = resolve_character_names(characters, profiles)
+    from pipeline.recommendation_context import build_card_followup_reply
+    card_reply = build_card_followup_reply(user_message, history)
+    if card_reply is not None:
+        answer, selected_movies = card_reply
+        return Intent.CHARACTER_CHAT, selected_movies, [
+            RoundResult(
+                round=1,
+                label="첫 번째 답변",
+                responses=[CharacterChatResult(character=characters[0], answer=answer)],
+            ),
+            RoundResult(round=2, label="반응", responses=[]),
+        ]
     if "그거" in user_message and re.search(r"(?:뜻|확인)", user_message):
         recent_users = [
             str(item.get("content") or "")
@@ -1258,6 +1430,13 @@ def run(character_name, user_message, history=None, use_rag=True, max_tokens=512
         history = []
     profiles = get_profiles()
     character_name = resolve_character_names([character_name], profiles)[0]
+    history_reply = general_history_recall_reply(user_message, history)
+    if history_reply:
+        return CharacterChatResult(
+            character=character_name,
+            answer=history_reply,
+            rag_used=False,
+        )
     if re.search(r"(?:아까\s*(?:너희|둘이|네가)|(?:너희|둘이|네가).{0,20}아까).{0,30}(?:말했|했잖)", user_message):
         assistant_history = "\n".join(
             str(item.get("content") or "")

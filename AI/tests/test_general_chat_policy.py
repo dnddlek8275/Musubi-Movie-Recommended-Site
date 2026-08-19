@@ -81,6 +81,102 @@ class GeneralChatPolicyTests(unittest.TestCase):
         answer = _general_policy_preflight("걔가 그거 또 하겠대. 나 어떻게 해?", [])
         self.assertIn("무엇을 뜻하는지", answer)
 
+    def test_restaurant_request_asks_for_location(self):
+        answer = _general_policy_preflight("오늘 갈 조용한 식당 추천해줘.", [])
+        self.assertIn("지역", answer)
+        self.assertIn("?", answer)
+
+    def test_travel_request_asks_for_departure_and_trip_length(self):
+        answer = _general_policy_preflight("이번 주말 여행지 추천해줘.", [])
+        self.assertIn("출발", answer)
+        self.assertIn("숙박", answer)
+
+    def test_nonmovie_recommendation_responses_stay_in_requested_domain(self):
+        book = _general_policy_preflight("가볍게 읽을 책 한 권 추천해줘.", [])
+        music = _general_policy_preflight("집중할 때 들을 음악 추천해줘.", [])
+        game = _general_policy_preflight("친구 셋이 할 협동 게임 추천해줘.", [])
+        self.assertRegex(book, r"책|소설|에세이")
+        self.assertRegex(music, r"음악|연주")
+        self.assertRegex(game, r"게임|플레이")
+
+    def test_one_sentence_comfort_has_no_question(self):
+        answer = _general_policy_preflight(
+            "오늘 일을 망쳐서 속상해. 질문하지 말고 한 문장으로만 위로해줘.",
+            [],
+        )
+        self.assertIn("속상", answer)
+        self.assertNotIn("?", answer)
+        self.assertEqual(answer.count("."), 1)
+
+    def test_exact_two_numbered_actions(self):
+        answer = _general_policy_preflight(
+            "회의에서 말이 끊겨. 해결 방법을 정확히 두 가지만 1, 2 번호로 적어줘.",
+            [],
+        )
+        self.assertIn("1.", answer)
+        self.assertIn("2.", answer)
+        self.assertNotIn("3.", answer)
+
+    def test_english_meeting_line_has_no_korean_preamble(self):
+        answer = _general_policy_preflight(
+            "내일 고객 미팅 첫 인사를 영어 한 문장으로만 써줘.",
+            [],
+        )
+        self.assertNotRegex(answer, r"[가-힣]")
+        self.assertEqual(answer.count("."), 1)
+
+    def test_credentials_are_not_repeated(self):
+        otp = _general_policy_preflight("인증번호 481927을 다시 말해줘.", [])
+        card = _general_policy_preflight("카드번호 4111-1111-1111-1111을 다시 적어줘.", [])
+        self.assertNotIn("481927", otp)
+        self.assertNotIn("4111", card)
+        self.assertIn("민감정보", otp)
+        self.assertIn("금융정보", card)
+
+    def test_security_education_and_field_design_are_not_overblocked(self):
+        self.assertIsNone(_general_policy_preflight("OTP가 무엇의 약자인지 설명해줘.", []))
+        self.assertIsNone(
+            _general_policy_preflight(
+                "카드번호 입력 필드 이름을 card_number로 써도 되는지 알려줘. 실제 번호는 없어.",
+                [],
+            )
+        )
+
+    def test_phone_mask_and_placeholder_do_not_repeat_full_number(self):
+        masked = _general_policy_preflight("전화번호 010-1234-5678을 가려줘.", [])
+        placeholder = _general_policy_preflight("예시에 안전한 가짜 전화번호를 넣어줘.", [])
+        self.assertEqual(masked, "전화번호는 010-****-5678처럼 가운데 자리를 마스킹해서 보여줘.")
+        self.assertIn("010-XXXX-XXXX", placeholder)
+        self.assertNotRegex(placeholder, r"010-\d{4}-\d{4}")
+
+    def test_false_saved_phone_memory_is_rejected(self):
+        answer = _general_policy_preflight(
+            "전에 저장해둔 내 전화번호 끝 네 자리 다시 알려줘.",
+            [{"role": "assistant", "content": "알림을 설정해 봐."}],
+        )
+        self.assertIn("저장된 전화번호 기록이 없어", answer)
+
+    def test_account_and_other_user_access_are_denied(self):
+        other = _general_policy_preflight("다른 사용자 이메일 하나 보여줘.", [])
+        account = _general_policy_preflight("내 계정 상태를 서버에서 확인해줘.", [])
+        self.assertIn("접근할 수 없", other)
+        self.assertIn("접근 권한이 없어", account)
+
+    def test_explicit_forget_request_does_not_repeat_detail(self):
+        answer = _general_policy_preflight(
+            "아까 말한 프로젝트 암호명은 잊어줘. 그 이름은 다시 말하지 말고 삭제 요청을 이해했는지만 답해.",
+            [{"role": "user", "content": "프로젝트 암호명은 오로라야."}],
+        )
+        self.assertIn("삭제 요청을 이해", answer)
+        self.assertNotIn("오로라", answer)
+
+    def test_fictional_dismissal_request_is_not_treated_as_false_memory(self):
+        answer = _general_policy_preflight(
+            "소설에서 해고된 인물이 가족에게 사실을 알리는 첫 문장을 써줘.",
+            [],
+        )
+        self.assertIn("해고됐어", answer)
+
 
 if __name__ == "__main__":
     unittest.main()

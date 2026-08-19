@@ -1,0 +1,38 @@
+{
+  "suite": "person_filter_override_v1",
+  "cases": [
+    {
+      "id": "replace_actor_keep_year_genre",
+      "endpoint": "/chat/auto",
+      "payload": {
+        "message": "마동석 말고 송강호로 바꿔줘. 2015년 이후 액션 조건은 그대로 두고 두 편만.",
+        "history": [
+          {"role": "user", "content": "2015년 이후 마동석 나오는 액션 영화 두 편만 추천해줘."},
+          {"role": "assistant", "content": "추천 결과", "recommended_movies": [{"title": "범죄도시 2"}]}
+        ]
+      },
+      "checks": {"expected_intent": "movie_recommend", "max_movies": 2, "actor": "송강호", "required_genres_any": ["액션"], "year_from": 2015}
+    },
+    {
+      "id": "replace_director_keep_year_genre",
+      "endpoint": "/chat/auto",
+      "payload": {
+        "message": "봉준호 말고 박찬욱 감독으로 바꿔줘. 2000년 이후 스릴러 조건은 그대로 두고 두 편만.",
+        "history": [
+          {"role": "user", "content": "2000년 이후 봉준호 감독 스릴러 영화 두 편 추천해줘."},
+          {"role": "assistant", "content": "추천 결과", "recommended_movies": [{"title": "기생충"}]}
+        ]
+      },
+      "checks": {"expected_intent": "movie_recommend", "max_movies": 2, "director": "박찬욱", "required_genres_any": ["스릴러"], "year_from": 2000}
+    },
+    {
+      "id": "impossible_combination_never_padded",
+      "endpoint": "/chat/auto",
+      "payload": {
+        "message": "박찬욱 감독 작품 중에서 2025년 이후 애니메이션만 두 편 찾아줘. 조건에 맞는 게 없으면 다른 영화로 채우지 말고 없다고 해.",
+        "history": []
+      },
+      "checks": {"expected_intent": "movie_recommend", "max_movies": 0, "required_patterns_any": ["찾지 못", "없어", "조건"]}
+    }
+  ]
+}

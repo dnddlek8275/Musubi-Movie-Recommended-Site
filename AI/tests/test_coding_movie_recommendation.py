@@ -31,6 +31,20 @@ from pipeline.topic_grounding import (
 
 
 class CodingMovieRecommendationTests(unittest.TestCase):
+
+    def test_dinosaur_preference_language_becomes_grounded_topic(self):
+        result = rewrite(
+            "초등학생 조카가 공룡을 좋아해. 무서운 장면 없는 영화 두 편만 골라줘."
+        )
+        self.assertEqual(result["topic"]["topic_id"], "dinosaurs")
+        self.assertIn("공룡", result["search_query"])
+
+        candidates = [
+            {"title": "공룡 영화", "overview": "어린 공룡의 모험"},
+            {"title": "겨울 영화", "overview": "눈사람의 겨울 모험"},
+        ]
+        filtered = filter_topic_candidates(candidates, result["topic"])
+        self.assertEqual([movie["title"] for movie in filtered], ["공룡 영화"])
     def test_coding_book_request_is_not_misrouted_to_movie_search(self):
         messages = (
             "코드 관련 책을 추천해줘",

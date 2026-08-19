@@ -19,6 +19,21 @@ _LIGHT_QUERY = re.compile(
     r"가볍|유쾌|웃긴|재밌|부담\s*없이|편하게|힐링|기분\s*전환|우울할\s*때"
 )
 _DATE_QUERY = re.compile(r"데이트|연인|커플")
+_FAMILY_COMFORT_QUERY = re.compile(
+    r"(?:부모님|가족).{0,30}(?:민망|잔인하지|폭력적이지|편하게\s*같이)|"
+    r"(?:민망|잔인하지|폭력적이지).{0,30}(?:부모님|가족)"
+)
+_GROUP_COMPROMISE_QUERY = re.compile(
+    r"(?:한\s*명은|나는|친구).{0,100}(?:다\s*같이|모두|넷\s*다|덜\s*불만|취향.{0,12}(?:맞|절충))"
+)
+_VIOLENCE_AVERSION_QUERY = re.compile(
+    r"잔인(?:한|한\s*걸|한\s*건|함).{0,12}(?:못\s*봐|싫|피하)|폭력적.{0,12}(?:못\s*봐|싫|피하)"
+)
+_GENTLE_SUSPENSE_QUERY = re.compile(
+    r"(?:긴장감(?:은|이)?\s*(?:조금|살짝)|살짝\s*(?:쫄깃|긴장)|가볍게\s*쫄깃)|"
+    r"(?:쫄깃|긴장감).{0,24}(?:안\s*무서|무섭지)|"
+    r"(?:안\s*무서|무섭지).{0,24}(?:쫄깃|긴장감)"
+)
 _BRIGHT_ROMANCE_QUERY = re.compile(
     r"(?:밝|유쾌|설레).*?(?:데이트|로맨스|멜로)|"
     r"(?:데이트|로맨스|멜로).*?(?:밝|유쾌|설레)"
@@ -29,7 +44,10 @@ _KIDS_QUERY = re.compile(
 )
 _TOUCHING_QUERY = re.compile(r"감동|뭉클|눈물|마음\s*따뜻")
 _DISCUSSION_QUERY = re.compile(r"얘기할\s*거리|생각할\s*거리|토론할\s*거리|곱씹|철학적")
-_FEELGOOD_QUERY = re.compile(r"보고\s*나면\s*기분(?:이)?\s*(?:좋|나아)|기분\s*좋아지는|행복해지는")
+_FEELGOOD_QUERY = re.compile(
+    r"보고\s*나면\s*기분(?:이)?\s*(?:좋|나아)|기분\s*좋아지는|행복해지는|"
+    r"다시\s*용기|용기\s*나는|자신감(?:을|이)?\s*(?:되찾|생기|높)|힘이?\s*나는"
+)
 _AVOID_SAD_QUERY = re.compile(r"(?:슬픈|슬프|슬퍼).*?(?:싫|말고|빼|제외)")
 _ADULT_ANIMATION_QUERY = re.compile(r"(?:어른|성인).*?(?:유치하지\s*않|애니)")
 _DISCUSSION_REASON_TERMS = re.compile(r"기술|인간|사회|정체성|관계|선택|미래|삶|윤리|갈등")
@@ -226,12 +244,53 @@ def _reason(
     director = str(filters.get("director") or "").strip()
     release_date = str(movie.get("release_date") or "").strip()
     rating = float(movie.get("vote_average") or 0.0)
+    runtime = int(movie.get("runtime") or 0)
+    runtime_max = int(filters.get("runtime_max") or 0)
+    audience_count = int(movie.get("audience_count") or 0)
+    audience_min = int(filters.get("audience_min") or 0)
+    production_country = str(filters.get("production_country") or "").strip()
+    language = str(filters.get("language") or "").strip()
 
     topic_reason = build_topic_reason(movie, filters.get("topic"))
     if topic_reason:
         return topic_reason
 
+    if runtime_max and runtime:
+        genre_text = f" {' · '.join(genres[:2])} 장르 작품" if genres else " 작품"
+        return f"상영시간이 {runtime}분으로 {runtime_max}분 이하 조건을 만족하는{genre_text}이에요."
+
+    if audience_min and audience_count:
+        return f"누적 관객 수 {audience_count:,}명으로 요청한 {audience_min:,}명 이상 조건을 만족해요."
+
+    if production_country and language:
+        country_label = {"KR": "한국", "US": "미국", "FR": "프랑스", "JP": "일본", "CN": "중국", "GB": "영국"}.get(
+            production_country, production_country
+        )
+        language_label = {"ko": "한국어", "en": "영어", "fr": "프랑스어", "ja": "일본어", "zh": "중국어"}.get(
+            language, language
+        )
+        return f"제작 국가 {country_label}와 언어 {language_label} 정보가 요청 조건에 맞는 작품이에요."
+
+    if filters.get("release_date_from") and filters.get("release_date_to") and release_date:
+        return (
+            f"{release_date} 개봉작으로 요청한 {filters['release_date_from']}부터 "
+            f"{filters['release_date_to']}까지의 범위에 들어요."
+        )
+
     overview = str(movie.get("overview") or "")
+    if _GENTLE_SUSPENSE_QUERY.search(user_message):
+        matched = [genre for genre in ("미스터리", "코미디", "모험", "범죄", "스릴러") if genre in genre_set]
+        if matched:
+            return f"{' · '.join(matched[:2])} 장르라 공포를 피하면서 가볍게 긴장감을 즐기기 좋은 선택이에요."
+    if _FAMILY_COMFORT_QUERY.search(user_message):
+        matched = [genre for genre in ("가족", "코미디", "드라마", "음악") if genre in genre_set]
+        if matched:
+            return f"{' · '.join(matched[:2])} 장르 정보를 근거로 부모님과 함께 보기 편한 쪽으로 고른 작품이에요."
+    if _GROUP_COMPROMISE_QUERY.search(user_message):
+        requested = [genre for genre in ("액션", "코미디", "미스터리", "로맨스", "SF", "판타지", "모험", "드라마") if genre in user_message]
+        matched = [genre for genre in requested if genre in genre_set]
+        if matched:
+            return f"요청에 나온 취향 중 {' · '.join(matched)} 장르가 확인돼 여러 사람의 공통분모가 큰 선택이에요."
     if _DISCUSSION_QUERY.search(user_message):
         terms = list(dict.fromkeys(_DISCUSSION_REASON_TERMS.findall(overview)))[:2]
         if terms:
@@ -326,6 +385,63 @@ def prepare_recommendations(
     filters: dict,
     limit: int = 3,
 ) -> list[dict]:
+    def matches_hard_filters(movie: dict) -> bool:
+        genre_set = set(_genres(movie))
+        required_genres = set(filters.get("required_genres") or [])
+        requested_genre = str(filters.get("genre") or "").strip()
+        if requested_genre:
+            required_genres.add(requested_genre)
+        if required_genres and not required_genres.issubset(genre_set):
+            return False
+        actor = str(filters.get("actor") or "").strip()
+        if actor and actor not in str(movie.get("cast") or ""):
+            return False
+        director = str(filters.get("director") or "").strip()
+        if director and director not in str(movie.get("director") or ""):
+            return False
+        language = str(filters.get("language") or "").strip().lower()
+        if language and str(movie.get("language") or "").strip().lower() != language:
+            return False
+        countries_raw = movie.get("production_countries") or []
+        countries = (
+            {part.strip().upper() for part in re.split(r"[,/|]", countries_raw) if part.strip()}
+            if isinstance(countries_raw, str)
+            else {str(part).strip().upper() for part in countries_raw if str(part).strip()}
+        )
+        country = str(filters.get("production_country") or "").strip().upper()
+        if country and country not in countries:
+            return False
+        year = int(movie.get("year") or 0)
+        if filters.get("year_from") is not None and year < int(filters["year_from"]):
+            return False
+        if filters.get("year_to") is not None and year > int(filters["year_to"]):
+            return False
+        release_date = str(movie.get("release_date") or "").strip()
+        if filters.get("release_date_from") and (not release_date or release_date < filters["release_date_from"]):
+            return False
+        if filters.get("release_date_to") and (not release_date or release_date > filters["release_date_to"]):
+            return False
+        rating = float(movie.get("vote_average") or 0.0)
+        if filters.get("min_rating") is not None and rating < float(filters["min_rating"]):
+            return False
+        runtime = int(movie.get("runtime") or 0)
+        if filters.get("runtime_max") is not None and (
+            runtime <= 0 or runtime > int(filters["runtime_max"])
+        ):
+            return False
+        audience_count = int(movie.get("audience_count") or 0)
+        if filters.get("audience_min") is not None and audience_count < int(filters["audience_min"]):
+            return False
+        return True
+
+    candidates = [movie for movie in candidates if matches_hard_filters(movie)]
+    if _VIOLENCE_AVERSION_QUERY.search(user_message):
+        adult_certifications = {"R", "NC-17", "18", "청소년관람불가"}
+        candidates = [
+            movie for movie in candidates
+            if re.sub(r"\s+", "", str(movie.get("certification") or "")).upper()
+            not in adult_certifications
+        ]
     if _KIDS_QUERY.search(user_message):
         candidates = [movie for movie in candidates if is_child_safe_certification(movie)]
     candidates = _deduplicate_candidates(candidates)

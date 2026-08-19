@@ -1,0 +1,85 @@
+{
+  "suite_version": "format-instruction-v1-20260818",
+  "description": "일반·캐릭터·그룹 대화에서 길이, 질문, 문구-only, 언어, 목록 수 및 이모지 제한 준수 검증",
+  "thresholds": {
+    "hard_check_pass_rate": 0.9,
+    "critical_failure_count": 0,
+    "exact_duplicate_rate_max": 0.1,
+    "pair_similarity_max": 0.9,
+    "manual_average_min": 4.0,
+    "manual_dimension_min": 3.5
+  },
+  "manual_dimensions": ["relevance", "naturalness", "specificity", "instruction_following"],
+  "cases": [
+    {
+      "id": "format_one_sentence_no_question",
+      "category": "brevity",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "오늘 일을 망쳐서 속상해. 질문하지 말고 한 문장으로만 위로해줘.", "history": []},
+      "checks": {"expected_intent_not": "movie_recommend", "max_chars": 90, "max_questions": 0, "required_patterns_any": ["속상", "괜찮", "고생", "힘들", "애썼"]}
+    },
+    {
+      "id": "format_apology_quote_only",
+      "category": "practical_wording",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "팀장에게 지각 사과할 문구만 한 문장으로 써줘. 설명이나 조언은 붙이지 마.", "history": []},
+      "checks": {"expected_intent_not": "movie_recommend", "max_chars": 120, "max_questions": 0, "required_patterns_any": ["죄송", "지각", "늦"], "blocked_patterns": ["이렇게", "라고 보내", "조언", "설명"]}
+    },
+    {
+      "id": "format_two_numbered_actions",
+      "category": "bounded_list",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "회의에서 자꾸 말이 끊겨. 해결 방법을 정확히 두 가지만 1, 2 번호로 적어줘.", "history": []},
+      "checks": {"expected_intent_not": "movie_recommend", "max_chars": 260, "max_questions": 0, "required_patterns_any": ["1\\.", "1\\)", "①"], "blocked_patterns": ["3\\.", "3\\)", "③"]}
+    },
+    {
+      "id": "format_korean_only_from_english",
+      "category": "language_control",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "Please answer only in Korean: I feel nervous about tomorrow's presentation. Give me one short opening line.", "history": []},
+      "checks": {"expected_intent_not": "movie_recommend", "max_chars": 150, "max_questions": 0, "required_patterns_any": ["발표", "안녕", "말씀", "주제"], "blocked_patterns": ["\\b(?:I|you|the|presentation|tomorrow)\\b"]}
+    },
+    {
+      "id": "format_english_only",
+      "category": "language_control",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "내일 고객 미팅 첫 인사를 영어 한 문장으로만 써줘. 한국어 설명은 빼줘.", "history": []},
+      "checks": {"expected_intent_not": "movie_recommend", "max_chars": 160, "max_questions": 0, "required_patterns_any": ["Hello", "Good morning", "Thank you", "meeting"], "blocked_patterns": ["[가-힣]"]}
+    },
+    {
+      "id": "format_no_emoji_character",
+      "category": "style_constraint",
+      "endpoint": "/chat",
+      "payload": {"character": "데드풀", "message": "친구에게 먼저 연락할지 한 문장으로 답해줘. 이모지와 이모티콘은 쓰지 마.", "history": [], "use_rag": false},
+      "checks": {"max_chars": 140, "max_questions": 0, "required_patterns_any": ["연락", "먼저"], "blocked_patterns": ["[😀-🙏🌀-🫿]", "[:;]-?[)(DPp]"]}
+    },
+    {
+      "id": "format_listen_no_advice_no_question",
+      "category": "listen_constraint",
+      "endpoint": "/chat",
+      "payload": {"character": "엘사", "message": "친구와 다퉈서 속상해. 지금은 조언도 질문도 하지 말고 짧게 들어줘.", "history": [], "use_rag": true},
+      "checks": {"max_chars": 130, "max_questions": 0, "blocked_patterns": ["해야", "해봐", "방법", "먼저"]}
+    },
+    {
+      "id": "format_character_quote_only",
+      "category": "practical_wording",
+      "endpoint": "/chat",
+      "payload": {"character": "마석도", "message": "내 공을 가로챈 동료에게 할 말만 따옴표 안에 한 문장으로 써줘. 해설은 빼.", "history": [], "use_rag": false},
+      "checks": {"max_chars": 150, "max_questions": 0, "required_patterns_any": ["내", "기여", "공", "보고", "사실"], "blocked_patterns": ["이렇게 말", "라고 해", "해설"]}
+    },
+    {
+      "id": "format_group_one_each",
+      "category": "group_bounded_response",
+      "endpoint": "/chat/group/auto",
+      "payload": {"characters": ["스티브 로저스", "헤르미온느"], "message": "내일 발표가 떨려. 둘이 겹치지 않는 조언을 한 문장씩만 말하고 질문은 하지 마.", "history": []},
+      "checks": {"expected_intent_not": "movie_recommend", "max_chars": 420, "max_questions": 0, "required_patterns_any": ["발표", "연습", "핵심", "호흡", "준비"]}
+    },
+    {
+      "id": "format_no_preamble_summary",
+      "category": "direct_answer",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "상사에게 보고할 문장만 써줘: 오늘 완료 예정이던 작업이 하루 늦어져. 인사말과 설명은 빼.", "history": []},
+      "checks": {"expected_intent_not": "movie_recommend", "max_chars": 140, "max_questions": 0, "required_patterns_any": ["작업", "하루", "지연", "늦"], "blocked_patterns": ["안녕하세요", "다음과 같이", "설명", "이렇게"]}
+    }
+  ]
+}

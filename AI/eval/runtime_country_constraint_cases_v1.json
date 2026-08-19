@@ -1,0 +1,38 @@
+{
+  "suite": "runtime_country_constraint_v1",
+  "cases": [
+    {
+      "id": "korean_comedy_under_two_hours",
+      "endpoint": "/chat/auto",
+      "payload": {
+        "message": "평일 밤이라 길면 부담돼. 2020년 이후 한국 코미디 중 두 시간 안 넘는 영화 두 편만 추천해줘.",
+        "history": []
+      },
+      "checks": {
+        "expected_intent": "movie_recommend",
+        "min_movies": 2,
+        "max_movies": 2,
+        "required_genres_any": ["코미디"],
+        "year_from": 2020,
+        "language": "ko",
+        "production_country": "KR",
+        "runtime_max": 120
+      }
+    },
+    {
+      "id": "french_production_english_language",
+      "endpoint": "/chat/auto",
+      "payload": {
+        "message": "프랑스에서 만든 영화인데 대사는 영어인 작품 두 편만 추천해줘. 프랑스어 영화 말고 영어 영화로.",
+        "history": []
+      },
+      "checks": {
+        "expected_intent": "movie_recommend",
+        "min_movies": 1,
+        "max_movies": 2,
+        "language": "en",
+        "production_country": "FR"
+      }
+    }
+  ]
+}

@@ -7,7 +7,11 @@ from cineverse_prompt import build_system_prompt, clean_and_truncate, truncate_t
 from rag.movie_retriever import MovieFilter, retrieve, format_for_prompt, to_response
 from pipeline.query_rewriter import rewrite
 from pipeline.retrieval_policy import choose_rerank_mode
-from pipeline.recommendation_context import build_recommendation_context, requested_movie_count
+from pipeline.recommendation_context import (
+    build_recommendation_context,
+    is_realtime_ott_request,
+    requested_movie_count,
+)
 from pipeline.recommendation_presenter import (
     build_character_grounded_answer,
     build_grounded_answer,
@@ -206,6 +210,18 @@ def run(user_message, character_name=None, history=None, top_k=3, max_tokens=102
         top_k = explicit_count
     if history is None:
         history = []
+    if is_realtime_ott_request(user_message):
+        return MovieRecommendResult(
+            answer=(
+                "현재 영화 데이터에는 한국 지역의 실시간 OTT 제공·종료 정보가 없어 "
+                "지금 해당 서비스에서 볼 수 있다고 확인해 추천할 수 없어. "
+                "OTT 조건을 제외한 연도·국가·장르 기준으로 찾거나, 서비스 앱에서 현재 제공 여부를 확인해 줘."
+            ),
+            movies=[],
+            search_query=user_message,
+            filters_used={"realtime_ott_unavailable": True},
+            character=character_name or "",
+        )
     if (
         re.search(r"(?:무서운|공포).{0,10}(?:싫|안\s*돼|못\s*봐)", user_message)
         and re.search(r"공포\s*(?:영화|물|장르)", user_message)
@@ -265,7 +281,7 @@ def run(user_message, character_name=None, history=None, top_k=3, max_tokens=102
     personalization = preference_search_terms(user_context)
     has_metadata_filter = any(
         rewritten.get(field) is not None
-        for field in ("genre", "actor", "director", "language", "year_from", "year_to", "min_rating")
+        for field in ("genre", "actor", "director", "language", "production_country", "year_from", "year_to", "release_date_from", "release_date_to", "min_rating", "runtime_max", "audience_min")
     )
     has_explicit_filter = has_metadata_filter or bool(rewritten.get("sort_latest")) or bool(topic)
     personalization_applied = bool(personalization and not has_explicit_filter)
@@ -280,8 +296,13 @@ def run(user_message, character_name=None, history=None, top_k=3, max_tokens=102
     filters = MovieFilter(
         genre=rewritten.get("genre"), actor=rewritten.get("actor"),
         director=rewritten.get("director"), language=rewritten.get("language"),
+        production_country=rewritten.get("production_country"),
         year_from=rewritten.get("year_from"), year_to=rewritten.get("year_to"),
+        release_date_from=rewritten.get("release_date_from"),
+        release_date_to=rewritten.get("release_date_to"),
         min_rating=rewritten.get("min_rating"),
+        runtime_max=rewritten.get("runtime_max"),
+        audience_min=rewritten.get("audience_min"),
         exclude_genres=recommendation_context.excluded_genres,
         required_genres=rewritten.get("required_genres") or [],
     )
@@ -316,9 +337,14 @@ def run(user_message, character_name=None, history=None, top_k=3, max_tokens=102
             actor=rewritten.get("actor"),
             director=rewritten.get("director"),
             language=rewritten.get("language"),
+            production_country=rewritten.get("production_country"),
             year_from=rewritten.get("year_from"),
             year_to=rewritten.get("year_to"),
+            release_date_from=rewritten.get("release_date_from"),
+            release_date_to=rewritten.get("release_date_to"),
             min_rating=rewritten.get("min_rating"),
+            runtime_max=rewritten.get("runtime_max"),
+            audience_min=rewritten.get("audience_min"),
             exclude_genres=recommendation_context.excluded_genres,
             required_genres=requested_genres,
         )
@@ -357,7 +383,7 @@ def run(user_message, character_name=None, history=None, top_k=3, max_tokens=102
             filters_used={
                 key: value
                 for key, value in rewritten.items()
-                if key in {"genre", "required_genres", "actor", "director", "language", "year_from", "year_to", "min_rating"}
+                if key in {"genre", "required_genres", "actor", "director", "language", "production_country", "year_from", "year_to", "release_date_from", "release_date_to", "min_rating", "runtime_max", "audience_min"}
                 and value not in (None, [], "")
             },
             character=character_name or "",

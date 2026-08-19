@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import date
 from difflib import SequenceMatcher
 import json
 import re
@@ -118,10 +119,49 @@ def evaluate_response(case: dict, response: dict) -> list[str]:
             language = str(movie.get("language") or movie.get("original_language") or "").lower()
             if language != str(checks["language"]).lower():
                 failures.append(f"unexpected_language:{title}:{language or '<missing>'}")
+        if checks.get("actor") is not None:
+            actor = str(checks["actor"])
+            if actor not in str(movie.get("cast") or ""):
+                failures.append(f"missing_actor:{title}:{actor}")
+        if checks.get("director") is not None:
+            director = str(checks["director"])
+            if director not in str(movie.get("director") or ""):
+                failures.append(f"unexpected_director:{title}:{movie.get('director') or '<missing>'}")
         if checks.get("min_rating") is not None:
             rating = float(movie.get("vote_average") or 0.0)
             if rating < float(checks["min_rating"]):
                 failures.append(f"rating_below_minimum:{title}:{rating}")
+        if checks.get("runtime_max") is not None:
+            runtime = int(movie.get("runtime") or 0)
+            if runtime <= 0 or runtime > int(checks["runtime_max"]):
+                failures.append(f"runtime_above_or_missing:{title}:{runtime}")
+        if checks.get("audience_min") is not None:
+            audience_count = int(movie.get("audience_count") or 0)
+            if audience_count < int(checks["audience_min"]):
+                failures.append(f"audience_below_or_missing:{title}:{audience_count}")
+        if checks.get("production_country") is not None:
+            raw_countries = movie.get("production_countries") or []
+            if isinstance(raw_countries, str):
+                countries = {value.strip().upper() for value in re.split(r"[,/|]", raw_countries) if value.strip()}
+            else:
+                countries = {str(value).strip().upper() for value in raw_countries if str(value).strip()}
+            expected_country = str(checks["production_country"]).upper()
+            if expected_country not in countries:
+                failures.append(f"unexpected_production_country:{title}:{','.join(sorted(countries)) or '<missing>'}")
+        release_date = str(movie.get("release_date") or "").strip()
+        if checks.get("release_window") == "current_month_released":
+            today = date.today()
+            current_month_start = today.replace(day=1).isoformat()
+            if not release_date or not (current_month_start <= release_date <= today.isoformat()):
+                failures.append(f"outside_current_released_month:{title}:{release_date or '<missing>'}")
+        if checks.get("release_date_from") is not None and (
+            not release_date or release_date < str(checks["release_date_from"])
+        ):
+            failures.append(f"release_before_or_missing:{title}:{release_date or '<missing>'}")
+        if checks.get("release_date_to") is not None and (
+            not release_date or release_date > str(checks["release_date_to"])
+        ):
+            failures.append(f"release_after_or_missing:{title}:{release_date or '<missing>'}")
 
     if checks.get("answer_titles_must_be_returned") and answer:
         returned_titles = {str(movie.get("title") or "").strip() for movie in movies}
@@ -144,6 +184,8 @@ def evaluate_response(case: dict, response: dict) -> list[str]:
         failures.append(f"blocked_intent:{response.get('intent')}")
     if checks.get("max_chars") is not None and len(answer) > int(checks["max_chars"]):
         failures.append(f"answer_too_long:{len(answer)}")
+    if checks.get("min_chars") is not None and len(answer) < int(checks["min_chars"]):
+        failures.append(f"answer_too_short:{len(answer)}")
     if checks.get("min_questions") is not None and answer.count("?") < int(checks["min_questions"]):
         failures.append("missing_clarifying_question")
     if checks.get("max_questions") is not None and answer.count("?") > int(checks["max_questions"]):

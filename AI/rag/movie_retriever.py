@@ -43,7 +43,9 @@ RERANK_CANDIDATE_COMPLEX_MAXIMUM = max(
 OUTPUT_FIELDS = [
     "title", "text", "overview", "genres", "genres_list",
     "director", "cast", "year", "release_date", "language",
+    "production_countries",
     "certification", "certification_country",
+    "runtime",
     "vote_average", "vote_count", "audience_count",
     "poster_path", "tmdb_id",
 ]
@@ -56,9 +58,14 @@ class MovieFilter:
     actor:      str | None   = None
     director:   str | None   = None
     language:   str | None   = None
+    production_country: str | None = None
     year_from:  int | None   = None
     year_to:    int | None   = None
+    release_date_from: str | None = None
+    release_date_to: str | None = None
     min_rating: float | None = None
+    runtime_max: int | None = None
+    audience_min: int | None = None
     exclude_genres: list[str] = field(default_factory=list)
     required_genres: list[str] = field(default_factory=list)
 
@@ -76,12 +83,23 @@ class MovieFilter:
             filters.append(f'director like "%{self.director}%"')
         if self.language:
             filters.append(f'language == "{self.language}"')
+        if self.production_country:
+            safe_country = str(self.production_country).replace('"', '\\"')
+            filters.append(f'production_countries like "%{safe_country}%"')
         if self.year_from:
             filters.append(f'year >= {self.year_from}')
         if self.year_to:
             filters.append(f'year <= {self.year_to}')
+        if self.release_date_from:
+            filters.append(f'release_date >= "{self.release_date_from}"')
+        if self.release_date_to:
+            filters.append(f'release_date <= "{self.release_date_to}"')
         if self.min_rating:
             filters.append(f'vote_average >= {self.min_rating}')
+        if self.runtime_max:
+            filters.append(f'runtime > 0 and runtime <= {self.runtime_max}')
+        if self.audience_min:
+            filters.append(f'audience_count >= {self.audience_min}')
         for genre in self.exclude_genres:
             safe_genre = str(genre).replace('"', '\\"')
             filters.append(f'not (genres like "%{safe_genre}%")')
@@ -250,6 +268,7 @@ def format_for_prompt(movies: list[dict], max_overview: int = 200) -> str:
             f"   감독: {m.get('director', '')}\n"
             f"   출연: {str(m.get('cast', ''))[:100]}\n"
             f"   평점: {round(float(m['vote_average']), 1) if m.get('vote_average') is not None else '-'}\n"
+            f"   상영시간: {m.get('runtime') or '-'}분\n"
             f"   관람등급: {m.get('certification_country', '')} {m.get('certification', '')}\n"
             f"   줄거리: {str(m.get('overview', ''))[:max_overview]}"
         )
@@ -274,10 +293,13 @@ def to_response(movies: list[dict]) -> list[dict]:
             "year":         m.get("year", ""),
             "release_date": m.get("release_date", ""),
             "language":     m.get("language", ""),
+            "production_countries": m.get("production_countries", ""),
             "genres":       m.get("genres", ""),
             "director":     m.get("director", ""),
             "cast":         m.get("cast", ""),
             "vote_average": round(float(m["vote_average"]), 1) if m.get("vote_average") is not None else None,
+            "runtime":      m.get("runtime") or None,
+            "audience_count": m.get("audience_count") or None,
             "certification": m.get("certification", ""),
             "certification_country": m.get("certification_country", ""),
             "overview":     m.get("overview", ""),

@@ -6,11 +6,11 @@ LLM 호출 없이 키워드 기반으로 빠르게 처리.
 
 import re
 from pipeline.input_clarity import get_ambiguous_input_reply, is_mumu_personal_chat
-from pipeline.recommendation_context import is_movie_recommendation_followup
+from pipeline.recommendation_context import is_card_followup_question, is_movie_recommendation_followup
 
 # 영화 추천 관련 키워드
 _MOVIE_PATTERNS = re.compile(
-    r"영화\s*추천|영화.{0,30}(?:골라|뽑아)\s*줘|뭐\s*볼까|볼만한|"
+    r"영화\s*추천|영화.{0,30}(?:골라|뽑아)\s*줘|영화.{0,16}(?:없나|없어|있나)|뭐\s*볼까|볼\s*만한|"
     r"추천해\s*(?:줘|주세요|줄래|줄\s*수\s*있|주실\s*수\s*있)|추천\s*좀|"
     r"비슷한\s*영화|장르|감독|배우|개봉|평점|"
     r"액션|로맨스|공포|코미디|코메디|스릴러|SF|판타지|애니|다큐|"
@@ -43,6 +43,15 @@ _NON_MOVIE_RECOMMENDATION_PATTERNS = re.compile(
 )
 
 _EXPLICIT_MOVIE_TARGET = re.compile(r"영화|필름|무비", re.IGNORECASE)
+_NEGATED_MOVIE_TARGET = re.compile(
+    r"영화.{0,12}(?:말고|아니|안\s*볼|보지\s*않|그만)|(?:말고|아니).{0,8}영화",
+    re.IGNORECASE,
+)
+_GENRE_WORD_NONMOVIE = re.compile(
+    r"액션으로\s*보여|행동으로\s*보여|드라마\s*만들지|드라마를\s*만들|"
+    r"로맨스가\s*아니|공포에\s*떨|전쟁\s*같은\s*(?:회사|일상|하루)",
+    re.IGNORECASE,
+)
 _MOVIE_RECOMMENDATION_NEGATION = re.compile(
     r"(?:영화\s*)?추천(?:은|이|도)?\s*(?:이제\s*)?(?:말고|필요\s*없|하지\s*마|됐어|됐고)|"
     r"영화.{0,12}(?:추천\s*)?(?:필요\s*없|말고)|"
@@ -76,9 +85,18 @@ def classify(user_message: str, history: list[dict] | None = None) -> str:
     if _MOVIE_RECOMMENDATION_NEGATION.search(user_message):
         return Intent.CHARACTER_CHAT
 
+    if _GENRE_WORD_NONMOVIE.search(user_message):
+        return Intent.CHARACTER_CHAT
+
+    if is_card_followup_question(user_message, history):
+        return Intent.CHARACTER_CHAT
+
     if (
         _NON_MOVIE_RECOMMENDATION_PATTERNS.search(user_message)
-        and not _EXPLICIT_MOVIE_TARGET.search(user_message)
+        and (
+            not _EXPLICIT_MOVIE_TARGET.search(user_message)
+            or _NEGATED_MOVIE_TARGET.search(user_message)
+        )
     ):
         return Intent.CHARACTER_CHAT
 

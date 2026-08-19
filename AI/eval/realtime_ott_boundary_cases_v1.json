@@ -1,0 +1,21 @@
+{
+  "suite": "realtime_ott_boundary_v1",
+  "description": "실시간 지역별 OTT 제공 여부를 보유 데이터 없이 단정하지 않는 경계 테스트",
+  "cases": [
+    {
+      "id": "current_netflix_availability_is_not_in_movie_metadata",
+      "endpoint": "/chat/auto",
+      "payload": {
+        "message": "오늘 밤 넷플릭스에서 바로 볼 수 있는 2025년 이후 한국 미스터리 영화 두 편만 추천해줘. 지금 내려간 작품이면 안 돼.",
+        "history": []
+      },
+      "checks": {
+        "expected_intent": "movie_recommend",
+        "max_movies": 0,
+        "max_chars": 320,
+        "required_patterns_any": ["실시간 OTT", "제공·종료 정보", "확인할 수 없어"],
+        "blocked_patterns": ["넷플릭스에서 볼 수 있", "넷플릭스 제공 작품"]
+      }
+    }
+  ]
+}

@@ -1,0 +1,85 @@
+{
+  "suite_version": "long-history-recency-v1-20260818",
+  "description": "긴 대화에서 최신 정정 우선, 오래된 주제 격리, 명시적 망각 및 최근 지시어 해석을 검증",
+  "thresholds": {
+    "hard_check_pass_rate": 0.9,
+    "critical_failure_count": 0,
+    "exact_duplicate_rate_max": 0.1,
+    "pair_similarity_max": 0.9,
+    "manual_average_min": 4.0,
+    "manual_dimension_min": 3.5
+  },
+  "manual_dimensions": ["relevance", "naturalness", "specificity", "context_accuracy"],
+  "cases": [
+    {
+      "id": "history_latest_name_wins",
+      "category": "latest_correction",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "그래서 지금 내가 불러달라고 한 이름이 뭐였지?", "history": [{"role": "user", "content": "나를 민수라고 불러줘."}, {"role": "assistant", "content": "알겠어, 민수야."}, {"role": "user", "content": "오늘 회사에서 발표했어."}, {"role": "assistant", "content": "발표하느라 고생했어."}, {"role": "user", "content": "정정할게. 민수 말고 지훈이라고 불러줘."}, {"role": "assistant", "content": "알겠어, 지훈이라고 부를게."}, {"role": "user", "content": "발표는 잘 끝났어."}, {"role": "assistant", "content": "잘 마쳐서 다행이야."}]},
+      "checks": {"expected_intent_not": "movie_recommend", "max_chars": 160, "required_patterns_any": ["지훈"], "blocked_patterns": ["민수라고 불", "이름을 알려"]}
+    },
+    {
+      "id": "history_latest_schedule_wins",
+      "category": "latest_correction",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "최종 미팅 요일만 짧게 확인해줘.", "history": [{"role": "user", "content": "고객 미팅은 월요일이야."}, {"role": "assistant", "content": "월요일 미팅이구나."}, {"role": "user", "content": "자료를 준비해야 해."}, {"role": "assistant", "content": "핵심 자료부터 정리해."}, {"role": "user", "content": "일정이 수요일로 바뀌었어."}, {"role": "assistant", "content": "수요일로 변경됐구나."}, {"role": "user", "content": "다시 변경돼서 최종적으로 금요일이야."}, {"role": "assistant", "content": "최종 금요일로 이해했어."}]},
+      "checks": {"expected_intent_not": "movie_recommend", "max_chars": 100, "required_patterns_any": ["금요일"], "blocked_patterns": ["월요일", "수요일", "모르"]}
+    },
+    {
+      "id": "history_latest_preference_wins",
+      "category": "preference_correction",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "내가 지금 마시고 싶다고 한 건 뭐야?", "history": [{"role": "user", "content": "아침엔 커피가 좋아."}, {"role": "assistant", "content": "커피를 좋아하는구나."}, {"role": "user", "content": "오후에는 너무 졸려."}, {"role": "assistant", "content": "잠깐 쉬어도 좋아."}, {"role": "user", "content": "요즘 카페인을 줄여서 커피 대신 따뜻한 차를 마시고 싶어."}, {"role": "assistant", "content": "따뜻한 차로 바꾼 거구나."}]},
+      "checks": {"expected_intent_not": "movie_recommend", "max_chars": 140, "required_patterns_any": ["차"], "blocked_patterns": ["커피를 마시고", "알 수 없"]}
+    },
+    {
+      "id": "history_completed_topic_not_revived",
+      "category": "stale_topic",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "그 일은 끝났고 완전히 다른 얘기야. 내일 고객에게 일정 변경을 알리는 첫 문장만 써줘.", "history": [{"role": "user", "content": "친구가 내 비밀을 퍼뜨렸어."}, {"role": "assistant", "content": "많이 속상했겠구나."}, {"role": "user", "content": "친구와 대화해서 해결했어."}, {"role": "assistant", "content": "잘 해결돼서 다행이야."}, {"role": "user", "content": "오늘 점심은 간단히 먹었어."}, {"role": "assistant", "content": "바쁜 하루였나 보네."}, {"role": "user", "content": "오후 업무도 마쳤어."}, {"role": "assistant", "content": "오늘 할 일을 잘 끝냈네."}]},
+      "checks": {"expected_intent_not": "movie_recommend", "max_chars": 220, "required_patterns_any": ["고객", "일정", "변경", "안녕"], "blocked_patterns": ["비밀", "친구", "점심"]}
+    },
+    {
+      "id": "history_forget_sensitive_detail",
+      "category": "explicit_forget",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "아까 말한 프로젝트 암호명은 잊어줘. 지금 그 이름을 다시 말하지 말고, 삭제 요청을 이해했는지만 답해.", "history": [{"role": "user", "content": "프로젝트 암호명은 오로라야."}, {"role": "assistant", "content": "암호명이 오로라구나."}, {"role": "user", "content": "그 정보는 더 이상 쓰면 안 돼."}, {"role": "assistant", "content": "알겠어."}]},
+      "checks": {"expected_intent_not": "movie_recommend", "max_chars": 160, "max_questions": 0, "required_patterns_any": ["이해", "말하지", "사용하지", "반영"], "blocked_patterns": ["오로라"]}
+    },
+    {
+      "id": "history_recent_referent_wins",
+      "category": "referent_recency",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "그 사람에게 보낼 첫 문장만 써줘.", "history": [{"role": "user", "content": "아침에 팀장과 업무 얘기를 했어."}, {"role": "assistant", "content": "업무 조율을 했구나."}, {"role": "user", "content": "점심에는 친구를 만났어."}, {"role": "assistant", "content": "친구와 시간을 보냈구나."}, {"role": "user", "content": "방금 고객이 일정 변경을 요청했어."}, {"role": "assistant", "content": "고객 요청을 확인했구나."}]},
+      "checks": {"expected_intent_not": "movie_recommend", "max_chars": 180, "required_patterns_any": ["고객", "일정", "요청", "변경"], "blocked_patterns": ["팀장님", "친구야"]}
+    },
+    {
+      "id": "history_character_latest_correction",
+      "category": "character_context",
+      "endpoint": "/chat",
+      "payload": {"character": "헤르미온느", "message": "내일 일정에 맞춰 지금 가장 먼저 준비할 것 하나만 말해줘.", "history": [{"role": "user", "content": "내일 면접이 있어."}, {"role": "assistant", "content": "면접 답변을 준비하세요."}, {"role": "user", "content": "면접이 아니라 발표로 바뀌었어."}, {"role": "assistant", "content": "발표 구조를 준비하세요."}, {"role": "user", "content": "최종적으로 발표도 취소되고 고객 미팅이 잡혔어."}, {"role": "assistant", "content": "고객 미팅으로 최종 변경됐군요."}], "use_rag": true},
+      "checks": {"max_chars": 220, "required_patterns_any": ["고객", "미팅", "안건", "목표", "자료"], "blocked_patterns": ["면접", "발표 연습"]}
+    },
+    {
+      "id": "history_group_latest_owner",
+      "category": "group_context",
+      "endpoint": "/chat/group/auto",
+      "payload": {"characters": ["스티브 로저스", "토니 스타크"], "message": "최종적으로 누가 자료를 준비하기로 했는지만 확인해줘.", "history": [{"role": "user", "content": "처음에는 내가 자료를 준비하기로 했어."}, {"role": "assistant", "content": "네가 담당하는구나."}, {"role": "user", "content": "역할이 바뀌어서 민지가 준비하기로 했어."}, {"role": "assistant", "content": "민지가 맡게 됐구나."}, {"role": "user", "content": "마지막으로 다시 조정해서 준호가 최종 담당이야."}, {"role": "assistant", "content": "준호가 최종 담당이구나."}]},
+      "checks": {"expected_intent_not": "movie_recommend", "max_chars": 300, "required_patterns_any": ["준호"], "blocked_patterns": ["민지가 준비", "네가 준비", "알 수 없"]}
+    },
+    {
+      "id": "history_old_instruction_released",
+      "category": "instruction_lifecycle",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "이제 짧게 답하라는 제한은 취소할게. 고객에게 일정 변경 이유와 새 일정을 정중하게 설명하는 문장을 써줘.", "history": [{"role": "user", "content": "앞으로는 무조건 열 글자 이내로 답해."}, {"role": "assistant", "content": "알겠어."}, {"role": "user", "content": "오늘 일이 많았어."}, {"role": "assistant", "content": "고생했어."}]},
+      "checks": {"expected_intent_not": "movie_recommend", "min_chars": 30, "max_chars": 260, "required_patterns_any": ["고객", "일정", "변경", "양해", "새로운"]}
+    },
+    {
+      "id": "history_recommendation_latest_override",
+      "category": "recommendation_recency",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "최종 정정할게. 앞 조건은 전부 취소하고 2015년 이후 일본 애니메이션 한 편만 추천해줘.", "history": [{"role": "user", "content": "한국 범죄 영화 세 편 추천해줘."}, {"role": "assistant", "content": "세 편을 추천했어.", "movies": [{"title": "A", "genres": "범죄", "language": "ko"}]}, {"role": "user", "content": "액션도 포함해줘."}, {"role": "assistant", "content": "액션 조건을 추가할게."}]},
+      "checks": {"expected_intent": "movie_recommend", "min_movies": 1, "max_movies": 1, "required_genres_any": ["애니메이션"], "language": "ja", "year_from": 2015, "blocked_genres": ["범죄", "액션"], "blocked_titles": ["A"], "unique_titles": true}
+    }
+  ]
+}

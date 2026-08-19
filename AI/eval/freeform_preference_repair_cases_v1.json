@@ -1,0 +1,56 @@
+{
+  "suite": "freeform_preference_repair_v1",
+  "cases": [
+    {
+      "id": "light_workplace_comedy_rejects_horror",
+      "endpoint": "/chat/auto",
+      "payload": {
+        "message": "우리 둘 다 서른 넘었어. 애니메이션은 빼고 현실적인 직장인 코미디 두 편만 다시 골라줘.",
+        "history": [
+          {"role": "user", "content": "친구랑 편하게 웃으며 볼 영화 두 편만 골라줘."}
+        ]
+      },
+      "checks": {
+        "expected_intent": "movie_recommend",
+        "min_movies": 2,
+        "max_movies": 2,
+        "required_genres_any": ["코미디"],
+        "blocked_genres": ["공포", "스릴러", "애니메이션"]
+      }
+    },
+    {
+      "id": "complaint_does_not_flip_rejected_genres_positive",
+      "endpoint": "/chat/auto",
+      "payload": {
+        "message": "첫 번째는 공포 스릴러잖아. 편하게 웃고 싶다는 조건이 왜 무시됐어? 그 작품은 빼고 두 편만 줘.",
+        "history": [
+          {"role": "user", "content": "친구랑 편하게 웃으며 볼 코미디 두 편만 골라줘."},
+          {"role": "assistant", "content": "추천 결과", "recommended_movies": [{"title": "직장상사 길들이기", "genres": "공포, 스릴러, 코미디"}]}
+        ]
+      },
+      "checks": {
+        "expected_intent": "movie_recommend",
+        "min_movies": 2,
+        "max_movies": 2,
+        "required_genres_any": ["코미디"],
+        "blocked_genres": ["공포", "스릴러"],
+        "blocked_titles": ["직장상사 길들이기"]
+      }
+    },
+    {
+      "id": "child_dinosaur_preference_keeps_topic",
+      "endpoint": "/chat/auto",
+      "payload": {
+        "message": "초등학생 조카가 공룡을 엄청 좋아해. 잡아먹히거나 피 나오는 장면은 무서워하니까 그런 건 없는 영화 두 편만 골라줘.",
+        "history": []
+      },
+      "checks": {
+        "expected_intent": "movie_recommend",
+        "min_movies": 1,
+        "max_movies": 2,
+        "child_safe_certification": true,
+        "required_patterns_any": ["공룡", "쥬라기", "dinosaur"]
+      }
+    }
+  ]
+}

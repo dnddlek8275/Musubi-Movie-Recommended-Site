@@ -10,6 +10,8 @@ Musubi Query Rewriter
 
 import json
 import re
+import calendar
+from datetime import date
 
 from llm.client import chat_json
 from pipeline.topic_grounding import build_topic_search_query, interpret_topic
@@ -40,7 +42,7 @@ _GENRE_MAP = {
     "범죄": "범죄", "crime": "범죄",
     "전쟁": "전쟁", "war": "전쟁",
     "역사": "역사", "historical": "역사",
-    "미스터리": "미스터리", "mystery": "미스터리",
+    "미스터리": "미스터리", "mystery": "미스터리", "추리": "미스터리",
     "뮤지컬": "뮤지컬", "musical": "뮤지컬",
     "음악": "음악", "music": "음악",
     "가족": "가족", "family": "가족",
@@ -59,23 +61,50 @@ _YEAR_SINGLE = re.compile(r"(19|20)\d{2}년?")
 _YEAR_DECADE = re.compile(r"(19|20)(\d0)년대")
 
 _RATING_PATTERN = re.compile(r"평점\s*(\d+(?:\.\d+)?)\s*(?:점|이상|↑)?")
+_RUNTIME_MAX_PATTERN = re.compile(
+    r"(?:(한|두|세|\d+)\s*시간(?:\s*(\d+)\s*분)?|(\d+)\s*분)\s*"
+    r"(?:안\s*넘|넘지\s*않|이하|미만|안쪽|이내)",
+    re.IGNORECASE,
+)
+_KOREAN_NUMBER = {"한": 1, "두": 2, "세": 3}
+_AUDIENCE_MIN_PATTERN = re.compile(
+    r"(?:관객(?:\s*수)?\s*)?(\d+(?:\.\d+)?)\s*(천만|백만|만)\s*(?:명|관객)?\s*이상|"
+    r"(천만)\s*(?:관객|영화)",
+)
+_AUDIENCE_ADJUST_PATTERN = re.compile(
+    r"(?:관객(?:\s*수)?\s*)?(?:기준(?:만|을)?\s*)?(\d+(?:\.\d+)?)\s*(천만|백만|만)\s*"
+    r"(?:명)?(?:으?로)?\s*(?:낮춰|높여|완화|바꿔|변경)",
+)
 
 _LANG_MAP = {"한국": "ko", "한국어": "ko", "영어": "en", "영미": "en",
              "일본": "ja", "일본어": "ja", "중국": "zh", "중국어": "zh",
              "프랑스": "fr", "프랑스어": "fr"}
 _LANG_PATTERN = re.compile(r"(" + "|".join(_LANG_MAP) + r")\s*(?:영화|작품)?")
+_EXPLICIT_LANG_PATTERN = re.compile(r"(한국어|영어|일본어|중국어|프랑스어)\s*(?:대사|영화|작품)?")
+_PRODUCTION_COUNTRY_MAP = {
+    "한국": "KR", "미국": "US", "프랑스": "FR",
+    "일본": "JP", "중국": "CN", "영국": "GB",
+}
+_PRODUCTION_COUNTRY_PATTERN = re.compile(
+    r"(한국|미국|프랑스|일본|중국|영국)(?:에서)?\s*(?:만든|제작(?:한|된)?|산|영화)",
+)
 _MOOD_HINT_PATTERN = re.compile(
     r"가볍게|가벼운|유쾌|웃긴|재밌는|부담\s*없이|편하게|머리\s*비우고|힐링|"
     r"잠들기\s*전|자기\s*전|잠자기\s*전|편안(?:하게|한)|잔잔(?:하게|한)|"
     r"조용(?:하게|한)|마음\s*편(?:하게|한)|차분(?:하게|한)|"
     r"감동|뭉클|눈물\s*나는|마음\s*따뜻|우울할\s*때|기분\s*전환|"
     r"기분이?\s*(?:안\s*좋|별로)|기운\s*없|데이트|연인|커플|"
+    r"(?:부모님|가족).{0,30}(?:민망|잔인하지|폭력적이지|편하게\s*같이)|"
+    r"(?:민망|잔인하지|폭력적이지).{0,30}(?:부모님|가족)|"
+    r"긴장감(?:은|이)?\s*(?:조금|살짝)|살짝\s*(?:쫄깃|긴장)|가볍게\s*쫄깃|"
+    r"(?:쫄깃|긴장감).{0,24}(?:안\s*무서|무섭지)|(?:안\s*무서|무섭지).{0,24}(?:쫄깃|긴장감)|"
     r"(?:밝|유쾌|설레).*?(?:로맨스|멜로)|(?:로맨스|멜로).*?(?:밝|유쾌|설레)|"
     r"아이와|아이랑|아이하고|어린이와|어린이랑|자녀와|온\s*가족|"
     r"유치원생|미취학|초등생|초등학생|아동|(?:어린|어린이|초등생|초등학생)\s*조카|조카(?:랑|와|하고)|"
     r"보고\s*나면\s*기분(?:이)?\s*(?:좋|나아)|기분\s*좋아지는|행복해지|"
     r"기분이?\s*(?:좀\s*)?나아|기분\s*좋게|기운을?\s*북돋|우울한?\s*기분을?\s*털어|"
-    r"마음이?\s*환해|긍정적인?\s*에너지|희망적인|"
+    r"마음이?\s*환해|긍정적인?\s*에너지|희망적인|다시\s*용기|용기\s*나는|"
+    r"자신감(?:을|이)?\s*(?:되찾|생기|높)|힘이?\s*나는|"
     r"(?:같이\s*)?얘기할\s*거리|생각할\s*거리|토론할\s*거리|토론하기\s*좋|"
     r"대화\s*나누기\s*좋|곱씹|철학적|해석할\s*거리|여러\s*해석|결말.*의견이?\s*갈|"
     r"인간과?\s*사회.*질문|"
@@ -87,6 +116,9 @@ _MOOD_HINT_PATTERN = re.compile(
     r"(?:주제가?\s*)?성숙한\s*애니|성인용\s*애니|아동\s*애니\s*말고\s*깊이|"
     r"어른\s*취향.*애니|사회적인?\s*주제.*애니|유치하지\s*않고.*애니|성인\s*관객.*애니"
 )
+_GROUP_COMPROMISE_PATTERN = re.compile(
+    r"(?:한\s*명은|나는|친구).{0,100}(?:다\s*같이|모두|넷\s*다|덜\s*불만|취향.{0,12}(?:맞|절충))"
+)
 _GENERIC_RECOMMENDATION_WORDS = re.compile(
     r"추천|골라|뭐\s*(?:볼|보면)|볼\s*만한"
 )
@@ -97,8 +129,10 @@ _GENERIC_RECOMMENDATION_FILLER = re.compile(
     r"골라(?:\s*줘|줘|주세요|\s*주세요|)|알려(?:\s*줘|줘|주세요|\s*주세요|)"
 )
 
-# 감독 추출: "[이름] 감독" 패턴
-_DIRECTOR_PATTERN = re.compile(r"([가-힣A-Za-z\s·]{2,20}?)\s*감독")
+# 감독 추출: 조사나 "말고"까지 이름으로 삼키지 않도록 경계를 제한한다.
+_DIRECTOR_PATTERN = re.compile(
+    r"([가-힣·]{2,20}|[A-Za-z]+(?:\s+[A-Za-z]+){0,3})\s*감독"
+)
 
 # LLM이 반환하는 영문 장르를 한국어로 정규화
 _GENRE_NORMALIZE = {
@@ -116,19 +150,26 @@ def _regex_extract(text: str) -> dict:
     result = {
         "search_query": text,
         "genre": None, "required_genres": [], "actor": None, "director": None,
-        "language": None, "year_from": None, "year_to": None, "min_rating": None,
-        "sort_latest": bool(re.search(r"최신|최근\s*개봉|새로\s*개봉|신작", text)),
+        "language": None, "production_country": None,
+        "year_from": None, "year_to": None,
+        "release_date_from": None, "release_date_to": None,
+        "min_rating": None, "audience_min": None,
+        "runtime_max": None,
+        "sort_latest": bool(re.search(r"최신|요즘|근래|최근(?:\s*개봉|\s*거|\s*것)?|새로\s*개봉|신작", text)),
         # 조건 없이 분위기만 말한 추천은 의미 유사도만으로 고르면 오래되고
         # 인지도가 낮은 작품이 튀기 쉽다. 검색 단계에서 품질 비중을 높이기
         # 위한 내부 신호이며 LLM이 임의로 만들 수 없도록 regex로만 정한다.
-        "quality_priority": "mood" if _MOOD_HINT_PATTERN.search(text) else None,
+        "quality_priority": "mood" if (_MOOD_HINT_PATTERN.search(text) or re.search(r"시원(?:한|하게|함)", text)) else None,
         "topic": None,
     }
 
     # 배우
-    m = _ACTOR_PATTERNS.search(text)
-    if m:
-        result["actor"] = m.group(0)
+    actor_matches = list(_ACTOR_PATTERNS.finditer(text))
+    if actor_matches:
+        selected_actor = actor_matches[0]
+        if len(actor_matches) >= 2 and "말고" in text[actor_matches[0].end():actor_matches[-1].start()]:
+            selected_actor = actor_matches[-1]
+        result["actor"] = selected_actor.group(0)
 
     # 감독 ("XXX 감독" 패턴)
     m = _DIRECTOR_PATTERN.search(text)
@@ -146,6 +187,23 @@ def _regex_extract(text: str) -> dict:
     if genres:
         result["genre"] = genres[0]
         result["required_genres"] = genres
+        # 여러 사람이 각자 좋아하는 장르는 모두 필수인 교집합 조건이 아니다.
+        # 후보마다 충족하는 취향 수를 비교할 수 있도록 검색어에는 남기되 하드
+        # 장르 필터에서는 제외한다.
+        if _GROUP_COMPROMISE_PATTERN.search(text):
+            result["genre"] = None
+            result["required_genres"] = []
+            result["quality_priority"] = "mood"
+        missing_genre_repair = re.search(
+            r"(액션|코미디|미스터리|추리|로맨스|SF|판타지|모험|드라마|가족|음악)"
+            r"(?:(?!(?:액션|코미디|미스터리|추리|로맨스|SF|판타지|모험|드라마|가족|음악)).){0,24}"
+            r"(?:하나도\s*없|빠졌|반영.{0,8}안|실제로\s*있|요소가?\s*있)",
+            text,
+        )
+        if missing_genre_repair:
+            repaired = _GENRE_MAP.get(missing_genre_repair.group(1).lower(), missing_genre_repair.group(1))
+            result["genre"] = repaired
+            result["required_genres"] = [repaired]
 
     # 연도 범위 (우선순위: 범위 > 이후/이전(개방형) > 년대 > 단일)
     m = _YEAR_RANGE.search(text)
@@ -169,16 +227,76 @@ def _regex_extract(text: str) -> dict:
                 if m:
                     y = int(m.group(0).rstrip("년"))
                     result["year_from"] = result["year_to"] = y
+    if result["year_from"] is None and re.search(r"요즘|근래|최근\s*(?:거|것|영화|작품)", text):
+        result["year_from"] = date.today().year - 5
+
+    today = date.today()
+    if re.search(r"이번\s*달|이달", text):
+        result["release_date_from"] = today.replace(day=1).isoformat()
+        if re.search(r"이미\s*개봉|개봉\s*안\s*한.{0,12}(?:빼|제외)|미개봉.{0,8}(?:빼|제외)", text):
+            result["release_date_to"] = today.isoformat()
+        else:
+            last_day = calendar.monthrange(today.year, today.month)[1]
+            result["release_date_to"] = today.replace(day=last_day).isoformat()
+    elif re.search(r"올해", text):
+        result["release_date_from"] = date(today.year, 1, 1).isoformat()
+        result["release_date_to"] = (
+            today.isoformat()
+            if re.search(r"이미\s*개봉|개봉\s*안\s*한.{0,12}(?:빼|제외)|미개봉.{0,8}(?:빼|제외)", text)
+            else date(today.year, 12, 31).isoformat()
+        )
+    if (
+        result["release_date_to"] is None
+        and any(
+            result.get(field) is not None
+            for field in ("genre", "language", "production_country", "year_from", "year_to")
+        )
+        and re.search(
+            r"(?:오늘|지금)(?:\s*밤)?\s*.{0,20}(?:바로\s*)?(?:볼|시청할)(?:\s*수\s*있는)?",
+            text,
+        )
+    ):
+        result["release_date_to"] = today.isoformat()
 
     # 평점
     m = _RATING_PATTERN.search(text)
     if m:
         result["min_rating"] = float(m.group(1))
 
+    runtime_match = _RUNTIME_MAX_PATTERN.search(text)
+    if runtime_match:
+        hour_token, minute_token, minutes_only = runtime_match.groups()
+        if minutes_only:
+            result["runtime_max"] = int(minutes_only)
+        else:
+            hours = _KOREAN_NUMBER.get(hour_token, int(hour_token) if hour_token.isdigit() else 0)
+            result["runtime_max"] = hours * 60 + int(minute_token or 0)
+
+    audience_match = _AUDIENCE_MIN_PATTERN.search(text)
+    if audience_match:
+        if audience_match.group(3):
+            result["audience_min"] = 10_000_000
+        else:
+            value = float(audience_match.group(1))
+            multiplier = {"만": 10_000, "백만": 1_000_000, "천만": 10_000_000}[audience_match.group(2)]
+            result["audience_min"] = int(value * multiplier)
+    audience_adjustments = list(_AUDIENCE_ADJUST_PATTERN.finditer(text))
+    if audience_adjustments:
+        adjustment = audience_adjustments[-1]
+        value = float(adjustment.group(1))
+        multiplier = {"만": 10_000, "백만": 1_000_000, "천만": 10_000_000}[adjustment.group(2)]
+        result["audience_min"] = int(value * multiplier)
+
     # 언어
-    m = _LANG_PATTERN.search(text)
+    m = _EXPLICIT_LANG_PATTERN.search(text)
+    if not m:
+        m = _LANG_PATTERN.search(text)
     if m:
         result["language"] = _LANG_MAP.get(m.group(1))
+
+    country_match = _PRODUCTION_COUNTRY_PATTERN.search(text)
+    if country_match:
+        result["production_country"] = _PRODUCTION_COUNTRY_MAP[country_match.group(1)]
 
     # 장르 필드가 없는 명시적 주제는 구성 파일 또는 사용자 원문으로 해석한다.
     # 모르는 주제는 동의어를 지어내지 않고 원문 토큰만 보존한다.
@@ -299,7 +417,11 @@ def _validate_against_text(llm: dict, pre: dict, user_message: str) -> dict:
 
 
 # regex가 이 필드들 중 하나라도 찾았으면 LLM 호출을 생략한다.
-_PRE_FIELDS = ("genre", "actor", "director", "language", "year_from", "year_to", "min_rating")
+_PRE_FIELDS = (
+    "genre", "actor", "director", "language", "production_country",
+    "year_from", "year_to", "release_date_from", "release_date_to",
+    "min_rating", "runtime_max", "audience_min",
+)
 
 
 def rewrite(user_message: str) -> dict:
@@ -319,7 +441,7 @@ def rewrite(user_message: str) -> dict:
     # 애매한 자유 발화일 때만 LLM으로 보완한다.
     if (
         pre["sort_latest"]
-        or _MOOD_HINT_PATTERN.search(user_message)
+        or pre.get("quality_priority") is not None
         or pre.get("topic") is not None
         or any(pre.get(f) is not None for f in _PRE_FIELDS)
     ):

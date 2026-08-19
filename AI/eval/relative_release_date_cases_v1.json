@@ -1,0 +1,39 @@
+{
+  "suite": "relative_release_date_v1",
+  "cases": [
+    {
+      "id": "current_month_already_released_korean",
+      "endpoint": "/chat/auto",
+      "payload": {
+        "message": "이번 달에 이미 개봉한 한국 영화 중에서 평점 괜찮은 거 두 편만 골라줘. 아직 개봉 안 한 건 빼고.",
+        "history": []
+      },
+      "checks": {
+        "expected_intent": "movie_recommend",
+        "max_movies": 2,
+        "language": "ko",
+        "production_country": "KR",
+        "release_window": "current_month_released"
+      }
+    },
+    {
+      "id": "rating_refinement_keeps_relative_release_conditions",
+      "endpoint": "/chat/auto",
+      "payload": {
+        "message": "평점 괜찮다는 건 7점 이상이라는 뜻이야. 나머지 조건은 그대로 두고 두 편 다시 줘.",
+        "history": [
+          {"role": "user", "content": "이번 달에 이미 개봉한 한국 영화 두 편만 골라줘. 아직 개봉 안 한 건 빼고."},
+          {"role": "assistant", "content": "추천 결과", "recommended_movies": [{"title": "A"}]}
+        ]
+      },
+      "checks": {
+        "expected_intent": "movie_recommend",
+        "max_movies": 2,
+        "min_rating": 7.0,
+        "language": "ko",
+        "production_country": "KR",
+        "release_window": "current_month_released"
+      }
+    }
+  ]
+}

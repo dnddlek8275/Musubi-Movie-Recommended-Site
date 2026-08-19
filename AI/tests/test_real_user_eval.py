@@ -79,6 +79,11 @@ class RealUserEvalTests(unittest.TestCase):
             MODULE.evaluate_response(case, response),
         )
 
+    def test_minimum_answer_length_is_enforced(self):
+        case = {"checks": {"min_chars": 10}}
+        response = {"answer": "짧아", "movies": []}
+        self.assertIn("answer_too_short:2", MODULE.evaluate_response(case, response))
+
     def test_all_genres_language_year_ceiling_and_blocked_title_are_enforced(self):
         case = {
             "checks": {

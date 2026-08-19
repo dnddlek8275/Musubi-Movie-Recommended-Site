@@ -1,0 +1,41 @@
+{
+  "suite": "card_metadata_boundary_v1",
+  "cases": [
+    {
+      "id": "cast_billing_not_available",
+      "endpoint": "/chat/auto",
+      "payload": {
+        "message": "셋 중 손석구가 주연인 것만 골라줘. 특별출연이면 빼고.",
+        "history": [{"role": "assistant", "content": "추천 결과", "recommended_movies": [{"title": "범죄도시 2", "cast": "마동석, 손석구"}, {"title": "연애 빠진 로맨스", "cast": "손석구, 전종서"}]}]
+      },
+      "checks": {"expected_intent_not": "movie_recommend", "max_movies": 0, "required_patterns_any": ["정보는 없어", "구분할 수 없어"], "blocked_patterns": ["매력이 잘 드러"]}
+    },
+    {
+      "id": "live_ott_not_available_in_cards",
+      "endpoint": "/chat/auto",
+      "payload": {
+        "message": "그 두 개 중 지금 한국 넷플릭스에 있는 건 뭐야? 확실한 것만 말해줘.",
+        "history": [{"role": "assistant", "content": "추천 결과", "recommended_movies": [{"title": "범죄도시 2"}, {"title": "연애 빠진 로맨스"}]}]
+      },
+      "checks": {"expected_intent_not": "movie_recommend", "max_movies": 0, "required_patterns_any": ["실시간 OTT 제공 정보가 없어", "확인할 수 없어"]}
+    },
+    {
+      "id": "two_card_director_comparison",
+      "endpoint": "/chat/auto",
+      "payload": {
+        "message": "첫 번째랑 두 번째 감독이 같은 사람이야? 두 감독 이름도 같이 말해줘.",
+        "history": [{"role": "assistant", "content": "추천 결과", "recommended_movies": [{"title": "범죄도시 2", "director": "이상용"}, {"title": "연애 빠진 로맨스", "director": "정가영"}]}]
+      },
+      "checks": {"expected_intent_not": "movie_recommend", "max_movies": 2, "required_patterns_any": ["이상용.*정가영", "정가영.*이상용"]}
+    },
+    {
+      "id": "direct_title_director_lookup",
+      "endpoint": "/chat/auto",
+      "payload": {
+        "message": "연애 빠진 로맨스 감독이 누구야? 그 카드에 적힌 정보만 말해줘.",
+        "history": [{"role": "assistant", "content": "추천 결과", "recommended_movies": [{"title": "범죄도시 2", "director": "이상용"}, {"title": "연애 빠진 로맨스", "director": "정가영"}]}]
+      },
+      "checks": {"expected_intent_not": "movie_recommend", "max_movies": 1, "required_patterns_any": ["정가영"], "blocked_patterns": ["스위칭 로맨스", "로맨틱 홀리데이"]}
+    }
+  ]
+}

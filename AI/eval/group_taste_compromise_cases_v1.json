@@ -1,0 +1,53 @@
+{
+  "suite": "group_taste_compromise_v1",
+  "description": "여러 사람의 서로 다른 취향과 폭력성 회피를 절충하고 누락 취향을 후속 요청에서 복구하는 대화",
+  "cases": [
+    {
+      "id": "four_friend_genre_compromise",
+      "endpoint": "/chat/auto",
+      "payload": {
+        "message": "친구 넷이서 영화 보려는데 한 명은 액션, 한 명은 코미디, 나는 추리 좋아하고 나머지 한 명은 잔인한 걸 못 봐. 넷 다 덜 불만일 만한 영화 딱 두 편만 골라줘.",
+        "history": []
+      },
+      "checks": {
+        "expected_intent": "movie_recommend",
+        "max_movies": 2,
+        "blocked_genres": ["공포", "전쟁"],
+        "required_genres_any": ["액션", "코미디", "미스터리"],
+        "unique_titles": true,
+        "answer_titles_must_be_returned": true
+      }
+    },
+    {
+      "id": "restore_omitted_mystery_preference",
+      "endpoint": "/chat/auto",
+      "payload": {
+        "message": "근데 액션이랑 코미디만 있고 내가 말한 추리는 하나도 없잖아. 세 편 다 말고, 추리 요소가 실제로 있는 걸로 두 편 다시 골라줘.",
+        "history": [
+          {
+            "role": "user",
+            "content": "친구 넷이서 영화 보려는데 한 명은 액션, 한 명은 코미디, 나는 추리 좋아하고 나머지 한 명은 잔인한 걸 못 봐. 넷 다 덜 불만일 만한 영화 딱 두 편만 골라줘."
+          },
+          {
+            "role": "assistant",
+            "content": "액션과 코미디 중심 추천",
+            "recommended_movies": [
+              {"title": "디스 민즈 워", "genres": "액션, 코미디, 로맨스"},
+              {"title": "백 인 액션", "genres": "액션, 코미디"},
+              {"title": "스트레치", "genres": "액션, 코미디, 스릴러"}
+            ]
+          }
+        ]
+      },
+      "checks": {
+        "expected_intent": "movie_recommend",
+        "max_movies": 2,
+        "required_genres_all": ["미스터리"],
+        "blocked_genres": ["공포", "전쟁"],
+        "blocked_titles": ["디스 민즈 워", "백 인 액션", "스트레치"],
+        "unique_titles": true,
+        "answer_titles_must_be_returned": true
+      }
+    }
+  ]
+}

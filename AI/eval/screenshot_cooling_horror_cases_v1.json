@@ -1,0 +1,43 @@
+{
+  "suite_version": "screenshot-cooling-horror-v1-20260818",
+  "description": "실서비스 스크린샷의 더운 날 시원한 영화→공포 정정→최신작 후속 흐름 회귀 테스트",
+  "thresholds": {
+    "hard_check_pass_rate": 1.0,
+    "critical_failure_count": 0,
+    "exact_duplicate_rate_max": 0.1,
+    "pair_similarity_max": 0.9,
+    "manual_average_min": 4.0,
+    "manual_dimension_min": 3.5
+  },
+  "manual_dimensions": ["relevance", "naturalness", "specificity", "groundedness", "context_accuracy"],
+  "cases": [
+    {
+      "id": "screenshot_initial_cooling_movie_request",
+      "category": "implicit_recommendation",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "어우 덥다. 더운 날에 시원한 영화 없나?", "history": []},
+      "checks": {"expected_intent": "movie_recommend", "min_movies": 1, "max_movies": 3, "unique_titles": true, "answer_titles_must_be_returned": true}
+    },
+    {
+      "id": "screenshot_recommendation_repair",
+      "category": "repair_followup",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "추천은 왜 안 해줘?", "history": [{"role": "user", "content": "어우 덥다. 더운 날에 시원한 영화 없나?"}, {"role": "assistant", "content": "무더운 날에는 청량한 배경이 돋보이는 영화를 보는 건 어때?"}]},
+      "checks": {"expected_intent": "movie_recommend", "min_movies": 1, "max_movies": 3, "unique_titles": true, "answer_titles_must_be_returned": true}
+    },
+    {
+      "id": "screenshot_cooling_means_horror",
+      "category": "semantic_correction",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "근데 시원한 영화라 하면 공포 영화야.", "history": [{"role": "user", "content": "어우 덥다. 더운 날에 시원한 영화 없나?"}, {"role": "assistant", "content": "어떤 스타일의 시원함을 선호하는지 알려주면 영화를 골라줄게."}]},
+      "checks": {"expected_intent": "movie_recommend", "min_movies": 1, "max_movies": 3, "required_genres_any": ["공포"], "unique_titles": true, "answer_titles_must_be_returned": true}
+    },
+    {
+      "id": "screenshot_recent_horror_followup",
+      "category": "latest_followup",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "요즘 거 없어?", "history": [{"role": "user", "content": "근데 시원한 영화라 하면 공포 영화야."}, {"role": "assistant", "content": "공포 영화 세 편을 추천했어.", "movies": [{"title": "라스트 보야지 오브 더 데메테르", "genres": "공포", "year": 2023}, {"title": "피어", "genres": "공포", "year": 1996}, {"title": "공포의 코미디", "genres": "공포, 코미디", "year": 1963}]}]},
+      "checks": {"expected_intent": "movie_recommend", "min_movies": 1, "max_movies": 3, "required_genres_any": ["공포"], "year_from": 2020, "blocked_titles": ["라스트 보야지 오브 더 데메테르", "피어", "공포의 코미디"], "unique_titles": true, "answer_titles_must_be_returned": true}
+    }
+  ]
+}

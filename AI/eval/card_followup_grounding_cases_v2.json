@@ -1,0 +1,85 @@
+{
+  "suite_version": "card-followup-grounding-v2-20260818",
+  "description": "추천 카드 후속 질문에서 순서·비교·메타데이터 근거 및 누락 정보 비환각을 검증",
+  "thresholds": {
+    "hard_check_pass_rate": 0.9,
+    "critical_failure_count": 0,
+    "exact_duplicate_rate_max": 0.1,
+    "pair_similarity_max": 0.9,
+    "manual_average_min": 4.0,
+    "manual_dimension_min": 3.5
+  },
+  "manual_dimensions": ["relevance", "naturalness", "specificity", "groundedness"],
+  "cases": [
+    {
+      "id": "card_second_overview",
+      "category": "ordinal_metadata",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "두 번째 영화는 무슨 내용이야?", "history": [{"role": "user", "content": "가족 영화 세 편 추천해줘."}, {"role": "assistant", "content": "세 편을 추천했어.", "movies": [{"title": "패딩턴", "year": 2014, "vote_average": 7.1, "genres": "가족, 코미디", "overview": "런던에 온 곰 패딩턴의 이야기"}, {"title": "코코", "year": 2017, "vote_average": 8.2, "genres": "가족, 애니메이션", "overview": "음악을 사랑하는 소년이 죽은 자들의 세상으로 떠나는 이야기"}, {"title": "업", "year": 2009, "vote_average": 8.0, "genres": "가족, 애니메이션", "overview": "노인과 소년이 풍선 집을 타고 모험하는 이야기"}]}]},
+      "checks": {"expected_intent_not": "movie_recommend", "max_movies": 1, "max_chars": 240, "required_patterns_any": ["코코", "음악", "소년", "죽은 자"]}
+    },
+    {
+      "id": "card_latest_of_three",
+      "category": "card_comparison",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "셋 중 가장 최근 영화가 뭐야?", "history": [{"role": "assistant", "content": "추천 결과", "movies": [{"title": "패딩턴", "year": 2014}, {"title": "코코", "year": 2017}, {"title": "업", "year": 2009}]}]},
+      "checks": {"expected_intent_not": "movie_recommend", "max_movies": 1, "max_chars": 160, "required_patterns_any": ["코코"], "blocked_patterns": ["패딩턴이 가장 최근", "업이 가장 최근"]}
+    },
+    {
+      "id": "card_highest_rating",
+      "category": "card_comparison",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "평점이 제일 높은 건 어느 거야?", "history": [{"role": "assistant", "content": "추천 결과", "movies": [{"title": "패딩턴", "vote_average": 7.1}, {"title": "코코", "vote_average": 8.2}, {"title": "업", "vote_average": 8.0}]}]},
+      "checks": {"expected_intent_not": "movie_recommend", "max_movies": 1, "max_chars": 160, "required_patterns_any": ["코코", "8.2"], "blocked_patterns": ["업이 제일", "패딩턴이 제일"]}
+    },
+    {
+      "id": "card_first_genres",
+      "category": "ordinal_metadata",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "첫 번째 건 장르가 뭐였지?", "history": [{"role": "assistant", "content": "추천 결과", "movies": [{"title": "패딩턴", "genres": "가족, 코미디"}, {"title": "코코", "genres": "가족, 애니메이션"}, {"title": "업", "genres": "가족, 애니메이션"}]}]},
+      "checks": {"expected_intent_not": "movie_recommend", "max_movies": 1, "max_chars": 160, "required_patterns_any": ["패딩턴", "가족", "코미디"]}
+    },
+    {
+      "id": "card_missing_director",
+      "category": "missing_metadata",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "두 번째 영화 감독이 누구야?", "history": [{"role": "assistant", "content": "추천 결과", "movies": [{"title": "패딩턴", "year": 2014}, {"title": "코코", "year": 2017}, {"title": "업", "year": 2009}]}]},
+      "checks": {"expected_intent_not": "movie_recommend", "max_movies": 1, "max_chars": 180, "required_patterns_any": ["코코", "정보", "카드", "없"], "blocked_patterns": ["리 언크리치", "Lee Unkrich"]}
+    },
+    {
+      "id": "card_missing_cast",
+      "category": "missing_metadata",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "첫 번째 영화 주연 배우 알려줘.", "history": [{"role": "assistant", "content": "추천 결과", "movies": [{"title": "패딩턴", "overview": "런던에 온 곰 이야기"}, {"title": "코코"}, {"title": "업"}]}]},
+      "checks": {"expected_intent_not": "movie_recommend", "max_movies": 1, "max_chars": 180, "required_patterns_any": ["패딩턴", "정보", "카드", "없"], "blocked_patterns": ["벤 위쇼", "Ben Whishaw"]}
+    },
+    {
+      "id": "card_missing_language",
+      "category": "missing_metadata",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "세 번째 영화는 어느 나라 언어야?", "history": [{"role": "assistant", "content": "추천 결과", "movies": [{"title": "A", "language": "ko"}, {"title": "B", "language": "ja"}, {"title": "C"}]}]},
+      "checks": {"expected_intent_not": "movie_recommend", "max_movies": 1, "max_chars": 180, "required_patterns_any": ["C", "언어", "정보", "없"], "blocked_patterns": ["영어야", "한국어야", "일본어야"]}
+    },
+    {
+      "id": "card_out_of_range_fifth",
+      "category": "ordinal_range",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "다섯 번째 영화 제목 다시 알려줘.", "history": [{"role": "assistant", "content": "세 편 추천", "movies": [{"title": "A"}, {"title": "B"}, {"title": "C"}]}]},
+      "checks": {"expected_intent_not": "movie_recommend", "max_movies": 0, "max_chars": 180, "required_patterns_any": ["세 편", "없", "다섯 번째", "확인"]}
+    },
+    {
+      "id": "card_compare_missing_ratings",
+      "category": "comparison_missing_metadata",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "첫 번째와 두 번째 중 평점 높은 걸 골라줘.", "history": [{"role": "assistant", "content": "추천 결과", "movies": [{"title": "A", "genres": "드라마"}, {"title": "B", "genres": "코미디"}, {"title": "C"}]}]},
+      "checks": {"expected_intent_not": "movie_recommend", "max_movies": 0, "max_chars": 200, "required_patterns_any": ["평점", "정보", "없", "비교"]}
+    },
+    {
+      "id": "card_previous_cards_only",
+      "category": "no_new_retrieval",
+      "endpoint": "/chat/auto",
+      "payload": {"message": "방금 세 편 중 코미디인 것만 제목 알려줘.", "history": [{"role": "assistant", "content": "추천 결과", "movies": [{"title": "패딩턴", "genres": "가족, 코미디"}, {"title": "코코", "genres": "가족, 애니메이션"}, {"title": "업", "genres": "가족, 애니메이션, 코미디"}]}]},
+      "checks": {"expected_intent_not": "movie_recommend", "max_movies": 2, "max_chars": 180, "required_patterns_any": ["패딩턴", "업"], "blocked_patterns": ["코코"]}
+    }
+  ]
+}

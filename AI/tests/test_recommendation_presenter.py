@@ -12,6 +12,61 @@ from pipeline.recommendation_presenter import (
 
 
 class RecommendationPresenterTests(unittest.TestCase):
+    def test_runtime_constraint_is_explained_from_metadata(self):
+        movies = prepare_recommendations(
+            [{"title": "짧은 코미디", "genres": "코미디", "runtime": 108}],
+            "두 시간 안 넘는 코미디 추천해줘",
+            {"genre": "코미디", "runtime_max": 120},
+            limit=1,
+        )
+        self.assertIn("108분", movies[0]["recommendation_reason"])
+        self.assertIn("120분 이하", movies[0]["recommendation_reason"])
+
+    def test_country_and_language_constraint_is_explained(self):
+        movies = prepare_recommendations(
+            [{"title": "A", "production_countries": "FR", "language": "en"}],
+            "프랑스 제작 영어 영화",
+            {"production_country": "FR", "language": "en"},
+            limit=1,
+        )
+        reason = movies[0]["recommendation_reason"]
+        self.assertIn("프랑스", reason)
+        self.assertIn("영어", reason)
+
+    def test_release_date_window_is_explained(self):
+        movies = prepare_recommendations(
+            [{"title": "A", "release_date": "2026-08-10"}],
+            "이번 달 이미 개봉한 영화",
+            {"release_date_from": "2026-08-01", "release_date_to": "2026-08-19"},
+            limit=1,
+        )
+        self.assertIn("2026-08-10", movies[0]["recommendation_reason"])
+        self.assertIn("2026-08-01", movies[0]["recommendation_reason"])
+
+    def test_final_boundary_never_relaxes_director_genre_and_year(self):
+        prepared = prepare_recommendations(
+            [
+                {"title": "어쩔수가없다", "director": "박찬욱", "genres": "코미디, 범죄, 스릴러", "year": 2025},
+                {"title": "다른 애니", "director": "다른 감독", "genres": "애니메이션", "year": 2026},
+            ],
+            "박찬욱 감독의 2025년 이후 애니메이션",
+            {"director": "박찬욱", "genre": "애니메이션", "required_genres": ["애니메이션"], "year_from": 2025},
+            limit=2,
+        )
+        self.assertEqual(prepared, [])
+
+    def test_audience_threshold_is_rechecked_and_explained(self):
+        prepared = prepare_recommendations(
+            [
+                {"title": "흥행작", "audience_count": 7_000_000},
+                {"title": "기준 미달", "audience_count": 1_000_000},
+            ],
+            "관객 500만 이상",
+            {"audience_min": 5_000_000},
+            limit=2,
+        )
+        self.assertEqual([movie["title"] for movie in prepared], ["흥행작"])
+        self.assertIn("7,000,000명", prepared[0]["recommendation_reason"])
     def test_character_fallback_uses_correct_korean_conjunction_particle(self):
         movies = [
             {"title": "첫 영화", "recommendation_reason": "이유야."},
@@ -251,6 +306,42 @@ class RecommendationPresenterTests(unittest.TestCase):
         )
         self.assertIn("꿈", movies[0]["recommendation_reason"])
         self.assertIn("기분 좋은", movies[0]["recommendation_reason"])
+
+    def test_gentle_suspense_reason_preserves_compromise_mood(self):
+        movies = prepare_recommendations(
+            [{"title": "A", "genres": "미스터리, 코미디", "overview": "수수께끼를 유쾌하게 풀어 간다"}],
+            "살짝 쫄깃하지만 안 무서운 데이트 영화",
+            {},
+            limit=1,
+        )
+        self.assertIn("공포를 피하면서", movies[0]["recommendation_reason"])
+        self.assertIn("가볍게 긴장감", movies[0]["recommendation_reason"])
+
+    def test_parent_cowatching_reason_does_not_claim_scene_level_guarantee(self):
+        movies = prepare_recommendations(
+            [{"title": "A", "genres": "가족, 드라마", "overview": "세대가 서로를 이해해 간다"}],
+            "부모님이랑 볼 건데 민망하지 않고 잔인하지 않은 영화",
+            {},
+            limit=1,
+        )
+        reason = movies[0]["recommendation_reason"]
+        self.assertIn("장르 정보를 근거로", reason)
+        self.assertNotIn("민망한 장면이 없", reason)
+        self.assertNotIn("잔인하지 않", reason)
+
+    def test_group_compromise_prefers_more_verified_tastes_and_drops_r_rating(self):
+        movies = prepare_recommendations(
+            [
+                {"title": "공통", "genres": "액션, 코미디, 미스터리", "certification": "15"},
+                {"title": "성인", "genres": "액션, 코미디, 미스터리", "certification": "R"},
+                {"title": "일부", "genres": "액션", "certification": "12"},
+            ],
+            "친구 넷이서 한 명은 액션, 한 명은 코미디, 나는 미스터리를 좋아하고 한 명은 잔인한 걸 못 봐. 넷 다 덜 불만일 영화",
+            {},
+            limit=2,
+        )
+        self.assertEqual([movie["title"] for movie in movies], ["공통", "일부"])
+        self.assertIn("액션 · 코미디 · 미스터리", movies[0]["recommendation_reason"])
 
     def test_adult_animation_reason_uses_mature_theme_evidence(self):
         movies = prepare_recommendations(

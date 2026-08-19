@@ -1,0 +1,43 @@
+{
+  "suite": "character_emotion_movie_transition_v1",
+  "cases": [
+    {
+      "id": "courage_is_mood_not_literal_title",
+      "endpoint": "/chat/auto",
+      "payload": {
+        "character": "토니 스타크",
+        "message": "오늘은 분석하기 싫고 그냥 다시 용기 나는 영화 한 편만 형이 골라줘.",
+        "history": [
+          {"role": "user", "content": "오늘 팀 발표에서 준비한 걸 제대로 못 보여줘서 자신감이 많이 떨어졌어."},
+          {"role": "assistant", "content": "발표 내용과 전달 방식을 구분해봐."}
+        ]
+      },
+      "checks": {
+        "expected_intent": "movie_recommend",
+        "min_movies": 1,
+        "max_movies": 1,
+        "blocked_titles": ["용기와 구원", "용기의 카라반: 이웍의 대모험", "진정한 용기"]
+      }
+    },
+    {
+      "id": "close_movie_topic_and_recall_confidence_cause",
+      "endpoint": "/chat/auto",
+      "payload": {
+        "character": "토니 스타크",
+        "message": "영화 얘기는 이제 됐고, 내가 아까 왜 자신감이 떨어졌다고 했지? 없는 이유 만들지 말고 내가 말한 것만 답해줘.",
+        "history": [
+          {"role": "user", "content": "오늘 팀 발표에서 준비한 걸 제대로 못 보여줘서 자신감이 많이 떨어졌어."},
+          {"role": "assistant", "content": "발표 내용과 전달 방식을 구분해봐."},
+          {"role": "user", "content": "다시 용기 나는 영화 한 편만 골라줘."},
+          {"role": "assistant", "content": "영화를 추천했어.", "recommended_movies": [{"title": "A"}]}
+        ]
+      },
+      "checks": {
+        "expected_intent_not": "movie_recommend",
+        "max_movies": 0,
+        "required_patterns_any": ["팀 발표.*준비한 걸.*못 보여"],
+        "blocked_patterns": ["용기와 구원", "늑대 개", "사랑의 용기"]
+      }
+    }
+  ]
+}
