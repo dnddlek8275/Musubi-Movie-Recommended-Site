@@ -8,6 +8,9 @@
 
 ### 인프라
 
+- [멀티 AZ 운영 아키텍처](current/infra/multi-az-architecture.md)
+- [클라우드 확장 계획 및 구현 기록](current/infra/cloud-architecture-expansion-20260818.md)
+- [AI 용량·확장 정책](current/infra/ai-capacity-and-scaling.md)
 - [인프라 기능요청서](current/infra/인프라 기능요청서.txt)
 - [최종 인프라 논리 구조](current/infra/최종 인프라 논리 구조.png)
 - [최종 인프라 물리 구조](current/infra/최종 인프라 물리 구조.png)
@@ -41,6 +44,13 @@
 - WBS
 - 팀플 화면설계서
 
+## 발표용 최종 자료
+
+- [2026-08-19 검증 기준 최신 자료](final-delivery/2026-08-17/README.md)
+  - `Musubi_클라우드아키텍처_최신.docx`
+  - `Musubi_AI_변경사항_최신.docx`
+- [WBS·IA·요구사항·기획·기능·화면설계 최종본](final-delivery/2026-08-14/)
+
 ### 백엔드
 
 - 백엔드 구조
@@ -55,7 +65,8 @@
 
 문서 간 내용이 충돌할 경우 다음 순서로 판단합니다.
 
-1. 현재 실행 중인 코드와 AI 서버 상태
-2. `current/` 문서
-3. `reference/` 문서
-4. `archive/` 문서
+1. 현재 실행 중인 코드와 운영 서버 상태
+2. 2026-08-19 검증 기준 발표용 최신 자료
+3. `current/` 문서
+4. `reference/` 문서
+5. `archive/` 문서

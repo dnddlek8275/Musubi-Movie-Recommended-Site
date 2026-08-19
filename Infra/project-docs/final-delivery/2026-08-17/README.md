@@ -1,19 +1,20 @@
-# Musubi 발표용 최신 자료 — 2026-08-17
+# Musubi 발표용 최신 자료 — 2026-08-19 검증
 
-이 폴더는 2026-08-17 기준으로 갱신한 발표 준비용 산출물이다.
+폴더명은 최초 산출일인 2026-08-17을 유지하며, 아래 두 문서는
+2026-08-19 운영 상태와 검증 결과를 반영해 갱신했다.
 
 ## 이번에 신규·갱신한 문서
 
 - `Musubi_클라우드아키텍처_최신.docx`
   - 현재 운영 인스턴스·서브넷·트래픽 경로
-  - 단일 T4 병목 측정 결과
-  - 2026-08-18 완료된 멀티 AZ 10 VM 및 이중 로드 밸런서 구성
+  - 멀티 AZ 10 VM 및 이중 로드 밸런서 구성 완료 상태
+  - KKE·GPU·PostgreSQL Primary–Standby 검증 결과
   - 운영 점검·검증·롤백 절차
 - `Musubi_AI_변경사항_최신.docx`
-  - 현재 운영 모델과 llama.cpp 기준
+  - 현재 운영 모델·llama.cpp·이중 GPU 기준
   - 캐릭터·일반 대화·추천·검색 파이프라인 변경
   - 회귀·스모크·부하 검증 결과
-  - 이번 소스 배포 범위와 알려진 한계
+  - 2026-08-19 GPU-B → GPU-A 롤링 배포 범위와 알려진 한계
 
 ## 기존 최종 산출물
 
@@ -30,8 +31,12 @@ WBS, IA, 요구사항정의서, 기획서, 기능정의서, 화면설계서는
 - `AI/eval/AI_CHANGELOG_20260817.md`
 - `AI/eval/PREDEPLOY_VERIFICATION_20260816.md`
 - `AI/eval/PRODUCTION_CANARY_DEPLOYMENT_20260816.md`
+- `AI/eval/ITERATIVE_REFINEMENT_20260818.md`
 
-## 배포 기록
+## 최종 확인 기록
 
-Git 커밋, 이미지 태그, Kubernetes rollout, AI API 스모크 결과는 실제 배포 완료 후
-이 섹션에 확정값으로 기록한다.
+- GitHub `main`: `54ef57fa1f04b07fc47d1d3c813b071f367f6ba7`
+- 인프라: 멀티 AZ 10 VM, Public/AI HA, PostgreSQL Primary–Standby 구성 완료
+- AI: GPU-B → GPU-A 순서로 런타임 10개 파일 롤링 배포 완료
+- AI 검증: 432 tests + 108 subtests 통과, 양쪽 서비스 health 및 추천 스모크 확인
+- 미확인: 해당 배포 세션에서 운영 Kubernetes의 `AI_BASE_URL` 실적용 여부
