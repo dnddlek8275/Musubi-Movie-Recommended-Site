@@ -1,34 +1,31 @@
-# Musubi — AI 영화 추천·캐릭터 대화 플랫폼
+# Musubi — AI Movie Recommendation and Character Conversation Platform
 
 [![CI](https://github.com/dnddlek8275/Musubi-Movie-Recommended-Site/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/dnddlek8275/Musubi-Movie-Recommended-Site/actions/workflows/ci.yaml)
 
-Musubi는 영화 탐색과 개인화 추천, 리뷰·활동 기록, AI 영화 추천 및 영화
-캐릭터 대화를 제공하는 웹 서비스입니다. React·FastAPI 애플리케이션과
-GPU 기반 RAG/LLM 서비스, KakaoCloud 배포 구성을 하나의 저장소에서
-관리합니다.
+Musubi is a web platform for movie discovery, personalized recommendations, reviews and activity tracking, AI-assisted movie recommendations, and conversations with movie characters. This monorepo contains the React and FastAPI applications, GPU-backed RAG/LLM services, and KakaoCloud deployment configuration.
 
-- 서비스: [movieverse.cloud](https://movieverse.cloud)
-- 운영 기준 브랜치: `main`
-- 인프라 기준일: 2026-08-19
+- Service: [movieverse.cloud](https://movieverse.cloud)
+- Production reference branch: `main`
+- Infrastructure snapshot: August 19, 2026
 
-## 주요 기능
+## Features
 
-- 제목·장르·배우·감독·키워드 기반 분류형 영화 검색
-- 온보딩 취향, 조회·검색·좋아요·찜·별점을 반영한 개인화 추천
-- 영화 좋아요·찜·0.5점 단위 별점·스포일러 리뷰·최근 활동 관리
-- 무무 일반 대화와 영화 캐릭터 1:1·그룹 대화
-- Milvus RAG와 Gemma 4 12B 기반 영화 추천 응답
-- TMDB·KOBIS 영화·박스오피스 데이터 정기 동기화
-- 이메일 인증, 비밀번호 재설정, JWT 기반 인증과 관리자 기능
+- Faceted movie search by title, genre, actor, director, and keyword
+- Personalized recommendations based on onboarding preferences, views, searches, likes, watchlists, and ratings
+- Likes, watchlists, half-star ratings, spoiler-aware reviews, and recent activity management
+- General conversations with Mumu and one-on-one or group conversations with supported movie characters
+- Movie recommendation responses backed by Milvus RAG and Gemma 4 12B
+- Scheduled synchronization of TMDB and KOBIS movie and box-office data
+- Email verification, password reset, JWT authentication, and administration features
 
-## 운영 아키텍처
+## Production Architecture
 
 ```mermaid
 flowchart LR
-    U[사용자] --> PH[Public ALB HA Group]
+    U[User] --> PH[Public ALB HA Group]
     PH --> PA[Public ALB / AZ-A]
     PH --> PB[Public ALB / AZ-B]
-    PA --> K[KKE Worker 4대 / 2개 AZ]
+    PA --> K[KKE: 4 Workers / 2 AZs]
     PB --> K
     K --> F[Frontend Pods]
     K --> B[Backend Pods]
@@ -42,84 +39,71 @@ flowchart LR
     B --> O[Object Storage]
 ```
 
-Frontend와 Backend는 Private KKE Cluster에서 실행하며 두 가용 영역의
-Worker 4대에 분산합니다. 외부 트래픽은 Public Application Load Balancer
-A/B와 HA Group을 거쳐 ingress-nginx로 전달됩니다. AI 서비스는 두 대의
-Tesla T4 전용 VM과 Internal ALB로 분리합니다. PostgreSQL Primary는 전용
-VM에서 운영하고 AZ-B Standby와 수동 승격 절차를 포함한 멀티 AZ 인프라
-구성을 완료했습니다. 운영 상태는 정기 점검과 모니터링으로 관리합니다.
+The frontend and backend run in a private KKE cluster across four workers in two availability zones. External traffic passes through the public Application Load Balancers and HA group before reaching ingress-nginx. AI workloads run separately on two Tesla T4 VMs behind an internal ALB. PostgreSQL runs on a dedicated primary VM with an AZ-B standby, asynchronous streaming replication, and a documented manual promotion procedure.
 
-현재 세부 상태와 완료 판정 기준은
-[멀티 AZ 아키텍처 문서](Infra/project-docs/current/infra/multi-az-architecture.md)를
-기준으로 합니다.
+See the [multi-AZ architecture document](Infra/project-docs/current/infra/multi-az-architecture.md) for the current detailed status and completion criteria.
 
-## 기술 스택
+## Tech Stack
 
-| 영역 | 기술 |
+| Area | Technologies |
 | --- | --- |
 | Frontend | React 19, Vite 6, JavaScript, CSS, Nginx |
 | Backend | Python, FastAPI, SQLAlchemy, Alembic, Pydantic, JWT |
-| Database | PostgreSQL, PgBouncer, Object Storage 백업 |
+| Database | PostgreSQL, PgBouncer, Object Storage backups |
 | AI | Gemma 4 12B GGUF, llama.cpp, Milvus, FlagEmbedding, CrossEncoder |
 | Infrastructure | KakaoCloud, KKE, ALB, Kubernetes, ingress-nginx, Docker, Kustomize |
-| Delivery | GitHub Actions, Container Registry, 운영자 승인 배포 |
+| Delivery | GitHub Actions, Container Registry, operator-approved deployment |
 
-## 저장소 구성
+## Repository Structure
 
 ```text
 .
-├── AI/          # RAG, 추천·대화 파이프라인, GPU AI API와 평가
-├── Backend/     # FastAPI API, 인증, 데이터·PostgreSQL 연동
-├── Frontend/    # React 웹 애플리케이션과 Nginx 구성
-├── Infra/       # Kubernetes, 클라우드 문서, 보조 도구와 로컬 Compose
+├── AI/          # RAG, recommendation and conversation pipelines, GPU API, evaluation
+├── Backend/     # FastAPI, authentication, data access, PostgreSQL integration
+├── Frontend/    # React web application and Nginx configuration
+├── Infra/       # Kubernetes, cloud documentation, tools, and local Compose
 └── README.md
 ```
 
-CI/CD에 필요한 `.github/`와 비밀정보 제외 규칙인 `.gitignore`도 함께
-유지합니다. 운영 비밀번호, API 키, SSH 키, 모델 가중치와 데이터 파일은
-저장소에 포함하지 않습니다.
+The repository also maintains `.github/` for CI/CD and `.gitignore` rules for sensitive or generated files. Production credentials, API keys, SSH keys, model weights, and data files are not committed.
 
-## 로컬 통합 실행
+## Local Development
 
-Docker Desktop 또는 Docker Engine과 Docker Compose가 필요합니다. 환경값은
-각 구성 요소의 `.env.example`을 복사해 입력합니다.
+Docker Desktop or Docker Engine with Docker Compose is required. Copy the relevant `.env.example` files and provide the required environment values before starting the services.
 
 ```bash
 docker compose -f Infra/compose.yaml up -d --build
 ```
 
-| 서비스 | 주소 |
+| Service | Address |
 | --- | --- |
-| 웹 애플리케이션 | `http://localhost:8088` |
+| Web application | `http://localhost:8088` |
 | Backend API | `http://localhost:8080` |
 | Swagger UI | `http://localhost:8080/docs` |
-| Health Check | `http://localhost:8080/health` |
+| Health check | `http://localhost:8080/health` |
 
-종료:
+Stop the local stack with:
 
 ```bash
 docker compose -f Infra/compose.yaml down
 ```
 
-## 구성 요소별 안내
+## Component Documentation
 
 - [Frontend](Frontend/README.md)
 - [Backend](Backend/README.md)
 - [AI](AI/README.md)
 - [Infrastructure](Infra/README.md)
-- [프로젝트 문서](Infra/project-docs/README.md)
+- [Project documentation](Infra/project-docs/README.md)
 
 ## CI/CD
 
-GitHub Actions는 Frontend·Backend 검사와 운영 이미지 빌드 및 Container
-Registry Push를 담당합니다. Kubernetes 운영 배포는 이미지 태그,
-데이터베이스 마이그레이션과 상태 확인을 검토한 뒤 운영자가 승인하여
-진행합니다.
+GitHub Actions validates the frontend and backend, builds production images, and pushes them to the container registry. Production Kubernetes deployment is operator-approved after reviewing image tags, database migrations, and service health.
 
-## 운영 원칙
+## Operating Principles
 
-- `main`을 제출·발표·운영 기준 브랜치로 사용합니다.
-- 다음 변경은 `dev`에서 검증한 뒤 `main`으로 반영합니다.
-- 비밀정보, SSH 키, GGUF 모델, 운영 DB와 Milvus 데이터는 커밋하지 않습니다.
-- AI 운영 모델과 벡터 데이터는 GPU 서버 및 별도 백업 정책으로 관리합니다.
-- 문서가 충돌하면 실행 중인 코드와 `Infra/project-docs/current/`를 우선합니다.
+- `main` is the reference branch for release, presentation, and production.
+- Changes are validated in `dev` before being integrated into `main`.
+- Secrets, SSH keys, GGUF models, production databases, and Milvus data are never committed.
+- Production AI models and vector data are managed on the GPU servers under a separate backup policy.
+- When documentation conflicts, the running code and `Infra/project-docs/current/` take precedence.
